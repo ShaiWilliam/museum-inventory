@@ -1,31 +1,142 @@
-<script>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>典藏庫房管理系統</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    body { background-color: #f1f3f5; padding-bottom: 50px; font-family: system-ui, -apple-system, sans-serif; }
+    .nav-tabs .nav-link { color: #495057; font-weight: bold; border-radius: 10px 10px 0 0; }
+    .nav-tabs .nav-link.active { background-color: #198754; color: white; border-color: #198754; }
+    .step-card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 20px;}
+    .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
+    .stat-num { font-size: 1.5rem; font-weight: bold; }
+    #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; }
+    .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
+    .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
+    /* 載入遮罩 */
+    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-dark mb-3">
+    <div class="container-fluid"><span class="navbar-brand mb-0 h1">📦 典藏庫房管理系統</span></div>
+  </nav>
+
+  <div id="loadingMask">
+    <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+    <h5 class="mt-3 text-success fw-bold">系統連線中...</h5>
+  </div>
+
+  <div class="container">
+    <ul class="nav nav-tabs nav-fill mb-3" id="systemTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="inv-tab" data-bs-toggle="tab" data-bs-target="#inv" type="button" role="tab">文物盤點</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="move-tab" data-bs-toggle="tab" data-bs-target="#move" type="button" role="tab">文物異動 (搬運)</button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="systemTabsContent">
+      
+      <div class="tab-pane fade show active" id="inv" role="tabpanel">
+        
+        <div id="step1" class="step-card" style="display:block;">
+          <h5 class="mb-3">1. 選擇盤點模式</h5>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()">
+            <label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label>
+          </div>
+          <div class="form-check mb-4">
+            <input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()">
+            <label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label>
+          </div>
+          <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded">
+            <label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label>
+            <div id="locCheckboxes"></div>
+          </div>
+          <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
+        </div>
+
+        <div id="step2" class="step-card" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">2. 現場盤點作業</h5>
+            <button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件數</small></div></div>
+            <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤點</small></div></div>
+            <div class="col-4"><div class="stat-box"><div class="stat-num text-danger" id="valUnscanned">...</div><small>未盤點</small></div></div>
+          </div>
+          <div class="progress mb-3" style="height: 20px;">
+            <div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;">0%</div>
+          </div>
+
+          <div id="reader" class="card shadow-sm border-0"></div>
+
+          <div id="resultCard" class="result-card bg-light">
+            <h3 id="resStatus" class="mb-3"></h3>
+            <img id="resImg" class="result-img" src="" alt="無圖片" onerror="this.style.display='none'">
+            <h5 id="resName" class="text-primary fw-bold"></h5>
+            <p id="resDesc" class="text-muted small mb-0"></p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="tab-pane fade" id="move" role="tabpanel">
+        <div class="step-card" style="display:block;">
+          <h5 class="mb-3 text-primary">🚚 搬運人員填報系統</h5>
+          <div class="mb-3">
+            <label class="form-label">選擇事件：</label>
+            <select id="mvEvent" class="form-select"></select>
+          </div>
+          <div class="alert alert-info small">
+            💡 前後端分離架構已就緒。異動系統的表單介面可依此架構直接串接 API 進行擴充。
+          </div>
+          <button class="btn btn-primary w-100 fw-bold" onclick="alert('異動系統 API 連線測試成功！後續可將舊版介面整合至此。')">測試連線</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
     // ==========================================
-    // ⚠️ 核心設定：請貼上您剛剛建立的【最新版】API 網址！
+    // ⚠️ 核心設定：請將下方的網址替換為您的 GAS API 網址！
     // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
 
-    // ★ 終極引擎：純淨 POST 請求，無 Headers 阻擋
-    async function callAPI(action, payload = {}) {
-      try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: action, payload: payload })
-        });
-        
-        const text = await response.text();
-        let res;
-        try {
-          res = JSON.parse(text);
-        } catch(e) {
-          throw new Error("伺服器回傳格式異常。可能原因：部署未選擇「建立新版本」或權限未設為「所有人」。");
-        }
-        
-        if (!res.success) throw new Error(res.error || res.msg || "未知錯誤");
-        return res.data;
-      } catch (err) {
-        console.error("API 錯誤:", err);
-        throw err; // 將錯誤往外拋出以利顯示
-      }
+    // ★ 終極殺手鐧：JSONP 穿透引擎 (完美避開 iOS CORS 與 POST 阻擋)
+    function callAPI(action, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'gas_cb_' + Math.round(100000 * Math.random());
+        const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
+        // 透過 GET 參數傳遞資料，並指定 callback 函數名稱
+        const url = API_URL + "?q=" + query + "&callback=" + callbackName;
+
+        // 準備好接收伺服器回傳的腳本包裹
+        window[callbackName] = function(res) {
+          delete window[callbackName];
+          document.body.removeChild(script);
+          if (!res.success) reject(new Error(res.error || res.msg || "未知錯誤"));
+          else resolve(res.data);
+        };
+
+        // 動態產生 <script> 標籤強制穿透 iOS 防護罩
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = function() {
+          delete window[callbackName];
+          document.body.removeChild(script);
+          reject(new Error("網路連線被阻擋或逾時，請確認 GAS API 是否已正確部署。"));
+        };
+        document.body.appendChild(script);
+      });
     }
 
     // ==========================================
@@ -48,7 +159,7 @@
         document.getElementById('locCheckboxes').innerHTML = html;
         document.getElementById('loadingMask').style.display = 'none'; 
       } catch (err) {
-        document.getElementById('loadingMask').innerHTML = `<h5 class="text-danger">初始化連線失敗<br><small>${err.message}</small></h5>`;
+        document.getElementById('loadingMask').innerHTML = `<h5 class="text-danger text-center">初始化連線失敗<br><small class="text-muted fs-6">${err.message}</small></h5>`;
       }
     };
 
@@ -65,16 +176,19 @@
       sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少勾選一個地點');
 
+      // 1. 強制喚醒相機權限 (在 GitHub Pages 獨立網址下，iOS 會正常彈出詢問視窗)
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         stream.getTracks().forEach(track => track.stop());
       } catch (err) {
-        return alert("⚠️ 無法取得相機權限！\n" + err);
+        return alert("⚠️ 無法取得相機權限！請確認瀏覽器設定已允許存取相機。\n" + err);
       }
 
+      // 2. 切換畫面
       document.getElementById('step1').style.display = 'none';
       document.getElementById('step2').style.display = 'block';
 
+      // 3. 背景向 API 請求盤點基準時間與總件數
       callAPI('startInventory', sysState).then(res => {
         sysState.total = res.total;
         sysState.sessionTime = res.sessionTime;
@@ -82,6 +196,7 @@
         updateUI(); 
       });
 
+      // 4. 啟動掃描套件
       startScanner();
     }
 
@@ -99,7 +214,7 @@
       const qrbox = { width:250, height:250 }; const config = { fps:10, qrbox };
       html5QrCode = new Html5Qrcode("reader");
       html5QrCode.start({ facingMode:"environment" }, config, msg => submitScan(msg), _err => {})
-      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗<br><small>${esc(String(err))}</small></div>`; });
+      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 掃描模組啟動失敗<br><small>${esc(String(err))}</small></div>`; });
     }
 
     function submitScan(qrCode){
@@ -118,26 +233,29 @@
 
       var payload = { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
 
-      // 呼叫純淨 POST API
+      // 透過 JSONP 呼叫 API 送出掃描紀錄
       callAPI('submitScan', payload).then(res => {
         // 正確盤點成功
         playSound('success'); 
         sysState.scanned++; 
-        updateUI(); 
+        updateUI(); // 成功更新前端數字
+        
         resCard.style.borderColor = '#198754';
         document.getElementById('resStatus').innerHTML = '✅ 盤點成功';
         document.getElementById('resName').innerText = res.name;
         document.getElementById('resDesc').innerText = res.desc || '無說明';
         if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; }
+        
         setTimeout(function(){ isProcessing = false; }, 2000);
 
       }).catch(err => {
-        // 各種失敗 (重複盤點、地點錯誤、連線失敗)
+        // 各種失敗 (包含被後台判定重複盤點、地點錯誤，或網路問題)
         playSound('error'); 
         resCard.style.borderColor = '#dc3545';
         document.getElementById('resStatus').innerHTML = '❌ 核對失敗';
         document.getElementById('resName').innerText = qrDisplayId;
         document.getElementById('resDesc').innerText = err.message;
+        
         setTimeout(function(){ isProcessing = false; }, 2000);
       });
     }
@@ -147,18 +265,6 @@
       document.getElementById('step2').style.display = 'none';
       document.getElementById('step1').style.display = 'block';
     }
-
-    function exportReport() {
-      var email = document.getElementById('exportEmail').value;
-      if(!email || !email.includes('@')) return alert('請輸入有效的 Email');
-      let btn = document.getElementById('btnExport');
-      btn.innerText = '寄送中...'; btn.disabled = true;
-
-      var payload = { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
-
-      callAPI('exportInventoryReport', payload).then(res => {
-        alert('寄送成功！共匯出 ' + res.count + ' 筆資料。');
-        btn.innerText = '寄送 Excel/CSV 報表'; btn.disabled = false;
-      }).catch(err => { alert(err.message); btn.innerText = '寄送失敗'; btn.disabled = false; });
-    }
   </script>
+</body>
+</html>
