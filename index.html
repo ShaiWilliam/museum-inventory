@@ -15,6 +15,7 @@
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
     
+    /* 掃描器與浮動卡片樣式 */
     #reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
     #reader { width: 100% !important; border: none !important; }
     
@@ -33,6 +34,7 @@
     .result-img { max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 5px; margin-right: 15px; }
     #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     
+    /* 折疊選單與大型觸控按鈕 */
     .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
     .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
@@ -191,9 +193,11 @@
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
+    // ⭐ 終極防當機修正：強制使用 GET 傳輸，徹底避開 GAS 的 POST 重新導向陷阱！
     async function callAPI(action, payload = {}) {
       try {
-        const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: action, payload: payload }) });
+        const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
+        const response = await fetch(API_URL + "?q=" + query, { method: 'GET' });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
@@ -220,13 +224,12 @@
       } catch (err) { 
         alert("⚠️ 系統載入異常！\n如果選單空白，通常是因為 GAS 後端尚未「發布為新版本」，導致前端讀不到新格式的資料。\n錯誤細節：" + err.message); 
       } finally {
-        // ⭐ 不論成功失敗，都強制解除透明遮罩，恢復點擊功能
         hideLoading(); 
       }
     };
 
     function populateSelect(id, arr, isObj = false) { 
-        if (!arr || !Array.isArray(arr)) return; // 防呆：如果後端沒給陣列就不處理
+        if (!arr || !Array.isArray(arr)) return; 
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
@@ -380,7 +383,6 @@
       try { const res = await callAPI('getPendingLocations', { eventId: eid }); pendingLocTree = res.locTree || []; d.placeholder = "請選擇..."; hideLoading(); } catch (e) { alert(e.message); hideLoading(); }
     }
     
-    // ⭐ 修復 Modal 多重堆疊記憶體洩漏問題
     function triggerMvLoc() { 
       if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！');
       currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
