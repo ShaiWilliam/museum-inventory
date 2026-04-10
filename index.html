@@ -2,290 +2,1162 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <title>文物盤點、查詢及異動系統</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>典藏庫房管理系統</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    body { background-color: #f1f3f5; padding-bottom: 60px; font-family: system-ui, -apple-system, sans-serif; }
-    .nav-tabs .nav-link { color: #495057; font-weight: bold; border-radius: 10px 10px 0 0; font-size: 0.9rem; padding: 10px 5px;}
-    .nav-tabs .nav-link.active { background-color: #198754; color: white; border-color: #198754; }
-    .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
-    .step-card.active { display: block; }
-    .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
-    .stat-num { font-size: 1.5rem; font-weight: bold; }
-    #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 12px; }
-    .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
-    .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
-    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .table-responsive { font-size: 0.85rem; }
-    .action-btn { width: 100%; margin-bottom: 5px; }
+    :root{ --radius:14px; --muted:#f6f7f8; --border:#e6e8eb; --text:#222; --accent:#2563eb; --accent-weak:#e7f0ff; --danger:#d93025; --success:#137333; --mask-bg: rgba(0,0,0,.28);
+      --scale: 1;
+      --fs-base: clamp(16px, 3.4vw, 18px);
+      --fs-title: clamp(18px, 4.4vw, 22px);
+      --fs-chip: clamp(13px, 3.2vw, 15px);
+      --pad-card: calc(12px * var(--scale));
+      --pad-btn: calc(12px * var(--scale));
+      --hit-min: 44px;
+    }
+    @media (max-width: 480px){ :root{ --scale: 1.15; } }
+    html { -webkit-text-size-adjust: 100%; }
+    body { font-family: system-ui, -apple-system, sans-serif; padding:16px; max-width:1000px; margin:auto; color:var(--text); font-size: var(--fs-base); }
+    h2 { margin: 8px 0 16px; font-weight: bold; }
+    button { cursor: pointer; min-height: var(--hit-min); padding: var(--pad-btn); }
+    .card { background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:var(--pad-card); margin-bottom: 15px;}
+    .stack { display:grid; gap:12px; }
+    .row { display:flex; gap:clamp(8px, 2.5vw, 12px); align-items:center; flex-wrap:wrap; }
+    .row-right { margin-left:auto; display:flex; gap:8px; }
+    .muted { color:#666; } .error { color:var(--danger); font-weight:600; } .success { color:var(--success); font-weight:600; }
+    img { max-width:100%; border-radius:8px; }
+    #reader { width:100%; margin-top:12px; border-radius: 10px; overflow: hidden; }
+
+    /* 四合一頁籤 */
+    .tabs { display:flex; background:var(--muted); border:1px solid var(--border); border-radius:999px; padding:4px; margin-bottom:16px; overflow-x: auto; white-space: nowrap;}
+    .tabs::-webkit-scrollbar { display: none; }
+    .tabs .tab { flex:1; border:0; background:transparent; padding:10px 12px; border-radius:999px; font-size:15px; font-weight:bold; color:#555;}
+    .tabs .tab.active { background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.06); color:var(--accent); }
+    .tabs.small .tab{ padding:8px 10px; font-size:14px; min-height:36px; }
+
+    .segmented { display:flex; background:var(--muted); border:1px solid var(--border); border-radius:999px; padding:4px; }
+    .segmented .seg { border:0; background:transparent; padding:10px 12px; border-radius:999px; font-size:15px; }
+    .segmented .seg.active { background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.06); font-weight:bold;}
+
+    #progressContainer { background:var(--muted); border-radius:var(--radius); padding:12px; }
+    .bar-bg { background: #ddd; height: 24px; border-radius: 12px; overflow: hidden; }
+    .bar-fill { background: #4caf50; height: 100%; width: 0%; text-align: center; color: white; line-height: 24px; font-size: 14px; transition: width .35s; font-weight:bold;}
+
+    details.zone, details.subgroup { border:1px solid var(--border); border-radius:var(--radius); background:#fff; overflow:hidden; }
+    details.zone + details.zone { margin-top:8px; }
+    summary { list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; gap:8px; }
+    summary::-webkit-details-marker { display:none; }
+    .z-title, .g-title { font-weight:600; }
+    .sm-right { margin-left:auto; display:flex; gap:8px; align-items:center; color:#555; font-size:13px; }
+    .chips-inline { display:flex; gap:6px; overflow:auto; max-width:60%; }
+    .chip { background:#f0f1f2; padding: 6px 10px; border-radius:999px; font-size:var(--fs-chip); line-height:1; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+    .chip .x{ border:0; background:transparent; cursor:pointer; padding:0 4px; font-size:14px; line-height:1; color:#555; }
+
+    .search { display:flex; gap:8px; align-items:center; padding: 0 0 10px; }
+    .toolbar { display:flex; gap:8px; padding:0 0 8px; flex-wrap:wrap; }
+    .toolbar button { padding:9px; border:1px solid var(--border); background:#fff; border-radius:10px; font-size:14px; }
+
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap:8px; padding: 0 14px 10px; }
+    .tag { background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; text-align:center; user-select:none; transition:transform .05s ease, background .15s ease, border-color .15s ease; }
+    .tag:active { transform:scale(0.98); }
+    .tag.selected { background:var(--accent-weak); border-color:#6aa6ff; font-weight:bold;}
+
+    .subgroup.single summary.selected { background: var(--accent-weak); }
+    .mini-row { display:flex; align-items:center; gap:8px; padding:6px 0; }
+    .mini-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini-bar { flex:1; height:6px; background:#eee; border-radius:999px; overflow:hidden; }
+    .mini-bar > span { display:block; height:100%; background:#4caf50; width:0; }
+    .mini-num { width:auto; font-size:12px; color:#555; white-space:nowrap; }
+
+    .btn { padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; font-weight:500;}
+    .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .btn.block { width:100%; font-size:1.1rem; }
+    .btn.small { min-height:34px; padding:8px 10px; font-size:13px; border-radius:10px; }
+
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+    .result-grid { display:grid; grid-template-columns: 1fr; gap: clamp(10px, 2.8vw, 16px); }
+    .result-grid.cols-1 { grid-template-columns: 1fr !important; }
+    .result-grid.cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+    .result-grid.cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+
+    .art-card { display:grid; grid-template-rows: auto 1fr; gap:8px; }
+    .art-img { width:100%; aspect-ratio: 3 / 2; object-fit:cover; background:#f3f4f6; border-radius:10px; }
+    .title{ font-size: var(--fs-title); font-weight: 700; line-height: 1.25; margin: 4px 0 6px; }
+    .kv { font-size:13px; color:#444; line-height:1.55; } .kv b { color:#111; }
+
+    .desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .desc.expanded{ -webkit-line-clamp: unset; }
+
+    .result-grid.dense .kv-attr, .result-grid.dense .kv-size, .result-grid.dense .kv-level, .result-grid.dense .kv-rect, .result-grid.dense .kv-desc, .result-grid.dense .tags-row, .result-grid.dense .kv-note { display:none; }
+    .result-grid.dense .art-img{ aspect-ratio: 4 / 3; }
+    .result-grid.dense .title{ font-size: clamp(16px, 4vw, 18px); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .mask { position:fixed; inset:0; background:var(--mask-bg); display:flex; align-items:center; justify-content:center; z-index:9999; height: var(--vvh, 100vh); }
+    .mask[hidden]{ display:none; }
+    .mask-box { background:#fff; border-radius:16px; padding:14px 20px; box-shadow:0 8px 24px rgba(0,0,0,.18); display:flex; gap:12px; align-items:center; font-weight:bold;}
+    .spinner { width:22px; height:22px; border-radius:50%; border:3px solid #ccc; border-top-color:#4caf50; animation:spin .8s linear infinite; }
+
+    .pill { padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:#fff; font-size:13px; font-weight:500;}
+    .pill.active { background:var(--accent-weak); border-color:#6aa6ff; color:var(--accent); font-weight:bold;}
+
+    .ce-input{ flex:1; min-height: var(--hit-min); padding: 10px 12px; border:1px solid var(--border); border-radius:10px; font-size: 17px; line-height: 1.4; outline: none; background:#fff; user-select:text; }
+    .ce-input:empty::before{ content: attr(data-placeholder); color:#9aa0a6; pointer-events:none; }
+    .ce-input.single-line{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    table.table{ width:100%; border-collapse: collapse; }
+    .table th,.table td{ border-bottom:1px solid #eee; padding:10px 8px; text-align:left; font-size:14px; }
+    select, input[type=text], input[type=password]{ font-size:16px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; width:100%; box-sizing: border-box;}
+    label > input[type=checkbox]{ transform: translateY(1px); width:16px; height:16px;}
+
+    .popover { position:absolute; z-index:10000; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); padding:6px; max-height:240px; overflow:auto; min-width:220px; }
+    .popover .opt { padding:10px; border-radius:8px; cursor:pointer; font-size:15px;}
+    .popover .opt:hover { background:var(--accent-weak); color:var(--accent); font-weight:bold;}
+    .field-inline { display:flex; gap:6px; align-items:center; }
+    .field-inline input[type=text]{ flex:1; }
+
+    .chips-input{ flex:1; min-height: var(--hit-min); padding: 6px 8px; border:1px solid var(--border); border-radius:10px; background:#fff; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+    .chips-input input{ border:0; outline:none; padding:6px; font-size:16px; min-width:120px; flex:1; }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark mb-3">
-    <div class="container-fluid"><span class="navbar-brand mb-0 h1 fs-5">📦 典藏庫房管理系統</span></div>
-  </nav>
+  <h2>📦 典藏庫房管理系統</h2>
 
-  <div id="loadingMask">
-    <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
-    <h5 class="mt-3 text-success fw-bold">系統連線中...</h5>
+  <div class="tabs" role="tablist" aria-label="主功能">
+    <button type="button" class="tab active" data-tab="inv">文物盤點</button>
+    <button type="button" class="tab" data-tab="search">查詢系統</button>
+    <button type="button" class="tab" data-tab="move">文物異動(搬運)</button>
+    <button type="button" class="tab" data-tab="admin">管理後台</button>
   </div>
 
-  <div class="container px-2">
-    <ul class="nav nav-tabs nav-fill mb-2" id="systemTabs" role="tablist">
-      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">文物盤點</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">文物異動</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理後台</button></li>
-    </ul>
+  <div id="invRoot" class="stack">
+    <div class="card" id="mainPanel">
+      <div class="muted" style="margin-bottom:8px;">盤點模式</div>
+      <div class="segmented" role="tablist" aria-label="盤點模式">
+        <button type="button" class="seg active" data-value="all" aria-selected="true">全部盤點</button>
+        <button type="button" class="seg" data-value="partial" aria-selected="false">部分盤點</button>
+      </div>
+      <input type="hidden" id="mode" value="all">
 
-    <div class="tab-content">
-      <div class="tab-pane fade show active" id="inv">
-        <div id="step1" class="step-card active">
-          <h5 class="mb-3">選擇盤點模式</h5>
-          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
-          <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
-          <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded"><label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label><div id="locCheckboxes">載入中...</div></div>
-          <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
+      <div id="zonePanel" style="margin-top:16px; display:none;">
+        <div class="row" style="margin-bottom:8px;">
+          <div class="muted">選擇典藏地點（可複選）</div>
+          <div class="row-right"><button type="button" class="btn small" onclick="savePreset()">儲存組合</button></div>
         </div>
-
-        <div id="step2" class="step-card">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">現場盤點作業</h5><button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button></div>
-          <div class="row g-2 mb-2">
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件數</small></div></div>
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤點</small></div></div>
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-danger" id="valUnscanned">...</div><small>未盤點</small></div></div>
-          </div>
-          <div class="progress mb-3" style="height: 20px;"><div id="progressBar" class="progress-bar bg-success" style="width: 0%;">0%</div></div>
-          <div id="reader" class="card shadow-sm border-0"></div>
-          <div id="resultCard" class="result-card bg-light">
-            <h3 id="resStatus" class="mb-3"></h3><img id="resImg" class="result-img" src="" onerror="this.style.display='none'"><h5 id="resName" class="text-primary fw-bold"></h5><p id="resDesc" class="text-muted small mb-0"></p>
-          </div>
+        <div class="search"><div id="locationSearchCE" class="ce-input single-line" role="textbox" contenteditable="true" data-placeholder="搜尋區域/層位（例：東側小庫房）"></div></div>
+        <div class="toolbar">
+          <button type="button" onclick="selectAllVisible()">全選</button>
+          <button type="button" onclick="invertVisible()">反選</button>
+          <button type="button" onclick="clearAll()">清除</button>
         </div>
-
-        <div id="step3" class="step-card">
-          <h5 class="mb-3 text-center">✅ 盤點任務已暫停/結束</h5>
-          <div class="mb-3"><label>請輸入接收報表的 Email</label><input type="email" id="exportEmail" class="form-control" placeholder="example@email.com"></div>
-          <label>選擇匯出內容</label>
-          <select id="exportType" class="form-select mb-4">
-            <option value="all">匯出本次範圍之「全部名單」</option>
-            <option value="scanned">僅匯出「已盤點」名單</option>
-            <option value="unscanned">僅匯出「未盤點 (缺漏)」名單</option>
-          </select>
-          <button class="btn btn-primary w-100 mb-2" onclick="exportReport()" id="btnExport">寄送 Excel 報表</button>
-          <button class="btn btn-outline-secondary w-100" onclick="location.reload()">返回首頁</button>
-        </div>
+        <div id="presetRow" class="row" style="gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
+        <div id="zoneList"></div>
       </div>
 
-      <div class="tab-pane fade" id="move">
-        <div class="step-card active">
-          <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
-          <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select></div>
-          <div class="mb-3"><label class="form-label">選擇原典藏地點</label><select id="mvLoc" class="form-select" onchange="loadWorkerItems()" disabled><option value="">請先選擇事件</option></select></div>
-          <div class="mb-3"><label class="form-label">選擇要搬運的文物</label><select id="mvItem" class="form-select" disabled><option value="">請先選擇地點</option></select></div>
-          <hr>
-          <div class="mb-3"><label class="form-label text-success fw-bold">移往新地點</label><select id="mvNewLoc" class="form-select"></select></div>
-          <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox"><label class="form-check-label" for="mvIsBox">是否裝箱</label></div>
-          <div class="mb-3"><label class="form-label">輸入箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName" placeholder="例如：A01"></div>
-          <div class="mb-4"><label class="form-label text-danger fw-bold">搬運人員簽名</label><select id="mvStaff" class="form-select"></select></div>
-          <button class="btn btn-primary w-100 fw-bold fs-5" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
-        </div>
+      <div style="margin-top:20px;"><button class="btn primary block" onclick="startInventory()">🚀 開始盤點</button></div>
+    </div>
+
+    <div id="scanPanel" class="stack" style="display:none;">
+      <div class="row"><button class="btn" onclick="returnToMain()">🔙 暫停 / 返回</button></div>
+      <div id="reader" class="card shadow-sm border-0"></div>
+
+      <div id="progressContainer" class="card">
+        <strong style="font-size:1.1rem; color:#198754;">📊 盤點進度</strong>
+        <div class="bar-bg" style="margin-top:10px;"><div class="bar-fill" id="progressBar">0%</div></div>
+        <div id="progressText" class="muted" style="margin-top:8px; font-weight:500;"></div>
+        <div id="remainingBreakdown" style="margin-top:12px;"></div>
       </div>
 
-      <div class="tab-pane fade" id="mgr">
-        <div id="mgrLogin" class="step-card active">
-          <h5 class="mb-3 text-danger">🔒 管理員登入</h5>
-          <input type="password" id="mgrPwd" class="form-control mb-3" placeholder="請輸入管理員密碼">
-          <button class="btn btn-danger w-100 fw-bold" onclick="loginManager()">登入後台</button>
-        </div>
-        
-        <div id="mgrDashboard" class="step-card">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0 text-danger fw-bold">⚙️ 管理員面板</h5>
-            <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">登出</button>
-          </div>
-          <div class="mb-3"><label class="form-label">選擇審核專案</label><select id="mgrEvent" class="form-select" onchange="loadManagerData()"></select></div>
-          <input type="text" id="mgrNameInput" class="form-control mb-3" placeholder="請輸入您的姓名 (簽核用)">
-          
-          <ul class="nav nav-pills mb-3" id="mgrPills" role="tablist">
-            <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrPending">待確認</button></li>
-            <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已確認</button></li>
-          </ul>
-          
-          <div class="tab-content">
-            <div class="tab-pane fade show active" id="mgrPending">
-              <div class="table-responsive"><table class="table table-bordered table-striped" id="tablePending"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物資訊</th><th>新地點/箱號</th><th>操作</th></tr></thead><tbody></tbody></table></div>
-              <button class="btn btn-success action-btn fw-bold" onclick="batchApprove()">✅ 批次核准</button>
-              <button class="btn btn-danger action-btn fw-bold" onclick="batchReject()">❌ 批次退回</button>
-            </div>
-            <div class="tab-pane fade" id="mgrConfirmed">
-              <div class="table-responsive"><table class="table table-bordered table-striped" id="tableConfirmed"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物資訊</th><th>新地點/箱號</th><th>操作</th></tr></thead><tbody></tbody></table></div>
-              <button class="btn btn-warning action-btn fw-bold" onclick="batchRevert()">↩️ 批次撤銷確認</button>
-              <hr>
-              <button class="btn btn-dark w-100 fw-bold mt-2" onclick="syncToMaster()">💾 結案：同步至藏品總表</button>
-            </div>
-          </div>
-        </div>
+      <div class="two-col">
+        <button class="btn" onclick="showUncounted()">📋 尚未盤點清單</button>
+        <button class="btn" onclick="exportReport()">📤 匯出全部報表</button>
+      </div>
+      <div class="two-col">
+        <button class="btn" onclick="exportReportFiltered()">📤 匯出目前範圍</button>
+        <button class="btn" onclick="exportUncountedFiltered()">📤 匯出未盤點(目前範圍)</button>
       </div>
 
+      <div id="uncountedList" class="card" style="border-color:#ffc107;"></div>
+      <div class="card" id="info" style="display:none;"></div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <div id="searchRoot" class="stack" style="display:none;">
+    <div class="card">
+      <div class="search">
+        <div id="qCE" class="ce-input single-line" role="textbox" contenteditable="true" data-placeholder="輸入關鍵字（名稱／標籤／編號）"></div>
+        <button class="btn primary" id="btnSearch" onclick="runSearch(true)">搜尋</button>
+      </div>
+
+      <div class="toolbar">
+        <button class="pill" data-qk="uncounted" onclick="toggleQuick(this)">未盤點</button>
+        <button class="pill" data-qk="counted" onclick="toggleQuick(this)">已盤點</button>
+        <button class="pill" data-qk="img" onclick="toggleQuick(this)">有圖片</button>
+        <button class="pill" data-qk="noimg" onclick="toggleQuick(this)">無圖片</button>
+
+        <span class="row-right" style="gap:8px; align-items:center;">
+          <span class="muted" style="font-size:14px;">排序</span>
+          <select id="sort" onchange="runSearch()" style="width:auto; padding:6px; font-size:14px;">
+            <option value="time_desc">最近盤點 ⬇️</option>
+            <option value="time_asc">最近盤點 ⬆️</option>
+            <option value="name_asc">名稱 ⬆️</option>
+            <option value="name_desc">名稱 ⬇️</option>
+          </select>
+        </span>
+      </div>
+    </div>
+
+    <div id="searchResultCard" class="card">
+      <div class="row" style="margin-bottom:12px;">
+        <div class="row" style="gap:10px; align-items:center;">
+          <div><b id="resultCount" style="color:var(--accent); font-size:1.1rem;">0</b> 筆結果</div>
+          <div class="row" style="gap:8px; align-items:center;">
+            <div class="segmented view-toggle" role="group" aria-label="結果視圖">
+              <button class="seg" data-cols="1" data-dense="0" title="1×1 大卡">1×1</button>
+              <button class="seg" data-cols="2" data-dense="0" title="2×1 兩欄">2×1</button>
+              <button class="seg" data-cols="3" data-dense="0" title="3×1 三欄">3×1</button>
+              <button class="seg" data-cols="3" data-dense="1" title="3×2 小卡（精簡）">3×2</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row-right" style="gap:8px;">
+          <label style="font-size:13px; color:#555;">每頁</label>
+          <select id="pageSize" onchange="runSearch(true)" style="width:auto; padding:4px 8px; font-size:13px;">
+            <option>20</option><option>40</option><option>60</option><option>100</option>
+          </select>
+          <button class="btn small" onclick="prevPage()">⬅️ 上一頁</button>
+          <span class="muted" id="pageInfo" style="font-size:13px;">第 1 / 1 頁</span>
+          <button class="btn small" onclick="nextPage()">下一頁 ➡️</button>
+        </div>
+      </div>
+      <div id="results" class="result-grid cols-1"></div>
+    </div>
+  </div>
+
+  <div id="moveRoot" class="stack" style="display:none;">
+    <div id="move-mover" class="card">
+      <h3 style="color:var(--accent); margin-top:0;">🚚 搬運人員填報</h3>
+      <div class="stack" style="gap:16px;">
+        <label>選擇專案事件：<select id="mvEvent" onchange="onMoverEventChange()"></select></label>
+        
+        <label class="field-inline" style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="margin-bottom:4px;">操作人（搬運公司，可多位）：</span>
+          <div style="display:flex; width:100%; gap:8px;">
+            <div class="chips-input" id="mvOpsChips"><input type="text" id="mvOperator" placeholder="輸入姓名後按 Enter"></div>
+            <button class="btn" type="button" onclick="openPickListMulti(this,'操作人','mvOpsChips')">▼</button>
+          </div>
+        </label>
+
+        <label class="field-inline" style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="margin-bottom:4px;">本處/館方人員（可多位）：</span>
+          <div style="display:flex; width:100%; gap:8px;">
+            <div class="chips-input" id="mvStaffChips"><input type="text" id="mvStaff" placeholder="輸入姓名後按 Enter"></div>
+            <button class="btn" type="button" onclick="openPickListMulti(this,'本處人員','mvStaffChips')">▼</button>
+          </div>
+        </label>
+
+        <div class="row">
+          <span class="muted" id="mvLocPicked" style="font-weight:bold; color:#d93025;">已選 0 個地點</span>
+          <button class="btn primary row-right" onclick="moveLoadItems()">📥 載入待搬運清單</button>
+        </div>
+      </div>
+
+      <div id="mvStep1" class="stack" style="margin-top:20px;">
+        <div id="mvZonePanel" style="display:none; background:#f8f9fa; padding:12px; border-radius:10px; border:1px solid #ddd;">
+          <div class="muted mb-2">請從此事件中勾選地點</div>
+          <div class="search"><div id="mvLocationSearchCE" class="ce-input single-line" role="textbox" contenteditable="true" data-placeholder="可搜地點或編號"></div></div>
+          <div class="toolbar">
+            <button class="btn small" onclick="mvSelectAllVisible()">全選</button>
+            <button class="btn small" onclick="mvInvertVisible()">反選</button>
+            <button class="btn small" onclick="mvClearAll()">清除</button>
+          </div>
+          <div id="mvZoneList"></div>
+        </div>
+      </div>
+
+      <div id="mvStep2" class="stack" style="display:none; margin-top:15px; border-top:2px dashed #eee; padding-top:15px;">
+        <div class="row">
+          <button class="btn small" onclick="mvGoStep(1)">🔙 返回重選地點</button>
+          <span class="muted row-right" id="mvPicked" style="font-weight:bold; color:var(--success);">已選 0 件</span>
+        </div>
+        <div class="toolbar" style="background:#e7f0ff; padding:8px; border-radius:8px;">
+          <button class="btn small" onclick="moveSelectAll(true)">全選文物</button>
+          <button class="btn small" onclick="moveSelectAll(false)">全不選</button>
+        </div>
+        <div id="mvItemsList" class="stack" style="max-height:340px; overflow:auto; border:1px solid #eee; padding:10px; border-radius:8px;"></div>
+
+        <div class="stack" style="margin-top:10px; background:#fff3cd; padding:15px; border-radius:10px;">
+          <label style="font-weight:bold;">移往新地點 (暫存地點)：</label>
+          <div class="field-inline">
+            <input type="text" id="mvTempLoc" placeholder="例如：臨時庫-1區">
+            <button class="btn" type="button" onclick="openPickList(this,'暫存地點','mvTempLoc')">▼</button>
+          </div>
+
+          <label style="margin-top:10px;"><input type="checkbox" id="mvBoxed" onchange="document.getElementById('mvBoxNameWrap').style.display=this.checked?'':'none'"> 是否裝箱</label>
+          <label id="mvBoxNameWrap" style="display:none; margin-top:5px;">箱子名稱：<input type="text" id="mvBoxName" placeholder="例如：A-1箱"></label>
+          
+          <button class="btn block" style="background:#d93025; color:#fff; border:none; margin-top:15px;" onclick="moveSubmit()">📤 送出搬運單</button>
+        </div>
+        <div id="mvMsg" class="muted" style="text-align:center; font-weight:bold;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminRoot" class="stack" style="display:none;">
+    <div id="move-admin-login" class="card active">
+      <h3 style="color:var(--danger); margin-top:0;">🔒 管理員登入</h3>
+      <div class="stack">
+        <label>請輸入密碼：<input type="password" id="mvAdminPw" placeholder="輸入管理者密碼"></label>
+        <button class="btn block" style="background:var(--danger); color:white;" onclick="moveAdminLogin()">登入</button>
+      </div>
+      <div id="mvAdminLoginMsg" class="error" style="margin-top:10px; text-align:center;"></div>
+    </div>
+
+    <div id="move-admin" class="card" style="display:none;">
+      <div class="row" style="margin-bottom:15px;">
+        <h3 style="color:var(--danger); margin:0;">⚙️ 管理者核對面板</h3>
+        <button class="btn small row-right" onclick="location.reload()">登出</button>
+      </div>
+      
+      <div class="row" style="background:#f8f9fa; padding:12px; border-radius:10px; margin-bottom:15px;">
+        <label style="flex:1;">選擇專案：<select id="mvEventAdmin"></select></label>
+        <button class="btn" onclick="refreshMovementsAndProgress()">🔄 刷新資料</button>
+        <button class="btn" onclick="moveExportPdf()">📄 匯出 PDF</button>
+      </div>
+
+      <div style="font-size:14px; background:#e7f0ff; padding:10px; border-radius:8px; margin-bottom:15px; font-weight:500;">
+        <div id="mvAdminProgMove" style="margin-bottom:5px;"></div>
+        <div id="mvAdminProgVerify"></div>
+      </div>
+
+      <div class="tabs small" id="mvAdminTabs" role="tablist" style="background:#ffebee; border-color:#f5c6cb;">
+        <button type="button" class="tab active" data-view="pending" style="color:var(--danger);">待確認 (<span id="mvTabCountPending">0</span>)</button>
+        <button type="button" class="tab" data-view="verified" style="color:var(--success);">已確認 (<span id="mvTabCountVerified">0</span>)</button>
+      </div>
+
+      <div id="mvBulkBar" class="row" style="gap:8px; align-items:center; background:#f1f3f5; padding:8px; border-radius:8px; margin-bottom:10px;">
+        <span class="muted" id="mvBulkHint" style="font-weight:bold; color:var(--accent);">未選取</span>
+        <button class="btn small" type="button" onclick="adminSelectPage()">全選本頁</button>
+        <button class="btn small" type="button" onclick="adminClearSelection()">清除選取</button>
+        <button class="btn small" type="button" style="background:var(--success); color:white;" onclick="adminBulkVerify(true)">✅ 核准選取</button>
+        <button class="btn small" type="button" style="background:var(--danger); color:white;" onclick="adminBulkVerify(false)">❌ 撤銷選取</button>
+        <button class="btn small row-right" type="button" style="background:#ffc107;" onclick="adminOpenBulkInput(this)">📝 批次輸入暫存地點</button>
+      </div>
+
+      <div id="mvAreaBar" class="row" style="gap:8px; align-items:center; margin-bottom:8px;">
+        <label>過濾區域：<select id="mvAreaFilter" style="min-width:180px; padding:6px;"></select></label>
+        <input type="text" id="mvAreaSearch" placeholder="搜尋區域名稱" style="width:150px; padding:6px;">
+        <button class="pill" id="mvOnlyHasBtn" data-only="has">有暫存</button>
+        <button class="pill" id="mvOnlyEmptyBtn" data-only="empty">未填暫存</button>
+        <div id="mvAreaChips" class="chips-inline row-right"></div>
+      </div>
+
+      <div id="mvBoxBar" class="row" style="gap:8px; align-items:center; margin-bottom:15px;">
+        <label>過濾箱名：<select id="mvBoxFilter" style="min-width:180px; padding:6px;"></select></label>
+        <input type="text" id="mvBoxSearch" placeholder="搜尋箱名" style="width:150px; padding:6px;">
+        <div id="mvBoxChips" class="chips-inline row-right"></div>
+      </div>
+
+      <div style="overflow-x:auto; border:1px solid var(--border); border-radius:8px;">
+        <table class="table" id="mvTable" style="min-width:800px;">
+          <thead style="background:#f8f9fa;">
+          <tr>
+            <th style="width:100px;">核對/勾選</th>
+            <th>藏品資訊</th>
+            <th style="width:300px;">暫存地點（可就地修正）</th>
+            <th>裝箱資訊</th>
+            <th>人員紀錄</th>
+            <th>時間與動作</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="mvAdminMsg" class="muted" style="margin-top:10px; font-weight:bold; text-align:center;"></div>
+    </div>
+  </div>
+
+  <div id="pageMask" class="mask" role="alert" aria-live="polite" aria-busy="false" hidden>
+    <div class="mask-box">
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="mask-msg" style="font-size:1.1rem; color:var(--success);">處理中…</span>
+    </div>
+  </div>
+
   <script>
     // ==========================================
     // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
     // ==========================================
-    const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec";
 
-    // 共用全域變數與載入器
-    let workerLocations = [], workerStaff = [], workerEvents = [];
-    let currentManager = "";
-
-    function showLoading(msg = "系統連線中...") { document.querySelector('#loadingMask h5').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
-    function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
-
-    async function callAPI(action, payload = {}) {
-      try {
+    // ★ 終極引擎：JSONP 雙通道穿透
+    function callAPI(action, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'gas_cb_' + Math.round(100000 * Math.random());
         const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
-        const response = await fetch(API_URL + "?q=" + query, { method: 'GET' });
-        const res = await response.json();
-        if (!res.success) throw new Error(res.error || res.msg);
-        return res.data;
-      } catch (err) { throw new Error(err.message); }
+        const url = API_URL + "?q=" + query + "&callback=" + callbackName;
+
+        window[callbackName] = function(res) {
+          delete window[callbackName];
+          document.body.removeChild(script);
+          if (!res.success) reject(new Error(res.error || res.msg || "未知錯誤"));
+          else resolve(res.data);
+        };
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = function() {
+          delete window[callbackName];
+          document.body.removeChild(script);
+          reject(new Error("網路連線被阻擋或逾時，請確認 GAS API 設定。"));
+        };
+        document.body.appendChild(script);
+      });
     }
 
-    // ==================== 初始化 (取得下拉資料) ====================
-    window.onload = async function() {
-      try {
-        // 同時抓取盤點與搬運的初始資料
-        const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
-        
-        // 盤點介面賦值
-        let html = '';
-        invData.locations.forEach((loc, idx) => { html += `<div class="form-check"><input class="form-check-input loc-cb" type="checkbox" value="${loc}" id="cb${idx}"><label class="form-check-label" for="cb${idx}">${loc}</label></div>`; });
-        document.getElementById('locCheckboxes').innerHTML = html;
-        
-        // 搬運介面與管理員事件賦值
-        workerEvents = workData.events; workerLocations = workData.locations; workerStaff = workData.staff;
-        populateSelect('mvEvent', workerEvents); populateSelect('mgrEvent', workerEvents);
-        populateSelect('mvNewLoc', workerLocations); populateSelect('mvStaff', workerStaff);
-        
-        hideLoading(); 
-      } catch (err) {
-        document.getElementById('loadingMask').innerHTML = `<div class="container p-4"><h4 class="text-danger fw-bold text-center mb-3">⚠️ 系統連線失敗</h4><div class="alert alert-warning" style="white-space: pre-wrap; font-size:14px;">${err.message}</div></div>`;
-      }
+    // ★ RPC 智慧轉接器：無縫銜接舊版邏輯
+    function rpc(name, ...args) {
+      let payload = {};
+      if (name === 'recordScanWithFilter') payload = { qrCode: args[0], locations: args[1] };
+      else if (name === 'getEventItemsByLocations') payload = { eventId: args[0], locations: args[1] };
+      else if (args.length === 1) payload = args[0];
+      else if (args.length > 1) payload = args;
+      return callAPI(name, payload);
+    }
+    function rpcWithSoftTimeout(name, args, ms=15000) {
+      return new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => { if (!settled) { settled=true; resolve({status: 'timeout'}); } }, ms);
+        rpc(name, ...(args||[])).then(res => {
+          if (settled) return; settled = true; clearTimeout(timer); resolve({status: 'ok', res});
+        }).catch(err => {
+          if (settled) return; settled = true; clearTimeout(timer); resolve({status: 'err', err});
+        });
+      });
+    }
+
+    /* ===== 小工具：偽輸入框 API ===== */
+    function ceGet(id){ const el=document.getElementById(id); if(!el) return ''; return el.innerText.replace(/\s+/g,' ').trim(); }
+    function ceSet(id, val){ const el=document.getElementById(id); if(!el) return; el.textContent = val || ''; }
+    function ceOn(id, onInput, onEnter){
+      const el=document.getElementById(id); if(!el) return;
+      el.addEventListener('input', onInput);
+      el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); onEnter && onEnter(); } });
+    }
+
+    /* ===== 共享狀態/函式 ===== */
+    let html5QrCode, lastScanAt = 0;
+    const selected = new Set();
+    let allLocations = [];
+    let zones = [], filteredZones = [];
+    const zoneRefs = new Map(), sgRefs = new Map();
+    window._subsetMaps = [];
+    const viewMode = loadViewMode() || { cols: 1, dense: false };
+
+    const queryState = {
+      page: 1, total: 0, q: '',
+      quick: { uncounted:false, counted:false, img:false, noimg:false, recent30:false },
+      facets: { acqLevels:new Set(), jiangElems:new Set(), categories:new Set(), materials:new Set(), eras:new Set(), rectifies:new Set() },
+      sort: 'time_desc', pageSize: 20,
     };
-    function populateSelect(id, arr) { const el = document.getElementById(id); el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => `<option value="${x}">${x}</option>`).join(''); }
+    let facetValues = { acqLevels:[], jiangElems:[], categories:[], materials:[], eras:[], rectifies:[] };
 
-    // ==================== 1. 盤點系統邏輯 (已完美運作) ====================
-    let html5QrCode, lastScanAt = 0, sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 }, isProcessing = false;
-    function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
-    function esc(s){ return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
     function beep({freq=880, duration=120, type='sine'} = {}){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.type=type; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); osc.start(); setTimeout(()=>{osc.stop(); ctx.close();}, duration);}catch{} }
-    function playSound(kind){ if(kind==='success') beep({freq:1100,duration:140,type:'triangle'}); else beep({freq:550,duration:140,type:'square'}); }
+    function playSound(kind){ if(kind==='success') beep({freq:1100,duration:140,type:'triangle'}); else if(kind==='duplicate') beep({freq:550,duration:140,type:'square'}); else beep({freq:300,duration:200,type:'sawtooth'});}
 
-    async function startInventorySession() {
-      sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial';
-      sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
-      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少勾選一個地點');
-      try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！\n" + err); }
-      document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
-      callAPI('startInventory', sysState).then(res => { sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); }).catch(err => alert("進度讀取失敗：" + err.message));
+    let _maskTimer = null;
+    function showMask(msg='處理中…', delay=250){ const m=document.getElementById('pageMask'); m.querySelector('.mask-msg').textContent=msg; m.setAttribute('aria-busy','true'); clearTimeout(_maskTimer); _maskTimer=setTimeout(()=>{ m.hidden=false; }, delay); }
+    function hideMask(){ const m=document.getElementById('pageMask'); clearTimeout(_maskTimer); _maskTimer=null; m.hidden=true; m.setAttribute('aria-busy','false'); }
+    async function withMask(promiseOrFn, msg='處理中…', delay=250){ showMask(msg, delay); try{ return (typeof promiseOrFn==='function')?await promiseOrFn():await promiseOrFn; } finally{ hideMask(); } }
+
+    /* ===== 四合一頂部分頁切換 ===== */
+    document.addEventListener('click', (e) => {
+      const tab = e.target.closest('.tabs[aria-label="主功能"] .tab'); if (!tab) return;
+      if (html5QrCode) { try { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{}); } catch {} }
+
+      document.querySelectorAll('.tabs[aria-label="主功能"] .tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const which = tab.dataset.tab; // inv | search | move | admin
+      document.getElementById('invRoot').style.display = (which==='inv')? '' : 'none';
+      document.getElementById('searchRoot').style.display = (which==='search')? '' : 'none';
+      document.getElementById('moveRoot').style.display = (which==='move')? '' : 'none';
+      document.getElementById('adminRoot').style.display = (which==='admin')? '' : 'none';
+
+      if (which === 'move' || which === 'admin') initMoveAndAdmin();
+    });
+
+    /* ===== 盤點：模式 ===== */
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented .seg'); if (!btn || !btn.closest('#mainPanel')) return;
+      btn.parentElement.querySelectorAll('.seg').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('mode').value = btn.dataset.value;
+      const partial = btn.dataset.value === 'partial';
+      document.getElementById('zonePanel').style.display = partial ? 'block' : 'none';
+      updateProgress();
+    });
+
+    /* ===== 分群 & 地點 UI（共用工具） ===== */
+    const ZONES = [ { title: '西側典藏庫', test: /西側典藏庫/ }, { title: '東側大庫房', test: /東側大庫房/ }, { title: '東側小庫房', test: /東側小庫房/ }, { title: '常設展聽', test: /常設展[廳厅聽听]/ }, { title: '其他地點', test: /.*/ } ];
+    function categorizeZone(value){ for (const z of ZONES) if (z.test.test(value)) return z.title; return '其他地點'; }
+    function normalizeHyphen(s){ return s.replace(/[－–—]/g, '-'); }
+    function splitSubgroup(value){
+      const norm = normalizeHyphen(value); const idx = norm.lastIndexOf('-');
+      if (idx > 0) { const suf = norm.slice(idx+1); if (/\d/.test(suf)) return { base: norm.slice(0, idx), label: suf }; }
+      return { base: norm, label: '（無層位）' };
+    }
+    function buildZones(list){
+      const map = new Map();
+      list.forEach(loc => {
+        const zTitle = categorizeZone(loc); const { base, label } = splitSubgroup(loc);
+        const sg = map.get(zTitle)?.get(base) || { key: base, title: base, items: [] };
+        if (!map.get(zTitle)) map.set(zTitle, new Map());
+        sg.items.push({ value: loc, label }); map.get(zTitle).set(base, sg);
+      });
+      const collator = new Intl.Collator(undefined, { numeric:true, sensitivity:'base' });
+      const result = [];
+      for (const z of ZONES) {
+        const subMap = map.get(z.title); if (!subMap) continue;
+        const subs = Array.from(subMap.values()); subs.sort((a,b)=>collator.compare(a.title, b.title));
+        subs.forEach(sg => {
+          sg.items.sort((a,b)=>collator.compare(a.label, b.label));
+          sg.singleNoLevel = (sg.items.length === 1 && sg.items[0].label === '（無層位）');
+          const short = sg.title.replace(z.title, '').replace(/^[\s-]+/, ''); sg.titleShort = short || sg.title;
+        });
+        result.push({ title: z.title, subgroups: subs });
+      }
+      return result;
+    }
+
+    /* ===== 盤點：地點 UI ===== */
+    function renderZones(list){
+      const host = document.getElementById('zoneList'); host.innerHTML = ''; zoneRefs.clear(); sgRefs.clear();
+      list.forEach(zone => {
+        const zDetails = document.createElement('details'); zDetails.className = 'zone';
+        if (zone.subgroups.some(sg => sg.open)) zDetails.setAttribute('open', '');
+        const zSummary = document.createElement('summary');
+        zSummary.innerHTML = `<span class="z-title">${zone.title}</span><span class="sm-right"><span></span><span class="chips-inline"></span></span>`;
+        zDetails.appendChild(zSummary);
+
+        const zTools = document.createElement('div'); zTools.className = 'toolbar';
+        zTools.innerHTML = `<button class="small" type="button">全選本區</button><button class="small" type="button">清除本區</button>`;
+        zTools.children[0].onclick = ()=>{ zone.subgroups.forEach(sg=> sg.items.forEach(it=>selected.add(it.value))); updateZoneVisual(zone); };
+        zTools.children[1].onclick = ()=>{ zone.subgroups.forEach(sg=> sg.items.forEach(it=>selected.delete(it.value))); updateZoneVisual(zone); };
+        zDetails.appendChild(zTools);
+
+        const zCount = zSummary.querySelector('.sm-right span:first-child');
+        const zChips = zSummary.querySelector('.chips-inline');
+
+        zone.subgroups.forEach(sg => {
+          const sDetails = document.createElement('details'); sDetails.className='subgroup'; if (sg.singleNoLevel) sDetails.classList.add('single');
+          if (sg.open) sDetails.setAttribute('open',''); 
+
+          const sSummary = document.createElement('summary');
+          sSummary.innerHTML = `<span class="g-title">${sg.titleShort}</span><span class="sm-right"><span></span><span class="chips-inline"></span></span>`;
+          sDetails.appendChild(sSummary);
+          const sCount = sSummary.querySelector('.sm-right span:first-child');
+          const sChips = sSummary.querySelector('.chips-inline');
+
+          if (sg.singleNoLevel) {
+            sSummary.addEventListener('click', (e) => {
+              e.preventDefault(); const only = sg.items[0].value;
+              if (selected.has(only)) selected.delete(only); else selected.add(only);
+              updateSubgroupVisual(zone, sg);
+            });
+          } else {
+            const sTools = document.createElement('div'); sTools.className='toolbar';
+            sTools.innerHTML = `<button class="small" type="button">全選</button><button class="small" type="button">清除</button>`;
+            sTools.children[0].onclick = ()=>{ sg.items.forEach(it=>selected.add(it.value)); updateSubgroupVisual(zone, sg); };
+            sTools.children[1].onclick = ()=>{ sg.items.forEach(it=>selected.delete(it.value)); updateSubgroupVisual(zone, sg); };
+            sDetails.appendChild(sTools);
+
+            const grid = document.createElement('div'); grid.className='grid';
+            sg.items.forEach(it=>{
+              const el = document.createElement('div'); el.className = 'tag' + (selected.has(it.value) ? ' selected' : '');
+              el.textContent = it.label; el.title = it.value;
+              el.onclick = ()=>{ if (selected.has(it.value)) selected.delete(it.value); else selected.add(it.value); el.classList.toggle('selected', selected.has(it.value)); updateSubgroupVisual(zone, sg); };
+              grid.appendChild(el);
+            });
+            sDetails.appendChild(grid);
+          }
+
+          zDetails.appendChild(sDetails);
+          sgRefs.set(zone.title+'|'+sg.key, { countEl: sCount, chipsEl: sChips, gridEl: sDetails.querySelector('.grid') || null, summaryEl: sSummary, sg, zone });
+          updateSubgroupVisual(zone, sg);
+        });
+        host.appendChild(zDetails);
+        zoneRefs.set(zone.title, { countEl: zCount, chipsEl: zChips, zone }); updateZoneVisual(zone);
+      });
+    }
+    function updateSubgroupVisual(zone, sg){
+      const ref = sgRefs.get(zone.title+'|'+sg.key); if (!ref) return;
+      const picked = sg.items.filter(it=>selected.has(it.value));
+      ref.countEl.textContent = `已選 ${picked.length}/${sg.items.length}`;
+      const head = picked.slice(0, 6).map(it=>`<span class="chip">${it.label}</span>`).join('');
+      ref.chipsEl.innerHTML = head + (picked.length>6?`<span class="chip">+${picked.length-6}</span>`:'');
+      if (ref.gridEl) Array.from(ref.gridEl.children).forEach((el, idx)=>{ const it=sg.items[idx]; el.classList.toggle('selected', selected.has(it.value)); });
+      if (sg.singleNoLevel && ref.summaryEl) ref.summaryEl.classList.toggle('selected', picked.length > 0);
+      updateZoneVisual(zone);
+    }
+    function updateZoneVisual(zone){
+      const ref = zoneRefs.get(zone.title); if (!ref) return;
+      const allItems = zone.subgroups.flatMap(sg=>sg.items);
+      const picked = allItems.filter(it=>selected.has(it.value));
+      ref.countEl.textContent = `已選 ${picked.length}/${allItems.length}`;
+      const head = picked.slice(0, 6).map(it=>`<span class="chip">${it.label}</span>`).join('');
+      ref.chipsEl.innerHTML = head + (picked.length>6?`<span class="chip">+${picked.length-6}</span>`:'');
+    }
+
+    function matches(str, q){ return (str||'').toLowerCase().includes(q); }
+    function applyFilter(){
+      const q = ceGet('locationSearchCE').toLowerCase();
+      filteredZones = zones.map(zone=>{
+        const zoneHit = q && matches(zone.title, q);
+        const subs = zone.subgroups.map(sg=>{
+          const sgHit = q && (matches(sg.title, q) || matches(sg.titleShort, q));
+          let items; if (!q) items = sg.items.slice(); else if (zoneHit || sgHit) items = sg.items.slice(); else items = sg.items.filter(it => matches(it.label, q) || matches(it.value, q));
+          return { ...sg, items, open: !!q && (zoneHit || sgHit || items.length>0) };
+        }).filter(sg => sg.items.length>0);
+        const keep = subs.length>0 || zoneHit || !q;
+        return keep ? { title: zone.title, subgroups: subs } : null;
+      }).filter(Boolean);
+      renderZones(filteredZones);
+    }
+    function selectAllVisible(){ filteredZones.forEach(z => z.subgroups.forEach(sg => sg.items.forEach(it => selected.add(it.value)))); renderZones(filteredZones); }
+    function invertVisible(){ const vis=[]; filteredZones.forEach(z => z.subgroups.forEach(sg => sg.items.forEach(it => vis.push(it.value)))); vis.forEach(v => { if (selected.has(v)) selected.delete(v); else selected.add(v); }); renderZones(filteredZones); }
+    function clearAll(){ selected.clear(); renderZones(filteredZones); }
+    function getSelectedArray(){ return Array.from(selected); }
+
+    async function loadLocations(){
+      try{
+        const locations = await withMask(rpc('getLocations'), '載入地點資料…');
+        allLocations = locations || []; zones = buildZones(allLocations); filteredZones = zones.slice();
+        renderZones(filteredZones); renderPresets();
+      }catch(err){ document.getElementById('zoneList').innerHTML = `<div class="error">載入地點失敗：${err.message}</div>`; }
+    }
+
+    function getPresets(){ try { return JSON.parse(localStorage.getItem('inventory_presets')||'[]'); } catch { return []; } }
+    function setPresets(list){ localStorage.setItem('inventory_presets', JSON.stringify(list)); }
+    function renderPresets(){
+      const row = document.getElementById('presetRow'); row.innerHTML = ''; const presets = getPresets();
+      if (presets.length===0) { row.innerHTML='<div class="muted">尚未建立常用組合</div>'; return; }
+      presets.forEach(p=>{
+        const wrap=document.createElement('div'); wrap.style.display='flex'; wrap.style.gap='6px'; wrap.style.alignItems='center';
+        wrap.innerHTML = `<button class="btn small" title="${p.locations.join('、')}">${p.name}</button><button class="btn small text-danger">刪除</button>`;
+        wrap.children[0].onclick=()=>applyPreset(p.name);
+        wrap.children[1].onclick=()=>{ if(confirm(`刪除「${p.name}」？`)){ setPresets(getPresets().filter(x=>x.name!==p.name)); renderPresets(); } };
+        row.appendChild(wrap);
+      });
+    }
+    function savePreset(){ if (selected.size===0) { alert('請先勾選至少一個位置'); return; } const name=prompt('為此組合命名'); if(!name) return;
+      const presets=getPresets(); const payload={ name, locations:Array.from(selected) }; const idx=presets.findIndex(p=>p.name===name);
+      if(idx>=0) presets[idx]=payload; else presets.push(payload); setPresets(presets); renderPresets(); alert('已儲存'); }
+    function applyPreset(name){ const p=getPresets().find(p=>p.name===name); if(!p) return; selected.clear(); p.locations.forEach(loc=>{ if(allLocations.includes(loc)) selected.add(loc); }); ceSet('locationSearchCE',''); filteredZones=zones.slice(); renderZones(filteredZones); }
+
+    /* ===== 盤點流程 (已加入強制喚醒相機) ===== */
+    async function startInventory(){
+      const mode = document.getElementById('mode').value;
+      if (mode==='partial' && selected.size===0) { alert('請至少選擇一個位置/層位'); return; }
+      
+      try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！請檢查設定。\n" + err); }
+      
+      document.getElementById('mainPanel').style.display='none';
+      document.getElementById('scanPanel').style.display='block';
+      document.getElementById('info').style.display='none';
+      updateProgress(); startScanner();
+    }
+    function returnToMain(){ document.getElementById('scanPanel').style.display='none'; document.getElementById('mainPanel').style.display='block'; if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{}); } }
+    function endInventorySession(){ returnToMain(); }
+    
+    function startScanner(){
       html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {}).catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
+      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {})
+      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="error p-3">⚠️ 鏡頭初始化失敗<br><small>${esc(String(err))}</small></div>`; });
     }
-    function updateUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; var unscan = sysState.total - sysState.scanned; document.getElementById('valUnscanned').innerText = unscan < 0 ? 0 : unscan; var pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100); document.getElementById('progressBar').style.width = pct + '%'; document.getElementById('progressBar').innerText = pct + '%'; }
-    function submitScan(qrCode){
+    async function submitScan(qrCode){
       const now = Date.now(); if (now - lastScanAt < 800) return; lastScanAt = now;
-      if (!qrCode || sysState.sessionTime === 0 || isProcessing) return;
-      isProcessing = true; const qrDisplayId = qrCode.trim().split('\n')[0];
-      var resCard = document.getElementById('resultCard'); resCard.style.display = 'block'; resCard.style.borderColor = '#ffc107';
-      document.getElementById('resStatus').innerHTML = '⏳ 核對中...'; document.getElementById('resImg').style.display = 'none'; document.getElementById('resName').innerText = ''; document.getElementById('resDesc').innerText = '';
-      callAPI('submitScan', { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { playSound('success'); sysState.scanned++; updateUI(); resCard.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '✅ 盤點成功'; document.getElementById('resName').innerText = res.name; document.getElementById('resDesc').innerText = res.desc || '無說明'; if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; } setTimeout(function(){ isProcessing = false; }, 2000);
-      }).catch(err => { playSound('error'); resCard.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '❌ 核對失敗'; document.getElementById('resName').innerText = qrDisplayId; document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`; setTimeout(function(){ isProcessing = false; }, 2000); });
+      if (!qrCode) return;
+      const selectedArr = getSelectedArray();
+      const infoBox = document.getElementById('info'); infoBox.style.display='block';
+      infoBox.innerHTML = `<div class="muted">⏳ 雲端核對中... (${esc(qrCode.split('\n')[0])})</div>`;
+      try{
+        const res = await rpc('recordScanWithFilter', qrCode, selectedArr);
+        if (res.status === 'success') {
+          if (res.duplicate) { playSound('duplicate'); infoBox.innerHTML = `<div class="error">⚠️ 此文物剛剛已盤點過：${esc(res.name)}</div>`; } 
+          else {
+            playSound('success');
+            infoBox.innerHTML = `<div class="success mb-2">✅ 已盤點成功</div><strong>文物名稱：</strong>${esc(res.name)}<br><strong>典藏地點：</strong>${esc(res.location)}<br><strong>盤點時間：</strong>${esc(res.time)}<br><strong>說明：</strong>${esc(res.desc)}<br><img class="art-img mt-2" src="${esc(res.image)}" onerror="this.style.display='none'">`;
+            updateProgress();
+          }
+        } else { playSound('error'); infoBox.innerHTML = `<div class="error">${esc(res.message)}</div>`; }
+      }catch(err){ playSound('error'); infoBox.innerHTML = `<div class="error">掃描寫入失敗：${err.message}</div>`; }
     }
-    function endInventorySession() { if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); } document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; }
-    function exportReport() { var email = document.getElementById('exportEmail').value; if(!email || !email.includes('@')) return alert('請輸入 Email'); let btn = document.getElementById('btnExport'); btn.innerText = '寄送中...'; btn.disabled = true; callAPI('exportInventoryReport', { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { alert('寄送成功！'); btn.innerText = '寄送報表'; btn.disabled = false; }).catch(err => { alert(err.message); btn.innerText = '寄送失敗'; btn.disabled = false; }); }
+    async function updateProgress(){
+      const selectedArr = (document.getElementById('mode').value==='partial') ? getSelectedArray() : [];
+      try{
+        const partial = document.getElementById('mode').value === 'partial';
+        const data = await rpc('getInventoryProgress', selectedArr);
+        const stats = partial ? await rpc('getLocationStats', selectedArr) : null;
+        
+        const percent = data.total>0 ? Math.round(data.counted/data.total*100) : 0;
+        const bar = document.getElementById('progressBar'); bar.style.width = percent+'%'; bar.textContent = percent+'%';
+        document.getElementById('progressText').innerHTML = `✅ 已盤點：${data.counted} 　|　📦 總數：${data.total} 　|　⏳ 剩餘：${data.remaining}`;
+        if (partial && stats) renderRemainingBreakdown(stats); else document.getElementById('remainingBreakdown').innerHTML = '';
+      }catch(err){ document.getElementById('progressText').innerHTML = `<span class="error">取得進度失敗：${err.message}</span>`; }
+    }
+    function renderRemainingBreakdown(stats){
+      const box = document.getElementById('remainingBreakdown'); const collator = new Intl.Collator(undefined, { numeric:true, sensitivity:'base' });
+      const zoneMap = new Map(); window._subsetMaps = [];
+      stats.forEach(s => {
+        if (!s || s.total === 0) return; const zTitle = categorizeZone(s.location); const { base } = splitSubgroup(s.location);
+        const z = zoneMap.get(zTitle) || new Map(); const sg = z.get(base) || { title: base, total:0, counted:0, remaining:0, locs:new Set() };
+        sg.total += s.total; sg.counted += s.counted; sg.remaining += (s.total - s.counted); sg.locs.add(s.location); z.set(base, sg); zoneMap.set(zTitle, z);
+      });
+      const zonesData = [];
+      for (const [zTitle, subMap] of zoneMap) {
+        const subgroups = Array.from(subMap.values()).filter(sg => sg.remaining > 0).sort((a,b)=>collator.compare(a.title, b.title));
+        const zRemain = subgroups.reduce((a,b)=>a + b.remaining, 0);
+        if (zRemain > 0) zonesData.push({ title:zTitle, subgroups, remaining:zRemain });
+      }
+      zonesData.sort((a,b)=>b.remaining - a.remaining);
+      if (zonesData.length === 0) { box.innerHTML = '<div class="success" style="margin-top:6px;">🎉 目前範圍已全部盤點完成！</div>'; return; }
+      let html = `<div class="mb-2"><strong>📍 未盤點分佈</strong></div>`;
+      zonesData.forEach(z => {
+        html += `<details class="zone" open><summary><span class="z-title">${z.title}</span><span class="sm-right"><span class="chip">剩餘 ${z.remaining}</span></span></summary><div style="padding:0 14px 10px;">`;
+        z.subgroups.forEach(sg => {
+          const total = sg.total, counted = sg.counted; const percent = total>0 ? Math.round((counted/total)*100) : 0;
+          const short = sg.title.replace(z.title, '').replace(/^[\s-]+/, '') || sg.title;
+          const idx = window._subsetMaps.push(Array.from(sg.locs)) - 1;
+          html += `<div class="mini-row"><div class="mini-title">${short}</div><div class="mini-bar"><span style="width:${percent}%"></span></div><div class="mini-num">${counted}/${total}</div><button class="btn small" style="width:auto;padding:6px 10px;font-size:13px;" onclick="showUncountedSubset(${idx}, this)">清單</button></div>`;
+        });
+        html += `</div></details>`;
+      });
+      box.innerHTML = html;
+    }
+    async function showUncountedSubset(idx, btn){
+      const arr = window._subsetMaps[idx] || []; const box = document.getElementById('uncountedList');
+      try{ btn?.setAttribute('disabled','true'); const list = await withMask(rpc('getUncountedList', arr), '讀取清單中…');
+        if (!list || list.length===0) { box.innerHTML = '<div class="success p-3">🎉 此區已全部盤點！</div>'; return; }
+        let html = `<strong class="text-danger">⏳ 未盤點（共 ${list.length} 筆）：</strong><ul style="margin:8px 0 0 18px; font-size:14px;">`;
+        list.forEach(it => { html += `<li>${esc(it.qrcode.split('\n')[0])} - ${esc(it.name)}</li>`; }); box.innerHTML = html + `</ul>`;
+      }catch(err){ box.innerHTML = `<div class="error p-3">讀取失敗：${err.message}</div>`; } finally{ btn?.removeAttribute('disabled'); }
+    }
+    async function showUncounted(){
+      const selectedArr = (document.getElementById('mode').value==='partial') ? getSelectedArray() : []; const box = document.getElementById('uncountedList');
+      try{ const list = await withMask(rpc('getUncountedList', selectedArr), '讀取清單中…');
+        if (!list || list.length===0) { box.innerHTML = '<div class="success p-3">🎉 所有項目皆已盤點！</div>'; return; }
+        let html = `<strong class="text-danger">⏳ 未盤點清單（共 ${list.length} 筆）：</strong><ul style="margin:8px 0 0 18px; font-size:14px; max-height:300px; overflow:auto;">`;
+        list.forEach(it => { html += `<li>${esc(it.qrcode.split('\n')[0])} - ${esc(it.name)}</li>`; }); box.innerHTML = html + `</ul>`;
+      }catch(err){ box.innerHTML = `<div class="error p-3">讀取失敗：${err.message}</div>`; }
+    }
+    function placeDownloadLink(url, label){ const box=document.getElementById('uncountedList'); box.innerHTML=`<a href="${url}" target="_blank" class="btn primary block text-center" style="text-decoration:none;">${label}</a>`; }
+    async function exportReport(){ try{ const url=await withMask(rpc('exportToExcel'), '產生 Excel（全部）…'); placeDownloadLink(url,'📥 下載「全部」Excel'); }catch(err){ document.getElementById('uncountedList').innerHTML = `<div class="error">匯出失敗：${err.message}</div>`; } }
+    async function exportReportFiltered(){ try{ const url=await withMask(rpc('exportToExcelFiltered', getSelectedArray()), '產生 Excel（目前範圍）…'); placeDownloadLink(url,'📥 下載「目前範圍」Excel'); }catch(err){ document.getElementById('uncountedList').innerHTML = `<div class="error">匯出失敗：${err.message}</div>`; } }
+    async function exportUncountedFiltered(){ try{ const url=await withMask(rpc('exportUncountedToExcel', getSelectedArray()), '產生 Excel（未盤點，目前範圍）…'); placeDownloadLink(url,'📥 下載「未盤點」Excel'); }catch(err){ document.getElementById('uncountedList').innerHTML = `<div class="error">匯出失敗：${err.message}</div>`; } }
 
-    // ==================== 2. 搬運系統邏輯 ====================
-    async function loadWorkerLocations() {
-      const eventName = document.getElementById('mvEvent').value;
-      if(!eventName) { document.getElementById('mvLoc').innerHTML = '<option value="">請先選擇事件</option>'; document.getElementById('mvLoc').disabled = true; return; }
-      showLoading('讀取地點...');
-      try { const locs = await callAPI('getPendingLocations', { eventName: eventName }); populateSelect('mvLoc', locs); document.getElementById('mvLoc').disabled = false; hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+    /* ===== 查詢（關鍵字） ===== */
+    function getSearchParams(){
+      const q = ceGet('qCE'); const sort = document.getElementById('sort').value; const pageSize = parseInt(document.getElementById('pageSize').value, 10) || 20;
+      let counted = 'all'; if (queryState.quick.uncounted) counted = 'uncounted'; if (queryState.quick.counted) counted = 'counted';
+      let hasImage = 0; if (queryState.quick.img) hasImage = 1; if (queryState.quick.noimg) hasImage = -1;
+      return { q, locations: getSelectedArray(), acqLevels: Array.from(queryState.facets.acqLevels), jiangElems: Array.from(queryState.facets.jiangElems), categories: Array.from(queryState.facets.categories), materials: Array.from(queryState.facets.materials), eras: Array.from(queryState.facets.eras), rectifies: Array.from(queryState.facets.rectifies), hasImage, counted, sort, page: queryState.page, pageSize };
     }
-    async function loadWorkerItems() {
-      const eventName = document.getElementById('mvEvent').value; const loc = document.getElementById('mvLoc').value;
-      if(!loc) { document.getElementById('mvItem').innerHTML = '<option value="">請先選擇地點</option>'; document.getElementById('mvItem').disabled = true; return; }
-      showLoading('讀取清單...');
-      try { const items = await callAPI('getPendingItems', { eventName: eventName, location: loc }); document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + items.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]} - ${x.name}</option>`).join(''); document.getElementById('mvItem').disabled = false; hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+    let _typingTimer = null;
+    ceOn('qCE', ()=>{ clearTimeout(_typingTimer); _typingTimer=setTimeout(()=>runSearch(true), 300); }, ()=>{ runSearch(true); });
+    ceOn('locationSearchCE', ()=>{ clearTimeout(_typingTimer); _typingTimer=setTimeout(()=>applyFilter(), 100); }, ()=>{ applyFilter(); });
+    
+    function toggleQuick(btn){
+      const key = btn.getAttribute('data-qk'); btn.classList.toggle('active'); const on = btn.classList.contains('active');
+      if (key in queryState.quick) queryState.quick[key] = on;
+      if (key === 'img' && on){ queryState.quick.noimg = false; const o=document.querySelector('.pill[data-qk="noimg"]'); o&&o.classList.remove('active'); }
+      if (key === 'noimg' && on){ queryState.quick.img = false; const o=document.querySelector('.pill[data-qk="img"]'); o&&o.classList.remove('active'); }
+      if (key === 'counted' && on){ queryState.quick.uncounted = false; const o=document.querySelector('.pill[data-qk="uncounted"]'); o&&o.classList.remove('active'); }
+      if (key === 'uncounted' && on){ queryState.quick.counted = false; const o=document.querySelector('.pill[data-qk="counted"]'); o&&o.classList.remove('active'); }
+      runSearch(true);
     }
-    async function submitMovement() {
-      const rowIndex = document.getElementById('mvItem').value, newLoc = document.getElementById('mvNewLoc').value, staff = document.getElementById('mvStaff').value;
-      if(!rowIndex || !newLoc || !staff) return alert('請確認「文物」、「新地點」與「簽名」皆已填寫！');
-      document.getElementById('btnSubmitMove').disabled = true; showLoading('傳送單據中...');
-      const payload = { rowIndex: rowIndex, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? '是' : '否', boxName: document.getElementById('mvBoxName').value, staff: staff };
-      try { await callAPI('submitMovement', payload); alert('送出成功！'); document.getElementById('mvItem').value = ""; document.getElementById('mvBoxName').value = ""; document.getElementById('btnSubmitMove').disabled = false; loadWorkerItems(); hideLoading(); } 
-      catch (e) { alert(e.message); document.getElementById('btnSubmitMove').disabled = false; hideLoading(); }
+    async function runSearch(resetPage=false){
+      if (resetPage) queryState.page = 1; const params = getSearchParams();
+      try{
+        const res = await withMask(rpc('searchArtifacts', params), '搜尋中…');
+        queryState.total = res.total; document.getElementById('resultCount').textContent = res.total;
+        document.getElementById('pageInfo').textContent = `第 ${res.page} / ${Math.max(1, Math.ceil(res.total / params.pageSize))} 頁`;
+        renderResults(res.items, params.q);
+      }catch(err){ document.getElementById('results').innerHTML = `<div class="error p-3">搜尋失敗：${err.message}</div>`; }
+    }
+    function highlight(text, q){
+      const raw = (text === null || text === undefined) ? '' : String(text); if (!q) return esc(raw);
+      let html = esc(raw); q.trim().split(/\s+/).filter(Boolean).forEach(tok=>{ const re = new RegExp(`(${tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'); html = html.replace(re, '<mark style="background:#fff3cd; color:#000;">$1</mark>'); });
+      return html;
+    }
+    function renderResults(items, q){
+      const host = document.getElementById('results');
+      if (!items || items.length === 0) { host.innerHTML = '<div class="muted p-3">沒有符合的結果</div>'; return; }
+      const cards = items.map(it=>{
+        const img = it.imageUrl ? `<img class="art-img" src="${esc(it.imageUrl)}" loading="lazy">` : `<div class="art-img d-flex align-items-center justify-content-center text-muted">無圖片</div>`;
+        const asset = it.assetNo ? `<span class="chip" title="財產編號">${esc(it.assetNo)}</span>` : '';
+        const size = it.size ? `<div class="kv kv-size"><b>尺寸：</b>${esc(it.size)}</div>` : '';
+        const rectY = `<div class="kv kv-rect"><b>整飭年份：</b>${esc(it.rectifyYear || '—')}</div>`;
+        const tagsStr = (it.tags === null || it.tags === undefined) ? '' : String(it.tags);
+        const tags = tagsStr.split(/[,，;；]/).map(s=>s.trim()).filter(Boolean).slice(0,8).map(t=>`<span class="chip">${esc(t)}</span>`).join(' ');
+        const note = it.note ? `<div class="kv kv-note"><b>備註：</b>${esc(it.note)}</div>` : '';
+        return `<div class="card art-card p-3 shadow-sm border-0 mb-0">${img}<div><div class="title">${highlight(it.name || '', q)}</div><div class="row" style="gap:6px; margin:4px 0 6px 0;"><span class="chip">${esc(it.location || '')}</span>${asset}</div><div class="kv kv-attr"><b>類別：</b>${esc(it.category || '—')}　<b>材質：</b>${esc(it.material || '—')}　<b>年代：</b>${esc(it.era || '—')}</div>${size}<div class="kv kv-level"><b>入藏等級：</b>${esc(it.acqLevel || '—')}　<b>蔣元素：</b>${esc(it.jiang || '—')}</div>${rectY}<div class="kv kv-desc desc mt-1"><b>說明：</b>${highlight(it.descR || '', q)}</div><div class="row tags-row mt-2" style="gap:6px;">${tags}</div>${note}</div></div>`;
+      }).join('');
+      host.innerHTML = cards; applyViewMode();
+    }
+    function prevPage(){ if (queryState.page <= 1) return; queryState.page -= 1; runSearch(); }
+    function nextPage(){ const params=getSearchParams(); const pages=Math.max(1, Math.ceil(queryState.total / params.pageSize)); if (queryState.page >= pages) return; queryState.page += 1; runSearch(); }
+    document.addEventListener('click', (e)=>{ const btn = e.target.closest('.view-toggle .seg'); if(!btn) return; const cols = parseInt(btn.getAttribute('data-cols'), 10); const dense = btn.getAttribute('data-dense') === '1'; setViewMode(cols, dense); });
+    function setViewMode(cols, dense){ viewMode.cols = cols; viewMode.dense = !!dense; saveViewMode(viewMode); applyViewMode(); document.querySelectorAll('.view-toggle .seg').forEach(b=>{ const ok = parseInt(b.getAttribute('data-cols'),10)===cols && (b.getAttribute('data-dense')==='1')===dense; b.classList.toggle('active', ok); }); }
+    function applyViewMode(){ const grid = document.getElementById('results'); grid.className = 'result-grid cols-'+(viewMode.cols||1) + (viewMode.dense ? ' dense' : ''); }
+    function loadViewMode(){ try{ return JSON.parse(localStorage.getItem('results_view_mode')||''); }catch{return null;} }
+    function saveViewMode(v){ try{ localStorage.setItem('results_view_mode', JSON.stringify(v)); }catch{} }
+
+    /* ========================= 文物異動與管理後台 ========================= */
+    let MV_EVENTS = [], MV_ITEMS = [], MV_PICK = new Set(), MV_ADMIN_OK = false, MV_ADMIN_LAST = [];
+    let MV_LOCATIONS = [], mvSelectedLocs = new Set(), mvZones = [], mvFilteredZones = [];
+    const mvZoneRefs = new Map(), mvSgRefs = new Map();
+    let MV_OPTIONS = { '操作人':[], '暫存地點':[], '本處人員':[], _types:[] }, MV_LOC_INDEX = {};
+    let MV_ADMIN_TAB = 'pending', MV_AREA_FILTER = '*', MV_AREA_ONLY = 'all', MV_AREA_SEARCH_TXT = '', MV_BOX_FILTER = '*', MV_BOX_SEARCH_TXT = '';
+    const AREA_UNFILLED = '（未填暫存）', BOX_UNNAMED = '（未填箱名）';
+    let MV_ADMIN_SEL = new Set(), MV_ADMIN_VIEW = [];
+
+    function fillSelect(id, arr, placeholder){ const sel = document.getElementById(id); if (!sel) return; sel.innerHTML = ''; if (placeholder){ const opt=document.createElement('option'); opt.value=''; opt.textContent=placeholder; sel.appendChild(opt); } (arr||[]).forEach(o=>{ const opt=document.createElement('option'); opt.value=o.id; opt.textContent=o.name || o.id; sel.appendChild(opt); }); }
+
+    /* ====== chips 控制器 ====== */
+    const CHIPS = {};
+    function chipsInit(containerId){
+      const wrap = document.getElementById(containerId); if (!wrap || CHIPS[containerId]) return CHIPS[containerId];
+      const input = wrap.querySelector('input');
+      function addChip(text){
+        const name = String(text||'').trim(); if (!name) { input.value=''; return; }
+        if (Array.from(wrap.querySelectorAll('.chip')).some(c => (c.dataset.v||'')===name)){ input.value=''; return; }
+        const chip = document.createElement('span'); chip.className='chip'; chip.dataset.v=name;
+        chip.innerHTML = `<span>${name}</span><button type="button" class="x">×</button>`;
+        chip.querySelector('.x').onclick=()=>chip.remove(); wrap.insertBefore(chip, input); input.value='';
+      }
+      function commit(){ if (input && input.value && input.value.trim()) addChip(input.value); }
+      input.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===','){ e.preventDefault(); addChip(input.value); }else if(e.key==='Backspace' && !input.value){ const all=wrap.querySelectorAll('.chip'); if (all.length) all[all.length-1].remove(); } });
+      input.addEventListener('blur', ()=>commit());
+      CHIPS[containerId] = { add: addChip, commit, values(){ return Array.from(wrap.querySelectorAll('.chip')).map(c=>c.dataset.v||''); }, clear(){ Array.from(wrap.querySelectorAll('.chip')).forEach(c=>c.remove()); input.value=''; } };
+      return CHIPS[containerId];
+    }
+    function chipsCommit(id){ CHIPS[id]?.commit?.(); } function chipsValues(id){ return (CHIPS[id]?.values?.()||[]).filter(Boolean); } function chipsAdd(id, val){ CHIPS[id]?.add?.(val); }
+
+    let _pop;
+    function openPickListMulti(btn, type, chipsId){
+      closePickList(); const rect = btn.getBoundingClientRect(); _pop = document.createElement('div'); _pop.className = 'popover';
+      const arr = (MV_OPTIONS[type]||[]);
+      if (!arr.length){ _pop.innerHTML='<div class="muted p-2">無選項</div>'; } else{ _pop.innerHTML = arr.map(v=>`<div class="opt" data-v="${esc(v)}">${esc(v)}</div>`).join(''); _pop.addEventListener('click', (e)=>{ const o=e.target.closest('.opt'); if(!o) return; chipsAdd(chipsId, o.getAttribute('data-v')||''); closePickList(); }); }
+      document.body.appendChild(_pop); Object.assign(_pop.style, { left: (rect.left + window.scrollX - 100) + 'px', top: (rect.bottom + 4 + window.scrollY) + 'px' }); window.addEventListener('click', _autoCloseOnce, { once:true });
+    }
+    function repopulateDatalist(listId, arr){ const dl = document.getElementById(listId); if(dl) dl.innerHTML = (arr||[]).map(v=>`<option value="${esc(v)}"></option>`).join(''); }
+    function openPickList(btn, type, targetInputId){
+      closePickList(); const rect = btn.getBoundingClientRect(); _pop = document.createElement('div'); _pop.className = 'popover';
+      const arr = (type==='操作人') ? (MV_OPTIONS['操作人']||[]) : (type==='本處人員') ? (MV_OPTIONS['本處人員']||[]) : (MV_OPTIONS['暫存地點']||[]);
+      if (!arr.length){ _pop.innerHTML='<div class="muted p-2">無選項</div>'; } else{ _pop.innerHTML = arr.map(v=>`<div class="opt" onclick="pickToInput('${targetInputId}','${esc(v)}')">${esc(v)}</div>`).join(''); }
+      document.body.appendChild(_pop); Object.assign(_pop.style, { left: (rect.left + window.scrollX - 150) + 'px', top: (rect.bottom + 4 + window.scrollY) + 'px' }); window.addEventListener('click', _autoCloseOnce, { once:true });
+    }
+    function pickToInput(id, val){ const el = document.getElementById(id); if(el){ const d=document.createElement('textarea'); d.innerHTML=val; el.value = d.value; } closePickList(); }
+    function closePickList(){ if(_pop){ _pop.remove(); _pop=null; } } function _autoCloseOnce(ev){ if(_pop && !(_pop.contains(ev.target))){ closePickList(); } }
+
+    function mvGoStep(step){ document.getElementById('mvStep1').style.display = (step===1)? '' : 'none'; document.getElementById('mvStep2').style.display = (step===2)? '' : 'none'; }
+
+    async function onMoverEventChange(){
+      const evId = document.getElementById('mvEvent').value; mvSelectedLocs.clear();
+      document.getElementById('mvLocPicked').textContent = '已選 0 個地點'; document.getElementById('mvItemsList').innerHTML = ''; document.getElementById('mvMsg').textContent = '';
+      mvGoStep(1);
+      if (!evId){ document.getElementById('mvZonePanel').style.display='none'; MV_LOC_INDEX={}; return; }
+      try{
+        const [locs, idx] = await withMask(Promise.all([ rpc('getEventLocations', evId), rpc('getEventLocationIndex', evId) ]), '載入此事件地點…');
+        MV_LOCATIONS = (locs||[]).filter(Boolean); MV_LOC_INDEX = idx || {}; mvZones = buildZones(MV_LOCATIONS); mvFilteredZones = mvZones.slice(); mvRenderZones(mvFilteredZones); document.getElementById('mvZonePanel').style.display = 'block';
+      }catch(err){ document.getElementById('mvZonePanel').style.display = 'block'; document.getElementById('mvZoneList').innerHTML = `<div class="error">載入失敗：${err.message}</div>`; }
     }
 
-    // ==================== 3. 管理員後台邏輯 ====================
-    async function loginManager() {
-      const pwd = document.getElementById('mgrPwd').value; if(!pwd) return alert('請輸入密碼');
-      showLoading('驗證身分...');
-      try { await callAPI('verifyManager', { pwd: pwd }); document.getElementById('mgrLogin').style.display = 'none'; document.getElementById('mgrDashboard').style.display = 'block'; hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+    function mvRenderZones(list){
+      const host = document.getElementById('mvZoneList'); host.innerHTML = ''; mvZoneRefs.clear(); mvSgRefs.clear();
+      list.forEach(zone => {
+        const zDetails = document.createElement('details'); zDetails.className = 'zone'; if (zone.subgroups.some(sg => sg.open)) zDetails.setAttribute('open','');
+        const zSummary = document.createElement('summary'); zSummary.innerHTML = `<span class="z-title">${zone.title}</span><span class="sm-right"><span></span><span class="chips-inline"></span></span>`; zDetails.appendChild(zSummary);
+        const zTools = document.createElement('div'); zTools.className = 'toolbar'; zTools.innerHTML = `<button class="small" type="button">全選本區</button><button class="small" type="button">清除本區</button>`;
+        zTools.children[0].onclick = ()=>{ zone.subgroups.forEach(sg=> sg.items.forEach(it=>mvSelectedLocs.add(it.value))); mvUpdateZoneVisual(zone); mvUpdatePickedChip(); };
+        zTools.children[1].onclick = ()=>{ zone.subgroups.forEach(sg=> sg.items.forEach(it=>mvSelectedLocs.delete(it.value))); mvUpdateZoneVisual(zone); mvUpdatePickedChip(); }; zDetails.appendChild(zTools);
+        const zCount = zSummary.querySelector('.sm-right span:first-child'); const zChips = zSummary.querySelector('.chips-inline');
+        zone.subgroups.forEach(sg => {
+          const sDetails = document.createElement('details'); sDetails.className='subgroup'; if (sg.singleNoLevel) sDetails.classList.add('single'); if (sg.open) sDetails.setAttribute('open','');
+          const sSummary = document.createElement('summary'); sSummary.innerHTML = `<span class="g-title">${sg.titleShort}</span><span class="sm-right"><span></span><span class="chips-inline"></span></span>`; sDetails.appendChild(sSummary);
+          const sCount = sSummary.querySelector('.sm-right span:first-child'); const sChips = sSummary.querySelector('.chips-inline');
+          if (sg.singleNoLevel) {
+            sSummary.addEventListener('click', (e) => { e.preventDefault(); const only = sg.items[0].value; if (mvSelectedLocs.has(only)) mvSelectedLocs.delete(only); else mvSelectedLocs.add(only); mvUpdateSubgroupVisual(zone, sg); mvUpdatePickedChip(); });
+          } else {
+            const sTools = document.createElement('div'); sTools.className='toolbar'; sTools.innerHTML = `<button class="small" type="button">全選</button><button class="small" type="button">清除</button>`;
+            sTools.children[0].onclick = ()=>{ sg.items.forEach(it=>mvSelectedLocs.add(it.value)); mvUpdateSubgroupVisual(zone, sg); mvUpdatePickedChip(); };
+            sTools.children[1].onclick = ()=>{ sg.items.forEach(it=>mvSelectedLocs.delete(it.value)); mvUpdateSubgroupVisual(zone, sg); mvUpdatePickedChip(); }; sDetails.appendChild(sTools);
+            const grid = document.createElement('div'); grid.className='grid';
+            sg.items.forEach(it=>{
+              const el = document.createElement('div'); el.className = 'tag' + (mvSelectedLocs.has(it.value) ? ' selected' : ''); el.textContent = it.label; el.title = it.value;
+              el.onclick = ()=>{ if (mvSelectedLocs.has(it.value)) mvSelectedLocs.delete(it.value); else mvSelectedLocs.add(it.value); el.classList.toggle('selected', mvSelectedLocs.has(it.value)); mvUpdateSubgroupVisual(zone, sg); mvUpdatePickedChip(); }; grid.appendChild(el);
+            }); sDetails.appendChild(grid);
+          }
+          zDetails.appendChild(sDetails); mvSgRefs.set(zone.title+'|'+sg.key, { countEl: sCount, chipsEl: sChips, gridEl: sDetails.querySelector('.grid') || null, summaryEl: sSummary, sg, zone }); mvUpdateSubgroupVisual(zone, sg);
+        });
+        host.appendChild(zDetails); mvZoneRefs.set(zone.title, { countEl: zCount, chipsEl: zChips, zone }); mvUpdateZoneVisual(zone);
+      });
     }
-    async function loadManagerData() {
-      const eventName = document.getElementById('mgrEvent').value; if(!eventName) return;
-      showLoading('載入表單...');
-      try {
-        const data = await callAPI('getManagerData', { eventName: eventName });
-        renderTable('tablePending', data.pending, 'chk-pend', true); renderTable('tableConfirmed', data.confirmed, 'chk-conf', false);
-        hideLoading();
-      } catch (e) { alert(e.message); hideLoading(); }
-    }
-    function renderTable(tableId, data, chkClass, showEdit) {
-      const tbody = document.querySelector(`#${tableId} tbody`);
-      tbody.innerHTML = data.map(x => `
-        <tr>
-          <td class="text-center"><input type="checkbox" class="form-check-input ${chkClass}" value="${x.rowIndex}"></td>
-          <td><b>${x.name}</b><br><small class="text-muted">${x.qrCode.split('\n')[0]}</small><br><small>原: ${x.oldLoc}</small></td>
-          <td>${x.newLoc} ${x.isBox=='是' ? `<br>📦 ${x.boxName}` : ''}<br><small class="text-primary">${x.staff}</small></td>
-          <td>${showEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex}, '${x.newLoc}', '${x.boxName}')">📝</button>` : ''}</td>
-        </tr>`).join('');
-    }
-    function toggleAllCheck(source, targetClass) { document.querySelectorAll(targetClass).forEach(cb => cb.checked = source.checked); }
-    function getSelectedRows(chkClass) { return Array.from(document.querySelectorAll(`${chkClass}:checked`)).map(cb => parseInt(cb.value)); }
-    function getManagerName() { const n = document.getElementById('mgrNameInput').value; if(!n) alert('請先輸入管理員姓名！'); return n; }
+    function mvUpdateSubgroupVisual(zone, sg){ const ref = mvSgRefs.get(zone.title+'|'+sg.key); if (!ref) return; const picked = sg.items.filter(it=>mvSelectedLocs.has(it.value)); ref.countEl.textContent = `已選 ${picked.length}/${sg.items.length}`; ref.chipsEl.innerHTML = picked.slice(0, 6).map(it=>`<span class="chip">${it.label}</span>`).join('') + (picked.length>6?`<span class="chip">+${picked.length-6}</span>`:''); if (ref.gridEl) Array.from(ref.gridEl.children).forEach((el, idx)=>{ const it=sg.items[idx]; el.classList.toggle('selected', mvSelectedLocs.has(it.value)); }); if (sg.singleNoLevel && ref.summaryEl) ref.summaryEl.classList.toggle('selected', picked.length > 0); mvUpdateZoneVisual(zone); }
+    function mvUpdateZoneVisual(zone){ const ref = mvZoneRefs.get(zone.title); if (!ref) return; const allItems = zone.subgroups.flatMap(sg=>sg.items); const picked = allItems.filter(it=>mvSelectedLocs.has(it.value)); ref.countEl.textContent = `已選 ${picked.length}/${allItems.length}`; ref.chipsEl.innerHTML = picked.slice(0, 6).map(it=>`<span class="chip">${it.label}</span>`).join('') + (picked.length>6?`<span class="chip">+${picked.length-6}</span>`:''); }
+    function mvUpdatePickedChip(){ document.getElementById('mvLocPicked').textContent = `已選 ${mvSelectedLocs.size} 個地點`; }
 
-    async function changeStatus(chkClass, newStatus) {
-      const mgrName = getManagerName(); if(!mgrName) return;
-      const rows = getSelectedRows(chkClass); if(rows.length === 0) return alert('請勾選項目');
-      showLoading('更新狀態...');
-      try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: newStatus, managerName: mgrName }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    function mvApplyFilter(){
+      const q = ceGet('mvLocationSearchCE').toLowerCase();
+      mvFilteredZones = mvZones.map(zone=>{
+        const zoneHit = q && matches(zone.title, q);
+        const subs = zone.subgroups.map(sg=>{
+          const sgHit = q && (matches(sg.title, q) || matches(sg.titleShort, q));
+          let items; if (!q) { items = sg.items.slice(); } else if (zoneHit || sgHit) { items = sg.items.slice(); } else { items = sg.items.filter(it => { if (matches(it.label, q) || matches(it.value, q)) return true; const idx = MV_LOC_INDEX[it.value]; return idx && typeof idx.hay === 'string' && idx.hay.includes(q); }); }
+          return { ...sg, items, open: !!q && (zoneHit || sgHit || items.length>0) };
+        }).filter(sg => sg.items.length>0);
+        const keep = subs.length>0 || zoneHit || !q; return keep ? { title: zone.title, subgroups: subs } : null;
+      }).filter(Boolean);
+      mvRenderZones(mvFilteredZones);
     }
-    function batchApprove() { changeStatus('.chk-pend', '已確認'); }
-    function batchReject() { changeStatus('.chk-pend', ''); }
-    function batchRevert() { changeStatus('.chk-conf', '待確認'); }
+    function mvSelectAllVisible(){ mvFilteredZones.forEach(z => z.subgroups.forEach(sg => sg.items.forEach(it => mvSelectedLocs.add(it.value)))); mvRenderZones(mvFilteredZones); mvUpdatePickedChip(); }
+    function mvInvertVisible(){ const vis=[]; mvFilteredZones.forEach(z => z.subgroups.forEach(sg => sg.items.forEach(it => vis.push(it.value)))); vis.forEach(v => { if (mvSelectedLocs.has(v)) mvSelectedLocs.delete(v); else mvSelectedLocs.add(v); }); mvRenderZones(mvFilteredZones); mvUpdatePickedChip(); }
+    function mvClearAll(){ mvSelectedLocs.clear(); mvRenderZones(mvFilteredZones); mvUpdatePickedChip(); }
+    ceOn('mvLocationSearchCE', ()=>{ clearTimeout(_typingTimer); _typingTimer=setTimeout(()=>mvApplyFilter(), 120); }, ()=>{ mvApplyFilter(); });
 
-    async function promptEdit(rowIndex, oldLoc, oldBox) {
-      const mgrName = getManagerName(); if(!mgrName) return;
-      const newLoc = prompt("修改新地點：", oldLoc); if (newLoc === null) return;
-      const boxName = prompt("修改箱號 (若無請留白)：", oldBox); if (boxName === null) return;
-      showLoading('儲存修改...');
-      try { await callAPI('editItem', { rowIndex: rowIndex, newLoc: newLoc, boxName: boxName, managerName: mgrName }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    async function moveLoadItems(){
+      const evId = document.getElementById('mvEvent').value; chipsCommit('mvOpsChips'); chipsCommit('mvStaffChips'); const opsNow = chipsValues('mvOpsChips');
+      if (!evId){ alert('請先選擇事件'); return; }
+      if (mvSelectedLocs.size===0){ alert('請至少勾選一個地點'); return; }
+      if (opsNow.length===0 && !confirm('未填操作人，是否仍要載入清單？')) return;
+      try{
+        const list = await withMask(rpc('getEventItemsByLocations', evId, Array.from(mvSelectedLocs)), '載入文物清單…');
+        MV_ITEMS = list || []; MV_PICK.clear(); renderMvItems(); mvGoStep(2);
+      }catch(err){ document.getElementById('mvMsg').innerHTML = `<span class="error">載入失敗：${err.message}</span>`; }
     }
 
-    async function syncToMaster() {
-      const eventName = document.getElementById('mgrEvent').value; if(!eventName) return alert('請選擇專案');
-      if(!confirm(`確定要將「${eventName}」中所有已確認的項目同步到藏品總表並結案嗎？此動作無法復原！`)) return;
-      showLoading('資料同步寫入中，請稍候...');
-      try { const res = await callAPI('syncToMaster', { eventName: eventName }); alert(`✅ 結案成功！共更新了 ${res.count} 筆資料至總表。`); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    function renderMvItems(){
+      const box = document.getElementById('mvItemsList'); box.innerHTML = '';
+      MV_ITEMS.forEach((it, i) => {
+        const row = document.createElement('div'); row.className='row'; row.style.justifyContent='space-between'; row.style.padding='8px 0'; row.style.borderBottom='1px solid #f1f3f5';
+        const left = document.createElement('div'); left.className='row'; left.style.gap='10px';
+        const cb = document.createElement('input'); cb.type='checkbox'; cb.dataset.i = i;
+        cb.onchange = ()=>{ if (cb.checked) MV_PICK.add(it.id); else MV_PICK.delete(it.id); document.getElementById('mvPicked').textContent = `已選 ${MV_PICK.size} 件`; };
+        const meta = document.createElement('div'); meta.innerHTML = `<div style="font-weight:500;">${esc(it.id.split('\n')[0])}｜${esc(it.name||'')}</div><div class="muted" style="font-size:13px;">現暫存：${esc(it.temp||'無')}</div>`;
+        left.appendChild(cb); left.appendChild(meta); row.appendChild(left); box.appendChild(row);
+      });
+      document.getElementById('mvPicked').textContent = `已選 0 件`;
     }
+    function moveSelectAll(v){ MV_PICK.clear(); document.querySelectorAll('#mvItemsList input[type=checkbox]').forEach((cb) => { cb.checked = !!v; if (v) MV_PICK.add(MV_ITEMS[+cb.dataset.i].id); }); document.getElementById('mvPicked').textContent = `已選 ${MV_PICK.size} 件`; }
+
+    async function moveSubmit(){
+      const evId = document.getElementById('mvEvent').value; const evName = (MV_EVENTS.find(e=>e.id===evId)||{}).name || '';
+      const temp = document.getElementById('mvTempLoc').value.trim(); const boxed = document.getElementById('mvBoxed').checked; const boxName = document.getElementById('mvBoxName').value.trim();
+      chipsCommit('mvOpsChips'); chipsCommit('mvStaffChips');
+      const operators = chipsValues('mvOpsChips'); const staffs = chipsValues('mvStaffChips');
+      if (!evId) return alert('請先選擇事件'); if (MV_PICK.size===0) return alert('尚未選擇文物'); if (!temp) return alert('請輸入暫存地點');
+      const items = MV_ITEMS.filter(it => MV_PICK.has(it.id));
+      const payload = { eventId: evId, eventName: evName, sourceLocs: Array.from(mvSelectedLocs), items, tempLoc: temp, boxed, boxName, operator: operators.join('、'), operators, staffs };
+
+      document.getElementById('mvMsg').textContent = '送出中…';
+      try{
+        const res = await withMask(rpc('submitMovementBatch', payload), '寫入中…');
+        if (res && res.ok){
+          document.getElementById('mvMsg').innerHTML = `<span class="success">已送出 ${res.count} 件，暫存地點：${esc(temp)}</span>`;
+          MV_PICK.clear(); moveLoadItems();
+        }else{ document.getElementById('mvMsg').innerHTML = `<span class="error">失敗：${esc((res&&res.msg)||'未知')}</span>`; }
+      }catch(err){ document.getElementById('mvMsg').innerHTML = `<span class="error">送出失敗：${err.message}</span>`; }
+    }
+
+    // ==================== 管理者後台邏輯 ====================
+    let hasInitMove = false;
+    async function initMoveAndAdmin(){
+      chipsInit('mvOpsChips'); chipsInit('mvStaffChips');
+      if (hasInitMove) return; hasInitMove = true;
+      try{
+        const [ev, opts] = await withMask(Promise.all([ rpc('getEvents'), rpc('getAllOptions') ]), '初始化異動系統…');
+        if (ev && ev._error) alert('讀取失敗：' + ev._error); else MV_EVENTS = ev || [];
+        MV_OPTIONS = (opts && typeof opts === 'object') ? { ...opts, '本處人員': (opts['本處人員']||[]) } : { '操作人':[], '暫存地點':[], '本處人員':[], _types:[] };
+        fillSelect('mvEvent', MV_EVENTS, '請選擇事件'); fillSelect('mvEventAdmin', MV_EVENTS, '請選擇事件');
+        repopulateDatalist('mvOpList', MV_OPTIONS['操作人']); repopulateDatalist('mvTempList', MV_OPTIONS['暫存地點']); repopulateDatalist('mvStaffList',MV_OPTIONS['本處人員']);
+        bindAdminEventDropdown(); applyAutoPickAdminEvent();
+      }catch(err){ alert('初始化失敗：' + err.message); }
+    }
+
+    async function moveAdminLogin(){
+      const pw = document.getElementById('mvAdminPw').value; if (!pw){ document.getElementById('mvAdminLoginMsg').textContent='請輸入密碼'; return; }
+      try{
+        const res = await withMask(rpc('adminLogin', pw), '驗證中…');
+        if (res && res.ok){ MV_ADMIN_OK = true; document.getElementById('mvAdminLoginMsg').textContent=''; document.getElementById('move-admin-login').style.display='none'; document.getElementById('move-admin').style.display='block'; applyAutoPickAdminEvent(); }
+        else{ document.getElementById('mvAdminLoginMsg').textContent='密碼錯誤或未啟用'; }
+      }catch(err){ document.getElementById('mvAdminLoginMsg').textContent = '登入失敗：' + err.message; }
+    }
+
+    function bindAdminEventDropdown(){
+      const sel = document.getElementById('mvEventAdmin'); if (!sel || sel.dataset.bound === '1') return;
+      sel.addEventListener('change', async () => {
+        const evId = sel.value.trim(); try { localStorage.setItem('mv_event_admin_last', evId); } catch {}
+        MV_ADMIN_SEL.clear(); updateBulkHint();
+        if (!evId){ renderMvTable([]); renderAdminProgressBars([]); document.getElementById('mvAdminMsg').textContent = '請先選擇事件'; return; }
+        document.getElementById('mvAdminMsg').textContent = '載入中…'; await refreshMovementsAndProgress(evId);
+      }); sel.dataset.bound = '1';
+    }
+    function applyAutoPickAdminEvent(){
+      const sel = document.getElementById('mvEventAdmin'); if (!sel) return; let last = '';
+      try { last = localStorage.getItem('mv_event_admin_last') || ''; } catch {}
+      const values = Array.from(sel.options).map(o=>o.value).filter(v=>v);
+      if (!values.length) return;
+      if (last && values.includes(last)) { sel.value = last; sel.dispatchEvent(new Event('change')); return; }
+      if (values.length === 1) { sel.value = values[0]; sel.dispatchEvent(new Event('change')); }
+    }
+
+    async function refreshMovementsAndProgress(evId){
+      const id = (evId && String(evId).trim()) || document.getElementById('mvEventAdmin')?.value || '';
+      if (!id) { renderMvTable([]); renderAdminProgressBars([]); return; }
+      await moveLoadMovements(id); renderAdminProgressBars(MV_ADMIN_LAST || []);
+    }
+    function normalizeMvRow(mv){
+      return { MoveID: mv.MoveID || mv.moveId || '', '藏品編號': mv['藏品編號'] || mv['編號'] || mv.ID || mv.QRcode || '', '藏品名稱': mv['藏品名稱'] || mv.Name || '', '原典藏地點': mv['原典藏地點'] || mv.Location || '', '暫存地點': mv['暫存地點'] || mv.temp || '', '裝箱': ('裝箱' in mv) ? !!mv['裝箱'] : !!mv.boxed, '箱名': mv['箱名'] || mv.boxName || '', '本處人員': mv['本處人員'] || (Array.isArray(mv.staffs)? mv.staffs.join('、') : (mv.staff||'')), '操作人': mv['操作人'] || (Array.isArray(mv.operators)? mv.operators.join('、') : (mv.operator||'')), '建立時間戳': mv['建立時間戳'] || mv.ts || '', '核對': ('核對' in mv) ? !!mv['核對'] : !!mv.verify };
+    }
+    async function moveLoadMovements(evId){
+      const id = (evId && String(evId).trim()) || document.getElementById('mvEventAdmin')?.value || '';
+      if (!id){ document.getElementById('mvAdminMsg').textContent = '請先選擇事件'; return; }
+      try{
+        const r = await withMask(rpc('getEventMovements', id), '載入中…');
+        const raw = Array.isArray(r) ? r : (r && Array.isArray(r.list) ? r.list : []);
+        const list = raw.map(normalizeMvRow); MV_ADMIN_LAST = list; renderMvTable(list); renderAdminProgressBars(list);
+        document.getElementById('mvAdminMsg').textContent = list.length ? '' : '此事件目前沒有搬運紀錄';
+      }catch(err){ document.getElementById('mvAdminMsg').textContent = '讀取失敗：' + err.message; renderMvTable([]); renderAdminProgressBars([]); }
+    }
+
+    document.getElementById('mvAdminTabs').addEventListener('click', (e)=>{
+      const tab = e.target.closest('.tab'); if(!tab) return;
+      document.querySelectorAll('#mvAdminTabs .tab').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
+      MV_ADMIN_TAB = tab.dataset.view; MV_ADMIN_SEL.clear(); updateBulkHint(); renderMvTable(MV_ADMIN_LAST||[]);
+    });
+
+    function tempAreaKey(loc){ const s = (loc||'').trim(); if (!s) return AREA_UNFILLED; const norm = normalizeHyphen(s); const parts = norm.split('-'); if (parts.length <= 1) return norm; return parts.slice(0, parts.length - 1).join('-'); }
+    function getAdminBaseData(list){ const pending = (list||[]).filter(m=>!m['核對']); const verified = (list||[]).filter(m=>!!m['核對']); document.getElementById('mvTabCountPending').textContent = pending.length; document.getElementById('mvTabCountVerified').textContent = verified.length; return (MV_ADMIN_TAB==='verified') ? verified : pending; }
+    function applyOnlyFilter(arr){ if (MV_AREA_ONLY === 'has') return arr.filter(m => String(m['暫存地點']||'').trim() !== ''); if (MV_AREA_ONLY === 'empty') return arr.filter(m => !String(m['暫存地點']||'').trim()); return arr; }
+    function buildAreaCounts(arr){ const map = new Map(); for (const mv of arr){ const key = tempAreaKey(mv['暫存地點']); map.set(key, (map.get(key)||0) + 1); } return Array.from(map.entries()).map(([area, cnt]) => ({ area, cnt })).sort((a,b)=> b.cnt - a.cnt || a.area.localeCompare(b.area,'zh-Hant')); }
+    function buildBoxCounts(arr){ const map = new Map(); for (const mv of arr){ const raw = String(mv['箱名']||'').trim(); const key = raw ? raw : BOX_UNNAMED; map.set(key, (map.get(key)||0) + 1); } return Array.from(map.entries()).map(([box, cnt]) => ({ box, cnt })).sort((a,b)=> b.cnt - a.cnt || a.box.localeCompare(b.box,'zh-Hant')); }
+    function syncAreaOnlyPills(){ document.getElementById('mvOnlyHasBtn').classList.toggle('active', MV_AREA_ONLY==='has'); document.getElementById('mvOnlyEmptyBtn').classList.toggle('active', MV_AREA_ONLY==='empty'); }
+
+    function rebuildAreaControls(){
+      const base = getAdminBaseData(MV_ADMIN_LAST||[]); const afterOnly = applyOnlyFilter(base); const counts = buildAreaCounts(afterOnly); const key = (MV_AREA_SEARCH_TXT||'').trim().toLowerCase(); const filteredCounts = key ? counts.filter(x => x.area.toLowerCase().includes(key)) : counts;
+      const sel = document.getElementById('mvAreaFilter'); sel.innerHTML = ''; sel.innerHTML += `<option value="*">全部（${afterOnly.length}）</option>`;
+      const hasUnfilled = filteredCounts.some(x => x.area===AREA_UNFILLED); if (!hasUnfilled && counts.some(x=>x.area===AREA_UNFILLED)){ sel.innerHTML += `<option value="${AREA_UNFILLED}">${AREA_UNFILLED}（${counts.find(x=>x.area===AREA_UNFILLED).cnt}）</option>`; }
+      filteredCounts.forEach(({area, cnt})=>{ sel.innerHTML += `<option value="${area}">${area}（${cnt}）</option>`; });
+      if (!Array.from(sel.options).map(o=>o.value).includes(MV_AREA_FILTER)) MV_AREA_FILTER='*'; sel.value = MV_AREA_FILTER;
+      const chipsHost = document.getElementById('mvAreaChips'); chipsHost.innerHTML = `<button class="pill ${MV_AREA_FILTER==='*'?'active':''}" data-area="*">全部（${afterOnly.length}）</button>`;
+      const top = filteredCounts.slice(0, 10); if (counts.find(x=>x.area===AREA_UNFILLED) && !top.some(x=>x.area===AREA_UNFILLED)) top.unshift(counts.find(x=>x.area===AREA_UNFILLED));
+      top.forEach(({area, cnt})=> { chipsHost.innerHTML += `<button class="pill ${MV_AREA_FILTER===area?'active':''}" data-area="${area}">${area}（${cnt}）</button>`; });
+    }
+    function rebuildBoxControls(){
+      const base = getAdminBaseData(MV_ADMIN_LAST||[]); const afterOnly = applyOnlyFilter(base); const counts = buildBoxCounts(afterOnly); const key = (MV_BOX_SEARCH_TXT||'').trim().toLowerCase(); const filteredCounts = key ? counts.filter(x => x.box.toLowerCase().includes(key)) : counts;
+      const sel = document.getElementById('mvBoxFilter'); sel.innerHTML = ''; sel.innerHTML += `<option value="*">全部（${afterOnly.length}）</option>`;
+      const hasUnnamed = filteredCounts.some(x => x.box===BOX_UNNAMED); if (!hasUnnamed && counts.some(x=>x.box===BOX_UNNAMED)){ sel.innerHTML += `<option value="${BOX_UNNAMED}">${BOX_UNNAMED}（${counts.find(x=>x.box===BOX_UNNAMED).cnt}）</option>`; }
+      filteredCounts.forEach(({box, cnt})=>{ sel.innerHTML += `<option value="${box}">${box}（${cnt}）</option>`; });
+      if (!Array.from(sel.options).map(o=>o.value).includes(MV_BOX_FILTER)) MV_BOX_FILTER='*'; sel.value = MV_BOX_FILTER;
+      const chipsHost = document.getElementById('mvBoxChips'); chipsHost.innerHTML = `<button class="pill ${MV_BOX_FILTER==='*'?'active':''}" data-box="*">全部（${afterOnly.length}）</button>`;
+      const top = filteredCounts.slice(0, 10); if (counts.find(x=>x.box===BOX_UNNAMED) && !top.some(x=>x.box===BOX_UNNAMED)) top.unshift(counts.find(x=>x.box===BOX_UNNAMED));
+      top.forEach(({box, cnt})=> { chipsHost.innerHTML += `<button class="pill ${MV_BOX_FILTER===box?'active':''}" data-box="${box}">${box}（${cnt}）</button>`; });
+    }
+
+    document.getElementById('mvAreaFilter').addEventListener('change', ()=>{ MV_AREA_FILTER = document.getElementById('mvAreaFilter').value || '*'; renderMvTable(MV_ADMIN_LAST||[]); });
+    ceOn('mvAreaSearch', ()=>{ clearTimeout(_typingTimer); _typingTimer=setTimeout(()=>{ MV_AREA_SEARCH_TXT = document.getElementById('mvAreaSearch').value||''; rebuildAreaControls(); }, 180); }, ()=>{ MV_AREA_SEARCH_TXT = document.getElementById('mvAreaSearch').value||''; rebuildAreaControls(); });
+    document.getElementById('mvAreaChips').addEventListener('click', (e)=>{ const b = e.target.closest('button[data-area]'); if(!b) return; MV_AREA_FILTER = b.dataset.area || '*'; document.getElementById('mvAreaFilter').value = MV_AREA_FILTER; renderMvTable(MV_ADMIN_LAST||[]); });
+    document.getElementById('mvOnlyHasBtn').addEventListener('click', ()=>{ MV_AREA_ONLY = (MV_AREA_ONLY==='has') ? 'all' : 'has'; syncAreaOnlyPills(); rebuildAreaControls(); rebuildBoxControls(); renderMvTable(MV_ADMIN_LAST||[]); });
+    document.getElementById('mvOnlyEmptyBtn').addEventListener('click', ()=>{ MV_AREA_ONLY = (MV_AREA_ONLY==='empty') ? 'all' : 'empty'; syncAreaOnlyPills(); rebuildAreaControls(); rebuildBoxControls(); renderMvTable(MV_ADMIN_LAST||[]); });
+    document.getElementById('mvBoxFilter').addEventListener('change', ()=>{ MV_BOX_FILTER = document.getElementById('mvBoxFilter').value || '*'; renderMvTable(MV_ADMIN_LAST||[]); });
+    ceOn('mvBoxSearch', ()=>{ clearTimeout(_typingTimer); _typingTimer=setTimeout(()=>{ MV_BOX_SEARCH_TXT = document.getElementById('mvBoxSearch').value||''; rebuildBoxControls(); }, 180); }, ()=>{ MV_BOX_SEARCH_TXT = document.getElementById('mvBoxSearch').value||''; rebuildBoxControls(); });
+    document.getElementById('mvBoxChips').addEventListener('click', (e)=>{ const b = e.target.closest('button[data-box]'); if(!b) return; MV_BOX_FILTER = b.dataset.box || '*'; document.getElementById('mvBoxFilter').value = MV_BOX_FILTER; renderMvTable(MV_ADMIN_LAST||[]); });
+
+    function renderMvTable(list){
+      rebuildAreaControls(); rebuildBoxControls();
+      const tb = document.querySelector('#mvTable tbody'); tb.innerHTML = '';
+      const base = getAdminBaseData(list||[]); const afterOnly = applyOnlyFilter(base);
+      const afterBox = (MV_BOX_FILTER==='*') ? afterOnly : afterOnly.filter(m => { const key = String(m['箱名']||'').trim() || BOX_UNNAMED; return key === MV_BOX_FILTER; });
+      const finalData = (MV_AREA_FILTER==='*') ? afterBox : afterBox.filter(m => tempAreaKey(m['暫存地點']) === MV_AREA_FILTER);
+      MV_ADMIN_VIEW = finalData.slice();
+
+      (finalData||[]).forEach(mv=>{
+        const tr = document.createElement('tr');
+        const btn = document.createElement('button'); btn.className = 'btn small ' + ((MV_ADMIN_TAB==='pending')?'primary':'btn-outline-danger'); btn.textContent = (MV_ADMIN_TAB==='pending') ? '確認' : '取消'; btn.onclick = ()=>moveAdminVerifySingle(mv.MoveID, MV_ADMIN_TAB==='pending');
+        tr.innerHTML = `
+          <td></td>
+          <td><b>${esc(mv['藏品名稱'])}</b><br><small class="muted">${esc(mv['藏品編號'].split('\n')[0])}</small><br><span class="chip mt-1">${esc(mv['原典藏地點'])}</span></td>
+          <td><div class="field-inline"><input type="text" value="${esc(mv['暫存地點']||'')}" data-id="${esc(mv.MoveID)}" class="mvEditTemp" id="tmp_${mv.MoveID}" placeholder="輸入暫存地點"><button class="btn small" type="button" onclick="rowApplyTempToSelected('${mv.MoveID}')">就地套用</button></div></td>
+          <td>${mv['裝箱']?'📦 是<br>':''}${esc(mv['箱名']||'—')}</td>
+          <td><small class="text-primary fw-bold">${esc(mv['本處人員']||'—')}</small><br><small class="muted">${esc(mv['操作人']||'—')}</small></td>
+          <td><small class="muted">${formatTime(mv['建立時間戳'])}</small><br><button class="btn small mt-1" onclick="moveSaveRow('${mv.MoveID}')">💾 儲存</button></td>
+        `;
+        const pick = document.createElement('input'); pick.type = 'checkbox'; pick.className = 'form-check-input'; pick.checked = MV_ADMIN_SEL.has(mv.MoveID); pick.addEventListener('change', ()=>{ if (pick.checked) MV_ADMIN_SEL.add(mv.MoveID); else MV_ADMIN_SEL.delete(mv.MoveID); updateBulkHint(); });
+        tr.children[0].appendChild(pick); tr.children[0].appendChild(document.createElement('br')); tr.children[0].appendChild(btn);
+        tb.appendChild(tr);
+      });
+      if (!finalData.length) tb.innerHTML=`<tr><td colspan="6" class="muted text-center py-4">目前沒有符合的資料</td></tr>`;
+      updateBulkHint();
+    }
+
+    function updateBulkHint(){ const n = MV_ADMIN_SEL.size; const el = document.getElementById('mvBulkHint'); if (el) el.textContent = n ? `已選 ${n} 筆` : '未選取'; }
+    function mutateLocalVerify(moveIds, verify){ let changed = 0; const set = new Set(moveIds); for (const mv of MV_ADMIN_LAST){ if (set.has(mv.MoveID)){ if (!!mv['核對'] !== !!verify){ mv['核對'] = !!verify; changed++; } } } if (changed){ renderMvTable(MV_ADMIN_LAST); renderAdminProgressBars(MV_ADMIN_LAST); } }
+    function adminSelectPage(){ (MV_ADMIN_VIEW||[]).forEach(m => MV_ADMIN_SEL.add(m.MoveID)); renderMvTable(MV_ADMIN_LAST); updateBulkHint(); }
+    function adminClearSelection(){ MV_ADMIN_SEL.clear(); renderMvTable(MV_ADMIN_LAST); updateBulkHint(); }
+
+    async function adminBulkVerify(verify){
+      if (!MV_ADMIN_SEL.size) return alert('請先勾選資料'); const evId = document.getElementById('mvEventAdmin').value; if (!evId) return alert('請選擇事件');
+      const ids = Array.from(MV_ADMIN_SEL); mutateLocalVerify(ids, verify); updateBulkHint();
+      document.getElementById('mvAdminMsg').textContent = (verify? '已確認' : '未確認') + `（${ids.length} 筆，同步中…）`;
+      const result = await rpcWithSoftTimeout('adminBulkVerify', [{ eventId: evId, moveIds: ids, verify: !!verify }]);
+      if (result.status==='ok') document.getElementById('mvAdminMsg').innerHTML = `<span class="success">批次同步完成</span>`; else { mutateLocalVerify(ids, !verify); document.getElementById('mvAdminMsg').innerHTML = `<span class="error">同步失敗：${result.err||result.res?.msg}</span>`; }
+    }
+    async function moveAdminVerifySingle(moveId, verify){
+      const evId = document.getElementById('mvEventAdmin').value; if (!evId) return alert('請選擇事件');
+      mutateLocalVerify([moveId], verify); document.getElementById('mvAdminMsg').textContent = '同步中…';
+      const result = await rpcWithSoftTimeout('adminBulkVerify', [{ eventId: evId, moveIds: [moveId], verify: !!verify }]);
+      if (result.status==='ok') document.getElementById('mvAdminMsg').innerHTML = `<span class="success">已同步伺服器</span>`; else { mutateLocalVerify([moveId], !verify); document.getElementById('mvAdminMsg').innerHTML = `<span class="error">更新失敗</span>`; }
+    }
+    async function moveSaveRow(moveId){
+      const input = [...document.querySelectorAll('.mvEditTemp')].find(i=>i.dataset.id===moveId); const val = (input? input.value.trim(): ''); document.getElementById('mvAdminMsg').textContent='儲存中…';
+      try{ const res = await rpc('adminUpdateMovement', { MoveID: moveId, fields: { '暫存地點': val } }); if (res && res.ok){ const row = (MV_ADMIN_LAST||[]).find(m=>m.MoveID===moveId); if (row){ row['暫存地點'] = val; } renderMvTable(MV_ADMIN_LAST); renderAdminProgressBars(MV_ADMIN_LAST); document.getElementById('mvAdminMsg').innerHTML = '<span class="success">已儲存並同步主表</span>'; }else{ document.getElementById('mvAdminMsg').innerHTML = `<span class="error">失敗：${res.msg}</span>`; } }catch(err){ document.getElementById('mvAdminMsg').innerHTML = `<span class="error">失敗：${err.message}</span>`; }
+    }
+    async function moveExportPdf(){ const evId = document.getElementById('mvEventAdmin').value; if (!evId) return alert('請先選擇事件'); document.getElementById('mvAdminMsg').textContent='匯出中…'; try{ const res = await rpc('exportEventPdf', evId); if (res && res.ok){ document.getElementById('mvAdminMsg').innerHTML = `完成，請點擊：<a href="${res.pdfUrl}" target="_blank" class="fw-bold">${esc(res.name)}</a>`; }else{ document.getElementById('mvAdminMsg').innerHTML = `<span class="error">失敗：${res.msg}</span>`; } }catch(err){ document.getElementById('mvAdminMsg').innerHTML = `<span class="error">失敗：${err.message}</span>`; } }
+
+    function formatTime(v){ try{ return new Date(v).toLocaleString('zh-TW'); }catch{ return v||''; } }
+    function renderAdminProgressBars(list){
+      const total = (list||[]).length; const moveDone = (list||[]).filter(mv => (mv['暫存地點'] && String(mv['暫存地點']).trim() !== '')).length; const verifyDone = (list||[]).filter(mv => !!mv['核對']).length;
+      const p1 = total>0 ? Math.round((moveDone/total)*100) : 0; const p2 = total>0 ? Math.round((verifyDone/total)*100) : 0;
+      document.getElementById('mvAdminProgMove').innerHTML = `搬運進度：<strong class="text-primary">${moveDone}/${total}</strong> (${p1}%)　｜　未填暫存：<strong class="text-danger">${total - moveDone}</strong>`; document.getElementById('mvAdminProgVerify').innerHTML = `核對進度：<strong class="text-success">${verifyDone}/${total}</strong> (${p2}%)　｜　未核對：<strong class="text-danger">${total - verifyDone}</strong>`;
+    }
+
+    function adminOpenBulkInput(btn){
+      closePickList(); const rect = btn.getBoundingClientRect(); _pop = document.createElement('div'); _pop.className = 'popover';
+      _pop.innerHTML = `<div class="field-inline" style="min-width:280px;padding:10px;"><input type="text" id="_bulkTempInput" placeholder="輸入暫存地點"><button class="btn primary small" type="button" onclick="adminConfirmBulkTemp()">套用到選取</button></div><div class="muted text-center" style="padding-bottom:10px;">目前已選：${MV_ADMIN_SEL.size} 筆</div>`;
+      document.body.appendChild(_pop); Object.assign(_pop.style, { left: (rect.left + window.scrollX - 200) + 'px', top: (rect.bottom + 4 + window.scrollY) + 'px' }); window.addEventListener('click', _autoCloseOnce, { once:true });
+    }
+    async function adminConfirmBulkTemp(){ const temp = (document.getElementById('_bulkTempInput')?.value||'').trim(); if (!temp) return alert('請輸入暫存地點'); closePickList(); await adminDoBulkTemp(temp); }
+    async function rowApplyTempToSelected(moveId){ const temp = (document.getElementById('tmp_'+moveId)?.value||'').trim(); if (!temp) return alert('請先在此列輸入暫存地點'); await adminDoBulkTemp(temp); }
+    async function adminDoBulkTemp(newTemp){
+      const ids = Array.from(MV_ADMIN_SEL); if (!ids.length) return alert('請先勾選資料'); const evId = document.getElementById('mvEventAdmin').value || ''; if (!evId) return alert('請選擇事件');
+      const snap = snapshotTemps(ids); const changed = mutateLocalTemp(ids, newTemp); if (!changed){ document.getElementById('mvAdminMsg').textContent = '無可更新筆數'; return; }
+      document.getElementById('mvAdminMsg').textContent = `已套用至 ${ids.length} 筆（同步中…）`;
+      const tryBatch = await rpcWithSoftTimeout('adminBulkUpdateTemp', [{ eventId: evId, moveIds: ids, temp: newTemp }]);
+      if (tryBatch.status==='ok' && tryBatch.res?.ok) document.getElementById('mvAdminMsg').innerHTML = `<span class="success">已同步主表 (${ids.length} 筆)</span>`; else { rollbackTemps(snap); document.getElementById('mvAdminMsg').innerHTML = `<span class="error">同步失敗，已退回原狀態</span>`; }
+    }
+    function mutateLocalTemp(moveIds, newTemp){ const set = new Set(moveIds); let changed = 0; for (const mv of MV_ADMIN_LAST){ if (set.has(mv.MoveID)){ if ((mv['暫存地點']||'') !== newTemp){ mv['暫存地點'] = newTemp; changed++; } } } if (changed){ renderMvTable(MV_ADMIN_LAST); renderAdminProgressBars(MV_ADMIN_LAST); } return changed; }
+    function snapshotTemps(moveIds){ const snap = new Map(); const set = new Set(moveIds); for (const mv of MV_ADMIN_LAST){ if (set.has(mv.MoveID)) snap.set(mv.MoveID, mv['暫存地點']||''); } return snap; }
+    function rollbackTemps(snap, idsToRollback=null){ const ids = idsToRollback ? idsToRollback : Array.from(snap.keys()); const set = new Set(ids); for (const mv of MV_ADMIN_LAST){ if (set.has(mv.MoveID) && snap.has(mv.MoveID)) mv['暫存地點'] = snap.get(mv.MoveID); } renderMvTable(MV_ADMIN_LAST); renderAdminProgressBars(MV_ADMIN_LAST); }
+
+    /* ===== 系統初始啟動 ===== */
+    window.addEventListener('load', async () => {
+      document.getElementById('invRoot').style.display = '';
+      await loadLocations();
+      setViewMode(viewMode.cols || 1, !!viewMode.dense);
+      hideLoading();
+    });
   </script>
 </body>
 </html>
