@@ -3,35 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>典藏庫房管理系統</title>
+  <title>典藏庫房管理系統-企業協作版</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    body { background-color: #f1f3f5; padding-bottom: 60px; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: #f1f3f5; padding-bottom: 60px; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; }
     .nav-tabs .nav-link { color: #495057; font-weight: bold; border-radius: 10px 10px 0 0; font-size: 0.9rem; padding: 10px 5px;}
     .nav-tabs .nav-link.active { background-color: #198754; color: white; border-color: #198754; }
     .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
     .step-card.active { display: block; }
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
-    #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 12px; }
-    .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
-    .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
-    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .table-responsive { font-size: 0.85rem; }
-    .action-btn { width: 100%; margin-bottom: 5px; }
     
-    /* 折疊選單客製化樣式 */
-    .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; box-shadow: inset 0 -1px 0 rgba(0,0,0,.125); }
-    .accordion-button { padding: 12px 15px; font-weight: bold; }
+    /* 掃描器與浮動卡片樣式 */
+    #reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
+    #reader { width: 100% !important; border: none !important; }
+    
+    #resultOverlay { 
+      position: absolute; top: 10px; left: 10px; right: 10px; 
+      z-index: 100; display: none; 
+      background: rgba(255, 255, 255, 0.92); 
+      backdrop-filter: blur(5px);
+      border-radius: 12px; padding: 15px; 
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      border: 2px solid #198754;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .result-img { max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 5px; margin-right: 15px; }
+    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    
+    /* 折疊選單與大型觸控按鈕 */
+    .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
-    .fake-input-btn { cursor: pointer; text-align: left; }
-    /* 大型觸控按鈕微調 */
     .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
+    .fake-input-btn { cursor: pointer; text-align: left; }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark mb-3">
+  <nav class="navbar navbar-dark bg-dark mb-2">
     <div class="container-fluid"><span class="navbar-brand mb-0 h1 fs-5">📦 典藏庫房管理系統</span></div>
   </nav>
 
@@ -41,7 +52,7 @@
   </div>
 
   <div class="container px-2">
-    <ul class="nav nav-tabs nav-fill mb-2" id="systemTabs" role="tablist">
+    <ul class="nav nav-tabs nav-fill mb-2" id="systemTabs">
       <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">文物盤點</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">文物異動</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理後台</button></li>
@@ -50,43 +61,56 @@
     <div class="tab-content">
       <div class="tab-pane fade show active" id="inv">
         <div id="step1" class="step-card active">
+          <div class="alert alert-info py-2" id="baselineInfo" style="font-size: 0.85rem;">載入盤點基準日中...</div>
           <h5 class="mb-3">選擇盤點模式</h5>
           <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
           <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
           
           <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm">
-            <label class="mb-2 fw-bold text-primary">選擇典藏地點 ( 區域 ➔ 櫃位/層位 )</label>
-            <input type="text" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位 (例：東側小庫房、鐵櫃、1-2)..." onkeyup="filterInvTree()">
-            <div id="locCheckboxes">載入中...</div>
+            <input type="text" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位..." onkeyup="filterInvTree()">
+            <div id="locCheckboxes">載入地點中...</div>
           </div>
-          <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
+          <button class="btn btn-success w-100 fw-bold fs-5 py-3" onclick="startInventorySession()">🚀 進入掃描畫面</button>
         </div>
 
-        <div id="step2" class="step-card">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">現場盤點作業</h5><button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button></div>
-          <div class="row g-2 mb-2">
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件</small></div></div>
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤</small></div></div>
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-danger" id="valUnscanned">...</div><small>未盤</small></div></div>
+        <div id="step2" class="step-card p-2">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0 fw-bold">團隊同步進度</h6>
+            <button class="btn btn-danger btn-sm fw-bold" onclick="pauseInventorySession()">🛑 暫停 / 結算進度</button>
           </div>
-          <div class="progress mb-3" style="height: 20px;"><div id="progressBar" class="progress-bar bg-success" style="width: 0%;">0%</div></div>
-          <div id="reader" class="card shadow-sm border-0"></div>
-          <div id="resultCard" class="result-card bg-light">
-            <h3 id="resStatus" class="mb-3"></h3><img id="resImg" class="result-img" src="" onerror="this.style.display='none'"><h5 id="resName" class="text-primary fw-bold"></h5><p id="resDesc" class="text-muted small mb-0"></p>
+          <div class="row g-2 mb-2">
+            <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-primary" id="valTotal" style="font-size: 1.2rem;">...</div><small>總件</small></div></div>
+            <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-success" id="valScanned" style="font-size: 1.2rem;">0</div><small>已盤</small></div></div>
+            <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-danger" id="valUnscanned" style="font-size: 1.2rem;">...</div><small>未盤</small></div></div>
+          </div>
+          <div class="progress mb-3" style="height: 12px;"><div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div></div>
+          
+          <div id="reader-container">
+            <div id="resultOverlay">
+              <div class="d-flex align-items-center">
+                <img id="resImg" class="result-img" src="" onerror="this.style.display='none'">
+                <div class="flex-grow-1">
+                  <div id="resStatus" class="fw-bold mb-1" style="font-size: 1.1rem;"></div>
+                  <div id="resName" class="text-primary fw-bold" style="font-size: 0.9rem;"></div>
+                  <div id="resDesc" class="text-muted" style="font-size: 0.75rem;"></div>
+                </div>
+              </div>
+            </div>
+            <div id="reader"></div>
           </div>
         </div>
 
         <div id="step3" class="step-card">
-          <h5 class="mb-3 text-center">✅ 盤點任務已暫停/結束</h5>
-          <div class="mb-3"><label>請輸入接收報表的 Email</label><input type="email" id="exportEmail" class="form-control" placeholder="example@email.com"></div>
-          <label>選擇匯出內容</label>
+          <h5 class="mb-4 text-center">✅ 本次盤點進度已暫存</h5>
+          <div class="mb-3"><label>接收 Excel 報表的 Email</label><input type="email" id="exportEmail" class="form-control"></div>
+          <label>匯出範圍</label>
           <select id="exportType" class="form-select mb-4">
-            <option value="all">匯出本次範圍之「全部名單」</option>
-            <option value="scanned">僅匯出「已盤點」名單</option>
-            <option value="unscanned">僅匯出「未盤點 (缺漏)」名單</option>
+            <option value="all">匯出「全部名單」</option>
+            <option value="scanned">僅匯出「已盤點」</option>
+            <option value="unscanned">僅匯出「未盤點 (缺漏)」</option>
           </select>
-          <button class="btn btn-primary w-100 mb-2" onclick="exportReport()" id="btnExport">寄送 Excel 報表</button>
-          <button class="btn btn-outline-secondary w-100" onclick="location.reload()">返回首頁</button>
+          <button class="btn btn-primary w-100 mb-2 py-2 fw-bold" onclick="exportReport()" id="btnExport">寄送 Email 報表</button>
+          <button class="btn btn-outline-secondary w-100 py-2" onclick="location.reload()">返回首頁</button>
         </div>
       </div>
 
@@ -94,58 +118,54 @@
         <div class="step-card active">
           <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
           <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select></div>
-          
-          <div class="mb-3">
-            <label class="form-label">選擇原典藏地點</label>
-            <input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請先選擇上方事件" onclick="triggerMvLoc()">
-            <input type="hidden" id="mvLoc">
-          </div>
-          
-          <div class="mb-3"><label class="form-label">選擇要搬運的文物</label><select id="mvItem" class="form-select" disabled><option value="">請先選擇地點</option></select></div>
+          <div class="mb-3"><label class="form-label">選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
+          <div class="mb-3"><label class="form-label">選擇文物</label><select id="mvItem" class="form-select" disabled></select></div>
           <hr>
-          <div class="mb-3">
-            <label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label>
-            <input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇新地點..." onclick="triggerMvNewLoc()">
-            <input type="hidden" id="mvNewLoc">
-          </div>
-
+          <div class="mb-3"><label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label><input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()"><input type="hidden" id="mvNewLoc"></div>
           <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox"><label class="form-check-label" for="mvIsBox">是否裝箱</label></div>
-          <div class="mb-3"><label class="form-label">輸入箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName" placeholder="例如：A01"></div>
-          <div class="row mb-4">
-            <div class="col-6"><label class="form-label text-danger fw-bold">本處人員</label><select id="mvStaffInternal" class="form-select"></select></div>
-            <div class="col-6"><label class="form-label text-danger fw-bold">操作人</label><select id="mvStaffOp" class="form-select"></select></div>
-          </div>
-          <button class="btn btn-primary w-100 fw-bold fs-5" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
+          <div class="mb-3"><label class="form-label">箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName"></div>
+          <div class="row mb-4"><div class="col-6"><label class="form-label text-danger small">本處人員</label><select id="mvStaffInternal" class="form-select"></select></div><div class="col-6"><label class="form-label text-danger small">操作人</label><select id="mvStaffOp" class="form-select"></select></div></div>
+          <button class="btn btn-primary w-100 fw-bold fs-5 py-2" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
         </div>
       </div>
 
       <div class="tab-pane fade" id="mgr">
         <div id="mgrLogin" class="step-card active">
           <h5 class="mb-3 text-danger">🔒 管理員登入</h5>
-          <input type="password" id="mgrPwd" class="form-control mb-3" placeholder="請輸入管理員密碼">
-          <button class="btn btn-danger w-100 fw-bold" onclick="loginManager()">登入後台</button>
+          <input type="password" id="mgrPwd" class="form-control mb-3" placeholder="輸入管理員密碼">
+          <button class="btn btn-danger w-100 fw-bold py-2" onclick="loginManager()">登入系統</button>
         </div>
         
         <div id="mgrDashboard" class="step-card">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <div><h5 class="mb-0 text-danger fw-bold">⚙️ 管理員面板</h5><small id="lblManagerName" class="text-muted"></small></div>
+            <h5 class="mb-0 text-danger fw-bold">⚙️ 管理面板</h5>
             <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">登出</button>
           </div>
-          <div class="mb-3"><label class="form-label">選擇審核專案</label><select id="mgrEvent" class="form-select" onchange="loadManagerData()"></select></div>
           
-          <ul class="nav nav-pills mb-3" id="mgrPills" role="tablist">
+          <div class="card mb-3 border-primary">
+            <div class="card-body py-2">
+              <h6 class="card-title text-primary small fw-bold">本期盤點基準日設定</h6>
+              <div class="input-group input-group-sm">
+                <input type="datetime-local" id="newBaseline" class="form-control">
+                <button class="btn btn-primary" onclick="updateBaseline()">更新基準日</button>
+              </div>
+              <small class="text-muted">※ 基準日後的掃描才會計入「已盤點」</small>
+            </div>
+          </div>
+
+          <div class="mb-3"><label class="form-label small">選擇審核專案</label><select id="mgrEvent" class="form-select" onchange="loadManagerData()"></select></div>
+          <ul class="nav nav-pills mb-3" id="mgrPills">
             <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrPending">待核對</button></li>
             <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已核對</button></li>
           </ul>
-          
           <div class="tab-content">
             <div class="tab-pane fade show active" id="mgrPending">
-              <div class="table-responsive"><table class="table table-bordered table-striped" id="tablePending"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物資訊</th><th>暫存地點/箱號</th><th>操作</th></tr></thead><tbody></tbody></table></div>
-              <button class="btn btn-success action-btn fw-bold" onclick="batchApprove()">✅ 批次核對通過</button>
+              <div class="table-responsive"><table class="table table-bordered table-striped" id="tablePending"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物</th><th>地點/箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+              <button class="btn btn-success action-btn fw-bold" onclick="changeStatus('.chk-pend', true)">✅ 批次通過</button>
             </div>
             <div class="tab-pane fade" id="mgrConfirmed">
-              <div class="table-responsive"><table class="table table-bordered table-striped" id="tableConfirmed"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物資訊</th><th>暫存地點/箱號</th><th>操作</th></tr></thead><tbody></tbody></table></div>
-              <button class="btn btn-warning action-btn fw-bold" onclick="batchRevert()">↩️ 批次撤銷核對</button>
+              <div class="table-responsive"><table class="table table-bordered table-striped" id="tableConfirmed"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>地點/箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+              <button class="btn btn-warning action-btn fw-bold" onclick="changeStatus('.chk-conf', false)">↩️ 撤銷核對</button>
               <hr>
               <button class="btn btn-dark w-100 fw-bold mt-2" onclick="syncToMaster()">💾 結案：同步至藏品總表</button>
             </div>
@@ -156,48 +176,37 @@
   </div>
 
   <div class="modal fade" id="locModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-3">
-          <input type="text" id="modalLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位..." onkeyup="filterModalTree()">
-          <div id="modalLocContainer"></div>
-        </div>
-      </div>
-    </div>
+    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header bg-light"><h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body p-3"><input type="text" id="modalLocSearch" class="form-control mb-3" placeholder="🔍 搜尋..." onkeyup="filterModalTree()"><div id="modalLocContainer"></div></div>
+    </div></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // ==========================================
     // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
     // ==========================================
 
-    let currentManager = "";
-    let globalLocTree = [];   
-    let pendingLocTree = [];  
-    let currentModalTarget = ""; 
+    let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
 
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
     async function callAPI(action, payload = {}) {
       try {
-        const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, payload: payload }) });
+        const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: action, payload: payload }) });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
       } catch (err) { throw new Error(err.message); }
     }
 
-    // ==================== 初始化 ====================
     window.onload = async function() {
       try {
         const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
+        baselineTime = invData.baselineTime;
+        document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${new Date(baselineTime).toLocaleString()}`;
         renderTreeHTML(invData.locTree, 'locCheckboxes', 'inv', true);
         globalLocTree = workData.locTree;
         populateSelect('mvEvent', workData.events, true);
@@ -205,277 +214,203 @@
         populateSelect('mvStaffInternal', workData.staffInternal);
         populateSelect('mvStaffOp', workData.staffOp);
         hideLoading(); 
-      } catch (err) {
-        document.getElementById('loadingMask').innerHTML = `<div class="container p-4"><h4 class="text-danger fw-bold text-center mb-3">⚠️ 系統連線失敗</h4><div class="alert alert-warning">${err.message}</div></div>`;
-      }
+      } catch (err) { alert("連線失敗：" + err.message); }
     };
 
     function populateSelect(id, arr, isObj = false) { 
-        const el = document.getElementById(id); 
-        el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => { return isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`; }).join(''); 
+        document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
-    // ==================== 樹狀結構 UI 渲染引擎 (深層折疊版) ====================
+    // ==================== 樹狀結構與 UI 邏輯 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
-      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-secondary">查無可用地點</div>'; return; }
-      
+      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '無資料'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
       treeData.forEach((mainNode, mIdx) => {
         let totalLeaves = mainNode.subs.reduce((sum, sub) => sum + sub.details.length, 0);
         let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
-        
-        html += `
-        <div class="accordion-item main-item">
-          <h2 class="accordion-header">
-            <button class="accordion-button collapsed d-flex justify-content-between" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}">
-              <div><strong>${mainNode.main}</strong> ${badgeHtml}</div>
-            </button>
-          </h2>
-          <div id="${prefix}Col${mIdx}" class="accordion-collapse collapse">
-            <div class="accordion-body p-2">`;
-
+        html += `<div class="accordion-item main-item"><h2 class="accordion-header"><button class="accordion-button collapsed d-flex justify-content-between" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}"><div><strong>${mainNode.main}</strong> ${badgeHtml}</div></button></h2><div id="${prefix}Col${mIdx}" class="accordion-collapse collapse"><div class="accordion-body p-2">`;
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-
           if (subNode.details.length === 1 && subNode.details[0].label === "(本區)") {
             let det = subNode.details[0];
-            html += `<div class="sub-group mb-2"><div class="leaf-item">`;
-            if (isMulti) {
-              html += `<input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()">
-                       <label class="btn btn-outline-success w-100 text-start fw-bold fs-6 py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>`;
-            } else {
-              html += `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold fs-6 py-2" onclick="selectModalLoc('${det.val}')">📁 ${subNode.sub}</button>`;
-            }
-            html += `</div></div>`;
+            html += `<div class="sub-group mb-2"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-start fw-bold py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold py-2" onclick="selectModalLoc('${det.val}')">📁 ${subNode.sub}</button>`) + `</div></div>`;
           } else {
-            html += `<div class="sub-group mb-3 border rounded p-2 bg-light">`;
-            if (isMulti) {
-              html += `<div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-                         <div class="fw-bold text-primary flex-grow-1" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
-                           📂 ${subNode.sub} <span class="dropdown-toggle text-muted ms-1"></span>
-                         </div>
-                         <div class="btn-group">
-                           <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button>
-                           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button>
-                         </div>
-                       </div>
-                       <div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
-            } else {
-              html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
-                         📂 ${subNode.sub} <span class="dropdown-toggle text-muted ms-1"></span>
-                       </div>
-                       <div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
-            }
-
+            html += `<div class="sub-group mb-3 border rounded p-2 bg-light"><div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2"><div class="fw-bold text-primary flex-grow-1" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
             subNode.details.forEach((det, dIdx) => {
-              if(isMulti) {
-                html += `<div class="col-6 col-md-4 leaf-item">
-                           <input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()">
-                           <label class="btn btn-outline-success w-100 text-center py-2" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>
-                         </div>`;
-              } else {
-                html += `<div class="col-6 col-md-4 leaf-item"><button type="button" class="btn btn-outline-dark w-100 text-center py-2" onclick="selectModalLoc('${det.val}')">${det.label}</button></div>`;
-              }
+              html += `<div class="col-6 col-md-4 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`;
             });
-            html += `</div></div></div>`; // 結束 row 與 collapse 與 sub-group
+            html += `</div></div></div>`;
           }
         });
         html += `</div></div></div>`;
       });
-      html += '</div>';
-      document.getElementById(containerId).innerHTML = html;
+      document.getElementById(containerId).innerHTML = html + '</div>';
     }
 
-    // --- 盤點多選樹邏輯 ---
     function selectAllInSub(btn, isSelect, collapseId) {
-      const group = btn.closest('.sub-group');
-      group.querySelectorAll('.leaf-cb').forEach(cb => {
-        if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect;
-      });
-      // 點擊全選時，自動展開該分類以便視覺確認
-      if(isSelect && collapseId) {
-        const collapseDiv = document.getElementById(collapseId);
-        if(collapseDiv) collapseDiv.classList.add('show');
-      }
+      btn.closest('.sub-group').querySelectorAll('.leaf-cb').forEach(cb => { if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect; });
+      if(isSelect && collapseId) { const div = document.getElementById(collapseId); if(div) div.classList.add('show'); }
       updateCounts();
     }
     
     function updateCounts() {
-      document.querySelectorAll('.main-item').forEach(mainNode => {
-        const checkedCount = Array.from(mainNode.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length;
-        const badge = mainNode.querySelector('.count-badge');
-        if(!badge) return;
-        badge.innerText = `已選 ${checkedCount}/${badge.getAttribute('data-total')}`;
-        if (checkedCount > 0) { badge.classList.remove('bg-secondary'); badge.classList.add('bg-success'); } 
-        else { badge.classList.remove('bg-success'); badge.classList.add('bg-secondary'); }
-      });
-    }
-    
-    function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
-    function filterModalTree() { execFilter('modalLocSearch', 'modalLocContainer'); }
-    function execFilter(inputId, containerId) {
-      const term = document.getElementById(inputId).value.toLowerCase();
-      document.querySelectorAll(`#${containerId} .main-item`).forEach(main => {
-        let mainVis = false;
-        main.querySelectorAll('.sub-group').forEach(sub => {
-          let subVis = false;
-          sub.querySelectorAll('.leaf-item').forEach(leaf => {
-            const text = leaf.innerText.toLowerCase();
-            const input = leaf.querySelector('input');
-            const val = input ? input.value.toLowerCase() : '';
-            if (text.includes(term) || val.includes(term)) { leaf.style.display = ''; subVis = true; mainVis = true; } 
-            else { leaf.style.display = 'none'; }
-          });
-          sub.style.display = subVis ? '' : 'none';
-          
-          // 搜尋時，如果有命中內容，自動展開第三層
-          const collapseDiv = sub.querySelector('.collapse');
-          if (collapseDiv) {
-              if (term !== '' && subVis) { collapseDiv.classList.add('show'); } 
-              else if (term === '') { collapseDiv.classList.remove('show'); }
-          }
-        });
-        
-        // 搜尋時，自動展開第一層
-        const mainCollapse = main.querySelector('.accordion-collapse');
-        if (mainCollapse) {
-            if (term !== '' && mainVis) { mainCollapse.classList.add('show'); } 
-            else if (term === '') { mainCollapse.classList.remove('show'); }
-        }
-        main.style.display = mainVis ? '' : 'none';
+      document.querySelectorAll('.main-item').forEach(main => {
+        const checked = Array.from(main.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length;
+        const badge = main.querySelector('.count-badge'); if(!badge) return;
+        badge.innerText = `已選 ${checked}/${badge.getAttribute('data-total')}`;
+        badge.className = checked > 0 ? 'badge bg-success ms-2 count-badge' : 'badge bg-secondary ms-2 count-badge';
       });
     }
 
-    // ==================== 1. 盤點系統 API ====================
-    let html5QrCode, lastScanAt = 0, sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 }, isProcessing = false;
+    function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
+    function filterModalTree() { execFilter('modalLocSearch', 'modalLocContainer'); }
+    function execFilter(id, container) {
+      const term = document.getElementById(id).value.toLowerCase();
+      document.querySelectorAll(`#${container} .main-item`).forEach(main => {
+        let mVis = false;
+        main.querySelectorAll('.sub-group').forEach(sub => {
+          let sVis = false;
+          sub.querySelectorAll('.leaf-item').forEach(leaf => {
+            const txt = leaf.innerText.toLowerCase();
+            if (txt.includes(term)) { leaf.style.display = ''; sVis = true; mVis = true; } else { leaf.style.display = 'none'; }
+          });
+          sub.style.display = sVis ? '' : 'none';
+          const coll = sub.querySelector('.collapse'); if(coll && term && sVis) coll.classList.add('show');
+        });
+        const mColl = main.querySelector('.accordion-collapse'); if(mColl && term && mVis) mColl.classList.add('show');
+        main.style.display = mVis ? '' : 'none';
+      });
+    }
+
+    // ==================== 1. 盤點 API ====================
+    let scanner, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
+
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
-    function beep({freq=880, duration=120, type='sine'} = {}){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.type=type; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); osc.start(); setTimeout(()=>{osc.stop(); ctx.close();}, duration);}catch{} }
-    function playSound(kind){ if(kind==='success') beep({freq:1100,duration:140,type:'triangle'}); else beep({freq:550,duration:140,type:'square'}); }
 
     async function startInventorySession() {
       sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial';
-      sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
-      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少展開列表點選一個地點');
-      try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！"); }
-      document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
-      callAPI('startInventory', sysState).then(res => { sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); }).catch(e => alert("錯誤：" + e.message));
-      html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {}).catch(e=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
-    }
-    function updateUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; var unscan = sysState.total - sysState.scanned; document.getElementById('valUnscanned').innerText = unscan < 0 ? 0 : unscan; var pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100); document.getElementById('progressBar').style.width = pct + '%'; document.getElementById('progressBar').innerText = pct + '%'; }
-    
-    function submitScan(qrCode){
-      const now = Date.now(); if (now - lastScanAt < 800) return; lastScanAt = now;
-      if (!qrCode || sysState.sessionTime === 0 || isProcessing) return;
-      isProcessing = true; const qrDisplayId = qrCode.trim().split('\n')[0];
-      var resCard = document.getElementById('resultCard'); resCard.style.display = 'block'; resCard.style.borderColor = '#ffc107';
-      document.getElementById('resStatus').innerHTML = '⏳ 核對中...'; document.getElementById('resImg').style.display = 'none'; document.getElementById('resName').innerText = ''; document.getElementById('resDesc').innerText = '';
+      sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
+      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
       
-      callAPI('submitScan', { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { 
-        playSound('success'); sysState.scanned++; updateUI(); resCard.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '✅ 盤點成功'; document.getElementById('resName').innerText = res.name; document.getElementById('resDesc').innerText = res.desc || '無說明'; if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; } setTimeout(function(){ isProcessing = false; }, 2000);
-      }).catch(err => { 
-        playSound('error'); resCard.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '❌ 核對失敗'; document.getElementById('resName').innerText = qrDisplayId; document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`; setTimeout(function(){ isProcessing = false; }, 2000); 
-      });
+      showLoading('同步全域進度...');
+      const res = await callAPI('startInventory', sysState);
+      sysState.total = res.total; sysState.scanned = res.scanned; updateProgressUI();
+      
+      document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
+      hideLoading();
+
+      scanner = new Html5Qrcode("reader");
+      const config = { 
+        fps: 20, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        videoConstraints: {
+          facingMode: "environment",
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          advanced: [{ focusMode: "continuous" }]
+        }
+      };
+      scanner.start({ facingMode: "environment" }, config, msg => submitScan(msg));
     }
 
-    function endInventorySession() { if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); } document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; }
-    function exportReport() { var email = document.getElementById('exportEmail').value; if(!email || !email.includes('@')) return alert('請輸入 Email'); showLoading('報表寄送中...'); callAPI('exportInventoryReport', { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { hideLoading(); alert('寄送成功！'); }).catch(e => { hideLoading(); alert(e.message); }); }
+    function updateProgressUI() {
+      document.getElementById('valTotal').innerText = sysState.total;
+      document.getElementById('valScanned').innerText = sysState.scanned;
+      document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned);
+      const pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100);
+      document.getElementById('progressBar').style.width = pct + '%';
+    }
 
-    // ==================== 2. 搬運系統 API 與 Modal 控制 ====================
+    async function submitScan(msg) {
+      if (isProc || Date.now() - lastScan < 1500) return;
+      isProc = true; lastScan = Date.now();
+      
+      const overlay = document.getElementById('resultOverlay');
+      overlay.style.display = 'block'; overlay.style.borderColor = '#ffc107';
+      document.getElementById('resStatus').innerText = '⏳ 雲端同步中...';
+      
+      try {
+        const res = await callAPI('submitScan', { qrStr: msg, mode: sysState.mode, locations: sysState.locations });
+        playSound('success');
+        sysState.scanned = res.globalScanned; updateProgressUI();
+        overlay.style.borderColor = '#198754';
+        document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>';
+        document.getElementById('resName').innerText = res.name;
+        document.getElementById('resDesc').innerText = res.desc || "";
+        if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'block'; }
+      } catch (e) {
+        playSound('error');
+        overlay.style.borderColor = '#dc3545';
+        document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 錯誤</span>';
+        document.getElementById('resName').innerText = msg;
+        document.getElementById('resDesc').innerText = e.message;
+      }
+      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 3000);
+    }
+
+    function pauseInventorySession() {
+      if(!confirm("確定要暫停目前的盤點作業嗎？\n(進度已自動儲存至雲端，隨時可接續盤點)")) return;
+      if (scanner) scanner.stop().then(() => scanner.clear());
+      document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
+    }
+
+    function playSound(k){ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.type=k==='success'?'triangle':'square'; o.frequency.value=k==='success'?1100:550; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); o.start(); setTimeout(()=>{o.stop(); ctx.close();}, 150); }
+
+    // ==================== 2. 搬運 API ====================
     async function loadWorkerLocations() {
-      const eventId = document.getElementById('mvEvent').value;
-      const display = document.getElementById('mvLocDisplay');
-      document.getElementById('mvLoc').value = ""; display.value = ""; document.getElementById('mvItem').innerHTML = '<option value="">請先選擇地點</option>'; document.getElementById('mvItem').disabled = true;
-      if(!eventId) { display.placeholder = "請先選擇上方事件"; return; }
-      showLoading('分析專案待搬運地點...');
-      try { 
-        const res = await callAPI('getPendingLocations', { eventId: eventId }); 
-        pendingLocTree = res.locTree; 
-        display.placeholder = "請點此選擇原地點..."; 
-        hideLoading(); 
-      } catch (e) { alert(e.message); hideLoading(); }
+      const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
+      document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvItem').disabled = true;
+      if(!eid) return;
+      showLoading();
+      try { const res = await callAPI('getPendingLocations', { eventId: eid }); pendingLocTree = res.locTree; d.placeholder = "請選擇..."; hideLoading(); } catch (e) { alert(e.message); hideLoading(); }
     }
-
-    function triggerMvLoc() {
-      if(!document.getElementById('mvEvent').value) return alert('請先選擇異動專案事件！');
-      currentModalTarget = 'mvLoc';
-      document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
-      document.getElementById('modalLocSearch').value = '';
-      renderTreeHTML(pendingLocTree, 'modalLocContainer', 'modal', false);
-      new bootstrap.Modal(document.getElementById('locModal')).show();
-    }
-
-    function triggerMvNewLoc() {
-      currentModalTarget = 'mvNewLoc';
-      document.getElementById('locModalTitle').innerText = "選擇「新地點(暫存)」";
-      document.getElementById('modalLocSearch').value = '';
-      renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
-      new bootstrap.Modal(document.getElementById('locModal')).show();
-    }
-
-    function selectModalLoc(val) {
-      document.getElementById(currentModalTarget).value = val;
-      document.getElementById(currentModalTarget + 'Display').value = val;
-      bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
-      if(currentModalTarget === 'mvLoc') loadWorkerItems();
-    }
-
+    function triggerMvLoc() { currentModalTarget='mvLoc'; renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); new bootstrap.Modal(document.getElementById('locModal')).show(); }
+    function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); new bootstrap.Modal(document.getElementById('locModal')).show(); }
+    function selectModalLoc(v) { document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); if(currentModalTarget==='mvLoc') loadWorkerItems(); }
     async function loadWorkerItems() {
-      const eventId = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
-      if(!loc) return;
-      showLoading('讀取清單...');
-      try { const items = await callAPI('getPendingItems', { eventId: eventId, location: loc }); document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + items.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join(''); document.getElementById('mvItem').disabled = false; hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+      const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
+      const res = await callAPI('getPendingItems', { eventId: eid, location: loc });
+      document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + res.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join('');
+      document.getElementById('mvItem').disabled = false;
     }
-
     async function submitMovement() {
-      const rowIndex = document.getElementById('mvItem').value, newLoc = document.getElementById('mvNewLoc').value;
-      const staffInternal = document.getElementById('mvStaffInternal').value, staffOp = document.getElementById('mvStaffOp').value;
-      if(!rowIndex || !newLoc || (!staffInternal && !staffOp)) return alert('請確認「文物」、「暫存地點」與「至少一位人員」皆已填寫！');
-      document.getElementById('btnSubmitMove').disabled = true; showLoading('傳送單據中...');
-      const payload = { rowIndex: rowIndex, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInternal, staffOp: staffOp };
-      try { await callAPI('submitMovement', payload); alert('送出成功！'); document.getElementById('mvItem').value = ""; document.getElementById('mvBoxName').value = ""; document.getElementById('btnSubmitMove').disabled = false; loadWorkerItems(); hideLoading(); } 
-      catch (e) { alert(e.message); document.getElementById('btnSubmitMove').disabled = false; hideLoading(); }
+      showLoading('送出中...');
+      const payload = { rowIndex: document.getElementById('mvItem').value, newLoc: document.getElementById('mvNewLoc').value, isBox: document.getElementById('mvIsBox').checked?'TRUE':'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: document.getElementById('mvStaffInternal').value, staffOp: document.getElementById('mvStaffOp').value };
+      await callAPI('submitMovement', payload); alert('送出成功！'); loadWorkerItems(); hideLoading();
     }
 
-    // ==================== 3. 管理員後台 ====================
+    // ==================== 3. 管理後台 ====================
     async function loginManager() {
-      const pwd = document.getElementById('mgrPwd').value; if(!pwd) return alert('請輸入密碼');
-      showLoading('驗證身分...');
-      try { const res = await callAPI('verifyManager', { pwd: pwd }); currentManager = res.managerName; document.getElementById('lblManagerName').innerText = `登入者：${currentManager}`; document.getElementById('mgrLogin').style.display = 'none'; document.getElementById('mgrDashboard').style.display = 'block'; hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+      const res = await callAPI('verifyManager', { pwd: document.getElementById('mgrPwd').value });
+      currentManager = res.managerName; document.getElementById('mgrLogin').style.display='none'; document.getElementById('mgrDashboard').style.display='block';
+    }
+    async function updateBaseline() {
+      const time = document.getElementById('newBaseline').value; if(!time) return alert('請選擇日期時間');
+      if(!confirm("確定要更新基準日嗎？這會影響全團隊的已盤點計數。")) return;
+      showLoading(); await callAPI('updateBaseline', { time: new Date(time).getTime() }); location.reload();
     }
     async function loadManagerData() {
-      const eventId = document.getElementById('mgrEvent').value; if(!eventId) return;
-      showLoading('載入表單...');
-      try { const data = await callAPI('getManagerData', { eventId: eventId }); renderTable('tablePending', data.pending, 'chk-pend', true); renderTable('tableConfirmed', data.confirmed, 'chk-conf', false); hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+      const res = await callAPI('getManagerData', { eventId: document.getElementById('mgrEvent').value });
+      renderTable('tablePending', res.pending, 'chk-pend', true); renderTable('tableConfirmed', res.confirmed, 'chk-conf', false);
     }
-    function renderTable(tableId, data, chkClass, showEdit) {
-      document.querySelector(`#${tableId} tbody`).innerHTML = data.map(x => `
-        <tr><td class="text-center"><input type="checkbox" class="form-check-input ${chkClass}" value="${x.rowIndex}"></td>
-        <td><b>${x.qrCode.split('\n')[0]}</b><br><small class="text-muted">原: ${x.oldLoc}</small></td>
-        <td>${x.newLoc} ${x.isBox=='TRUE' ? `<br>📦 ${x.boxName}` : ''}</td>
-        <td>${showEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex}, '${x.newLoc}', '${x.boxName}')">📝修正</button>` : `<small class="text-success">${x.manager}</small>`}</td></tr>`).join('');
+    function renderTable(tid, data, cls, edit) {
+      document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b>${x.qrCode.split('\n')[0]}</b><br><small>${x.oldLoc}</small></td><td>${x.newLoc}<br><small>${x.boxName||''}</small></td><td>${edit?`<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${x.newLoc}','${x.boxName}')">📝</button>`:`<small>${x.manager}</small>`}</td></tr>`).join('');
     }
-    function toggleAllCheck(source, targetClass) { document.querySelectorAll(targetClass).forEach(cb => cb.checked = source.checked); }
-    async function changeStatus(chkClass, newStatus) {
-      if(!currentManager) return alert('請重新登入！');
-      const rows = Array.from(document.querySelectorAll(`${chkClass}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請勾選項目');
-      showLoading('更新狀態...'); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: newStatus, managerName: currentManager }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    async function changeStatus(cls, stat) {
+      const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value));
+      await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData();
     }
-    function batchApprove() { changeStatus('.chk-pend', true); } function batchRevert() { changeStatus('.chk-conf', false); }
-    async function promptEdit(rowIndex, oldLoc, oldBox) {
-      if(!currentManager) return alert('請重新登入！');
-      const newLoc = prompt("修改暫存地點：", oldLoc); if (newLoc === null) return;
-      const boxName = prompt("修改箱號 (若無請留白)：", oldBox); if (boxName === null) return;
-      showLoading('寫入修正紀錄...'); try { await callAPI('editItem', { rowIndex: rowIndex, newLoc: newLoc, boxName: boxName, managerName: currentManager }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    async function promptEdit(ri, nl, nb) {
+      const loc = prompt("修改暫存地點：", nl); const box = prompt("修改箱號：", nb);
+      if(loc!==null) { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); }
     }
     async function syncToMaster() {
-      const eventId = document.getElementById('mgrEvent').value; if(!eventId) return alert('請選擇專案');
-      if(!confirm(`確定要將此專案已核對項目同步至總表並結案嗎？無法復原！`)) return;
-      showLoading('資料高速同步中...'); try { const res = await callAPI('syncToMaster', { eventId: eventId }); alert(`✅ 結案成功！更新 ${res.count} 筆。`); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+      if(!confirm("確定要結案同步嗎？")) return;
+      showLoading('寫入總表中...'); await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('結案成功！'); loadManagerData(); hideLoading();
     }
+    function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
+    function exportReport() { callAPI('exportInventoryReport', { email: document.getElementById('exportEmail').value, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=>alert('報表已寄出！')); }
   </script>
 </body>
 </html>
