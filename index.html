@@ -37,6 +37,10 @@
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
     .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
     .fake-input-btn { cursor: pointer; text-align: left; }
+    
+    /* 自訂漸進式展開的過場動畫 */
+    .fade-in-section { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
@@ -115,15 +119,35 @@
       <div class="tab-pane fade" id="move">
         <div class="step-card active">
           <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
-          <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請先等待系統載入...</option></select></div>
-          <div class="mb-3"><label class="form-label">選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
-          <div class="mb-3"><label class="form-label">選擇文物</label><select id="mvItem" class="form-select" disabled></select></div>
-          <hr>
-          <div class="mb-3"><label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label><input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()"><input type="hidden" id="mvNewLoc"></div>
-          <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox"><label class="form-check-label" for="mvIsBox">是否裝箱</label></div>
-          <div class="mb-3"><label class="form-label">箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName"></div>
-          <div class="row mb-4"><div class="col-6"><label class="form-label text-danger small">本處人員</label><select id="mvStaffInternal" class="form-select"></select></div><div class="col-6"><label class="form-label text-danger small">操作人</label><select id="mvStaffOp" class="form-select"></select></div></div>
-          <button class="btn btn-primary w-100 fw-bold fs-5 py-2" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
+          
+          <div id="mvPhase1">
+            <div class="mb-3"><label class="form-label text-primary fw-bold">1. 選擇異動專案事件</label><select id="mvEvent" class="form-select border-primary" onchange="loadWorkerLocations()"><option value="">請先等待系統載入...</option></select></div>
+            <div class="mb-3"><label class="form-label text-primary fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-primary" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
+          </div>
+
+          <div id="mvPhase2" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
+            <label class="form-label text-danger fw-bold">3. 選擇搬運文物 (可多選)</label>
+            <div class="d-flex justify-content-between mb-2">
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="toggleAllItems(true)">☑️ 全選</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllItems(false)">☐ 清除全選</button>
+            </div>
+            <div id="mvItemList" class="border rounded p-2 bg-light mb-2" style="max-height: 250px; overflow-y: auto;">
+              </div>
+          </div>
+
+          <div id="mvPhase3" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
+            <div class="mb-3"><label class="form-label text-success fw-bold">4. 移往新地點 (暫存地點)</label><input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()"><input type="hidden" id="mvNewLoc"></div>
+            
+            <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox" onchange="toggleBoxInput()"><label class="form-check-label fw-bold" for="mvIsBox">是否裝箱</label></div>
+            <div class="mb-3 bg-light p-3 border rounded fade-in-section" id="boxInputContainer" style="display:none;">
+              <label class="form-label text-dark">📦 輸入箱號</label>
+              <input type="text" class="form-control" id="mvBoxName" placeholder="請填寫箱號，例如：BOX-01">
+            </div>
+            
+            <div class="mb-4"><label class="form-label text-dark fw-bold">5. 本處人員</label><select id="mvStaffInternal" class="form-select border-dark"></select></div>
+            
+            <button class="btn btn-primary w-100 fw-bold fs-5 py-3 shadow-sm" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
+          </div>
         </div>
       </div>
 
@@ -193,13 +217,12 @@
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
-    // ⭐ 優化 2：改用 POST 傳輸，徹底解決「勾選過多地點導致網址過長報錯」的問題
     async function callAPI(action, payload = {}) {
       try {
         const cacheBuster = "?t=" + new Date().getTime(); 
         const response = await fetch(API_URL + cacheBuster, { 
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 使用 text/plain 繞過 CORS 預檢限制
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action: action, payload: payload })
         });
         const res = await response.json();
@@ -221,10 +244,11 @@
         
         renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
         globalLocTree = workData.locTree || [];
+        
+        // 綁定下拉選單資料
         populateSelect('mvEvent', workData.events || [], true);
         populateSelect('mgrEvent', workData.events || [], true);
         populateSelect('mvStaffInternal', workData.staffInternal || []);
-        populateSelect('mvStaffOp', workData.staffOp || []);
         
       } catch (err) { 
         alert("⚠️ 系統載入異常！\n請確定 GAS 已經成功「發布為新版本」。\n錯誤細節：" + err.message); 
@@ -361,7 +385,6 @@
         document.getElementById('resName').innerText = res.name;
         document.getElementById('resDesc').innerText = res.desc || "";
         
-        // ⭐ 優化 1：解決圖片殘留問題，當沒有圖片時確實隱藏與清空
         if(res.img) { 
           document.getElementById('resImg').src = res.img; 
           document.getElementById('resImg').style.display = 'block'; 
@@ -400,12 +423,17 @@
       setTimeout(() => { o.stop(); }, 150); 
     }
 
-    // ==================== 2. 搬運 API ====================
+    // ==================== 2. 搬運 API (優化流暢度與批次) ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
-      document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvItem').disabled = true;
+      document.getElementById('mvLoc').value = ""; d.value = ""; 
+      
+      // 隱藏下方階段
+      document.getElementById('mvPhase2').style.display = 'none';
+      document.getElementById('mvPhase3').style.display = 'none';
+      
       if(!eid) return;
-      showLoading('分析中...');
+      showLoading('分析地點中...');
       try { 
         const res = await callAPI('getPendingLocations', { eventId: eid }); 
         pendingLocTree = res.locTree || []; d.placeholder = "請選擇..."; 
@@ -422,47 +450,114 @@
       renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); 
     }
+    
     function triggerMvNewLoc() { 
       currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「新地點(暫存)」";
       renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); 
     }
+    
     function selectModalLoc(v) { 
       document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; 
       bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
-      if(currentModalTarget==='mvLoc') loadWorkerItems(); 
+      if(currentModalTarget==='mvLoc') loadWorkerItems(); // 選擇舊地點後自動載入文物
     }
 
+    // 展開第二階段：載入文物核取方塊
     async function loadWorkerItems() {
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
+      if (!eid || !loc) return;
+      showLoading('載入文物清單中...');
       try {
         const res = await callAPI('getPendingItems', { eventId: eid, location: loc });
-        document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + res.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join('');
-        document.getElementById('mvItem').disabled = false;
+        const listDiv = document.getElementById('mvItemList');
+        
+        if (res.length === 0) {
+          listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點所有文物皆已搬運完畢！</div>';
+          document.getElementById('mvPhase3').style.display = 'none'; // 隱藏提交區
+        } else {
+          listDiv.innerHTML = res.map((x, i) => `
+            <div class="form-check mb-2 pb-2 border-bottom">
+              <input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" onchange="checkPhase3Trigger()">
+              <label class="form-check-label w-100 fs-6" for="mvItem_${i}">${x.qrCode.split('\n')[0]}</label>
+            </div>
+          `).join('');
+          checkPhase3Trigger(); // 初始化檢查
+        }
+        document.getElementById('mvPhase2').style.display = 'block'; // 顯示文物區塊
       } catch (e) {
         alert("清單讀取失敗：" + e.message);
+      } finally {
+        hideLoading();
       }
     }
 
+    // 全選/清除按鈕邏輯
+    function toggleAllItems(state) {
+      document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state);
+      checkPhase3Trigger();
+    }
+
+    // 判斷是否顯示第三階段 (必須至少勾選一件文物)
+    function checkPhase3Trigger() {
+      const checkedCount = document.querySelectorAll('.mv-item-cb:checked').length;
+      if (checkedCount > 0) {
+        document.getElementById('mvPhase3').style.display = 'block';
+      } else {
+        document.getElementById('mvPhase3').style.display = 'none';
+      }
+    }
+
+    // 條件式顯示箱號並自動清空
+    function toggleBoxInput() {
+      const isBox = document.getElementById('mvIsBox').checked;
+      const boxContainer = document.getElementById('boxInputContainer');
+      const boxInput = document.getElementById('mvBoxName');
+      
+      if (isBox) {
+        boxContainer.style.display = 'block';
+      } else {
+        boxContainer.style.display = 'none';
+        boxInput.value = ''; // 自動清空，避免幽靈資料
+      }
+    }
+
+    // 批次送出與無縫接軌重置機制
     async function submitMovement() {
-      const rowIndex = document.getElementById('mvItem').value;
+      const selectedItems = Array.from(document.querySelectorAll('.mv-item-cb:checked')).map(cb => parseInt(cb.value));
       const newLoc = document.getElementById('mvNewLoc').value;
       const staffInt = document.getElementById('mvStaffInternal').value;
-      const staffOp = document.getElementById('mvStaffOp').value;
       
-      if(!rowIndex || !newLoc || (!staffInt && !staffOp)) return alert('請確認「文物」、「暫存地點」與「至少一位人員」皆已填寫！');
+      if(selectedItems.length === 0 || !newLoc || !staffInt) return alert('請確認「已勾選文物」、「新地點」與「本處人員」皆已完整填寫！');
       
-      showLoading('送出中...');
+      showLoading(`正在寫入 ${selectedItems.length} 件異動紀錄...`);
       const payload = { 
-        rowIndex: rowIndex, newLoc: newLoc, 
-        isBox: document.getElementById('mvIsBox').checked?'TRUE':'FALSE', 
+        rowIndices: selectedItems, // 改傳陣列
+        newLoc: newLoc, 
+        isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', 
         boxName: document.getElementById('mvBoxName').value, 
-        staffInternal: staffInt, staffOp: staffOp 
+        staffInternal: staffInt 
       };
+      
       try {
         await callAPI('submitMovement', payload); 
-        alert('✅ 送出成功！'); 
+        alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
+        
+        // --- 執行局部清空 (無縫接軌) ---
+        // 1. 清空新地點
+        document.getElementById('mvNewLoc').value = "";
+        document.getElementById('mvNewLocDisplay').value = "";
+        
+        // 2. 復原箱號設定
+        document.getElementById('mvIsBox').checked = false;
+        toggleBoxInput(); // 隱藏並清空輸入框
+        
+        // 3. 隱藏第三階段 (因為新地點空了)
+        document.getElementById('mvPhase3').style.display = 'none';
+        
+        // 4. 重新載入該地點文物 (會自動剔除剛剛搬走的，更新清單)
         loadWorkerItems(); 
+        
       } catch(e) {
         alert("送出失敗：" + e.message);
       } finally {
