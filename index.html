@@ -26,6 +26,8 @@
     .accordion-button { padding: 12px 15px; font-weight: bold; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
     .fake-input-btn { cursor: pointer; text-align: left; }
+    /* 大型觸控按鈕微調 */
+    .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
   </style>
 </head>
 <body>
@@ -55,11 +57,6 @@
           <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm">
             <label class="mb-2 fw-bold text-primary">選擇典藏地點 ( 區域 ➔ 櫃位/層位 )</label>
             <input type="text" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位 (例：東側小庫房、鐵櫃、1-2)..." onkeyup="filterInvTree()">
-            <div class="btn-group w-100 mb-3">
-              <button class="btn btn-outline-secondary btn-sm" onclick="batchSelectInv(true, false)">全選(目前結果)</button>
-              <button class="btn btn-outline-secondary btn-sm" onclick="batchSelectInv(false, true)">反選(目前結果)</button>
-              <button class="btn btn-outline-danger btn-sm" onclick="batchSelectInv(false, false, true)">清除全部</button>
-            </div>
             <div id="locCheckboxes">載入中...</div>
           </div>
           <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
@@ -181,9 +178,9 @@
     // ==========================================
 
     let currentManager = "";
-    let globalLocTree = [];   // 下拉名單的地點樹 (用於暫存地點)
-    let pendingLocTree = [];  // 專案待搬運的地點樹 (用於原典藏地點)
-    let currentModalTarget = ""; // 紀錄目前開啟 Modal 的是 mvLoc 還是 mvNewLoc
+    let globalLocTree = [];   
+    let pendingLocTree = [];  
+    let currentModalTarget = ""; 
 
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
@@ -201,11 +198,7 @@
     window.onload = async function() {
       try {
         const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
-        
-        // 渲染盤點樹狀圖
         renderTreeHTML(invData.locTree, 'locCheckboxes', 'inv', true);
-        
-        // 儲存搬運用的全域地點樹，並綁定選單
         globalLocTree = workData.locTree;
         populateSelect('mvEvent', workData.events, true);
         populateSelect('mgrEvent', workData.events, true);
@@ -222,8 +215,7 @@
         el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => { return isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`; }).join(''); 
     }
 
-    // ==================== 樹狀結構 UI 渲染引擎 ====================
-    // isMulti: true = 盤點用 (Checkbox), false = 搬運用 (按鈕)
+    // ==================== 樹狀結構 UI 渲染引擎 (優化版) ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-secondary">查無可用地點</div>'; return; }
       
@@ -243,27 +235,45 @@
             <div class="accordion-body p-2">`;
 
         mainNode.subs.forEach((subNode, sIdx) => {
-          html += `<div class="sub-group mb-2 border rounded p-2">`;
-          if (isMulti) {
-            html += `<div class="form-check fw-bold border-bottom pb-1 mb-2 text-primary">
-                       <input class="form-check-input sub-cb" type="checkbox" id="${prefix}_m${mIdx}_s${sIdx}" onchange="toggleSubCb(this)">
-                       <label class="form-check-label" for="${prefix}_m${mIdx}_s${sIdx}">📂 ${subNode.sub}</label>
-                     </div><div class="ms-3 row g-2">`;
-          } else {
-            html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary">📂 ${subNode.sub}</div><div class="ms-3 row g-2">`;
-          }
-
-          subNode.details.forEach((det, dIdx) => {
-            if(isMulti) {
-              html += `<div class="col-6 col-md-4 leaf-item"><div class="form-check">
-                         <input class="form-check-input loc-cb leaf-cb" type="checkbox" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()">
-                         <label class="form-check-label" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>
-                       </div></div>`;
+          // 優化 2 & 3: 消滅(本區)贅字，並改為大型觸控按鈕
+          if (subNode.details.length === 1 && subNode.details[0].label === "(本區)") {
+            let det = subNode.details[0];
+            html += `<div class="sub-group mb-2"><div class="leaf-item">`;
+            if (isMulti) {
+              html += `<input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()">
+                       <label class="btn btn-outline-success w-100 text-start fw-bold fs-6 py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>`;
             } else {
-              html += `<div class="col-12 leaf-item"><button class="btn btn-sm btn-outline-dark w-100 text-start" onclick="selectModalLoc('${det.val}')">${det.label}</button></div>`;
+              html += `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold fs-6 py-2" onclick="selectModalLoc('${det.val}')">📁 ${subNode.sub}</button>`;
             }
-          });
-          html += `</div></div>`;
+            html += `</div></div>`;
+          } else {
+            // 正常多層顯示，優化 1: 將「全選/清除」下放到第二層標題旁
+            html += `<div class="sub-group mb-3 border rounded p-2 bg-light">`;
+            if (isMulti) {
+              html += `<div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                         <div class="fw-bold text-primary">📂 ${subNode.sub}</div>
+                         <div class="btn-group">
+                           <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true)">全選</button>
+                           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button>
+                         </div>
+                       </div><div class="row g-2">`;
+            } else {
+              html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary">📂 ${subNode.sub}</div><div class="row g-2">`;
+            }
+
+            subNode.details.forEach((det, dIdx) => {
+              if(isMulti) {
+                // 優化 3: 廢除小方框，使用大型按鈕
+                html += `<div class="col-6 col-md-4 leaf-item">
+                           <input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()">
+                           <label class="btn btn-outline-success w-100 text-center py-2" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>
+                         </div>`;
+              } else {
+                html += `<div class="col-6 col-md-4 leaf-item"><button type="button" class="btn btn-outline-dark w-100 text-center py-2" onclick="selectModalLoc('${det.val}')">${det.label}</button></div>`;
+              }
+            });
+            html += `</div></div>`;
+          }
         });
         html += `</div></div></div>`;
       });
@@ -272,30 +282,26 @@
     }
 
     // --- 盤點多選樹邏輯 ---
-    function toggleSubCb(cb) {
-      const group = cb.closest('.sub-group');
-      group.querySelectorAll('.leaf-cb').forEach(leaf => { if(leaf.closest('.leaf-item').style.display !== 'none') leaf.checked = cb.checked; });
+    function selectAllInSub(btn, isSelect) {
+      const group = btn.closest('.sub-group');
+      group.querySelectorAll('.leaf-cb').forEach(cb => {
+        if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect;
+      });
       updateCounts();
     }
+    
     function updateCounts() {
-      document.querySelectorAll('#locCheckboxes .main-item').forEach(mainNode => {
+      document.querySelectorAll('.main-item').forEach(mainNode => {
         const checkedCount = Array.from(mainNode.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length;
         const badge = mainNode.querySelector('.count-badge');
+        if(!badge) return;
         badge.innerText = `已選 ${checkedCount}/${badge.getAttribute('data-total')}`;
         if (checkedCount > 0) { badge.classList.remove('bg-secondary'); badge.classList.add('bg-success'); } 
         else { badge.classList.remove('bg-success'); badge.classList.add('bg-secondary'); }
       });
     }
-    function batchSelectInv(targetState, isToggle, isClearAll = false) {
-      document.querySelectorAll('#locCheckboxes .leaf-cb').forEach(cb => {
-        if(isClearAll) cb.checked = false;
-        else if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isToggle ? !cb.checked : targetState;
-      });
-      updateCounts();
-    }
-    function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
     
-    // --- Modal 單選樹邏輯 ---
+    function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
     function filterModalTree() { execFilter('modalLocSearch', 'modalLocContainer'); }
     function execFilter(inputId, containerId) {
       const term = document.getElementById(inputId).value.toLowerCase();
@@ -304,7 +310,9 @@
         main.querySelectorAll('.sub-group').forEach(sub => {
           let subVis = false;
           sub.querySelectorAll('.leaf-item').forEach(leaf => {
-            const text = leaf.innerText.toLowerCase(); const val = leaf.innerHTML.toLowerCase();
+            const text = leaf.innerText.toLowerCase();
+            const input = leaf.querySelector('input');
+            const val = input ? input.value.toLowerCase() : '';
             if (text.includes(term) || val.includes(term)) { leaf.style.display = ''; subVis = true; mainVis = true; } 
             else { leaf.style.display = 'none'; }
           });
@@ -323,7 +331,7 @@
     async function startInventorySession() {
       sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial';
       sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
-      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少展開列表勾選一個地點');
+      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少展開列表點選一個地點');
       try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！"); }
       document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
       callAPI('startInventory', sysState).then(res => { sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); }).catch(e => alert("錯誤：" + e.message));
@@ -381,7 +389,6 @@
       new bootstrap.Modal(document.getElementById('locModal')).show();
     }
 
-    // Modal 內的按鈕點擊事件
     function selectModalLoc(val) {
       document.getElementById(currentModalTarget).value = val;
       document.getElementById(currentModalTarget + 'Display').value = val;
