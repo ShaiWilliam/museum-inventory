@@ -20,6 +20,12 @@
     #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     .table-responsive { font-size: 0.85rem; }
     .action-btn { width: 100%; margin-bottom: 5px; }
+    
+    /* 折疊選單客製化樣式 */
+    .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; box-shadow: inset 0 -1px 0 rgba(0,0,0,.125); }
+    .accordion-button { padding: 12px 15px; font-weight: bold; }
+    .sub-group { border-left: 3px solid #198754; background: #fafafa; }
+    .fake-input-btn { cursor: pointer; text-align: left; }
   </style>
 </head>
 <body>
@@ -45,16 +51,26 @@
           <h5 class="mb-3">選擇盤點模式</h5>
           <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
           <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
-          <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded"><label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label><div id="locCheckboxes">載入中...</div></div>
+          
+          <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm">
+            <label class="mb-2 fw-bold text-primary">選擇典藏地點 ( 區域 ➔ 櫃位/層位 )</label>
+            <input type="text" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位 (例：東側小庫房、鐵櫃、1-2)..." onkeyup="filterInvTree()">
+            <div class="btn-group w-100 mb-3">
+              <button class="btn btn-outline-secondary btn-sm" onclick="batchSelectInv(true, false)">全選(目前結果)</button>
+              <button class="btn btn-outline-secondary btn-sm" onclick="batchSelectInv(false, true)">反選(目前結果)</button>
+              <button class="btn btn-outline-danger btn-sm" onclick="batchSelectInv(false, false, true)">清除全部</button>
+            </div>
+            <div id="locCheckboxes">載入中...</div>
+          </div>
           <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
         </div>
 
         <div id="step2" class="step-card">
           <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">現場盤點作業</h5><button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button></div>
           <div class="row g-2 mb-2">
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件數</small></div></div>
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤點</small></div></div>
-            <div class="col-4"><div class="stat-box"><div class="stat-num text-danger" id="valUnscanned">...</div><small>未盤點</small></div></div>
+            <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件</small></div></div>
+            <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤</small></div></div>
+            <div class="col-4"><div class="stat-box"><div class="stat-num text-danger" id="valUnscanned">...</div><small>未盤</small></div></div>
           </div>
           <div class="progress mb-3" style="height: 20px;"><div id="progressBar" class="progress-bar bg-success" style="width: 0%;">0%</div></div>
           <div id="reader" class="card shadow-sm border-0"></div>
@@ -81,10 +97,21 @@
         <div class="step-card active">
           <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
           <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select></div>
-          <div class="mb-3"><label class="form-label">選擇原典藏地點</label><select id="mvLoc" class="form-select" onchange="loadWorkerItems()" disabled><option value="">請先選擇事件</option></select></div>
+          
+          <div class="mb-3">
+            <label class="form-label">選擇原典藏地點</label>
+            <input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請先選擇上方事件" onclick="triggerMvLoc()">
+            <input type="hidden" id="mvLoc">
+          </div>
+          
           <div class="mb-3"><label class="form-label">選擇要搬運的文物</label><select id="mvItem" class="form-select" disabled><option value="">請先選擇地點</option></select></div>
           <hr>
-          <div class="mb-3"><label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label><select id="mvNewLoc" class="form-select"></select></div>
+          <div class="mb-3">
+            <label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label>
+            <input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇新地點..." onclick="triggerMvNewLoc()">
+            <input type="hidden" id="mvNewLoc">
+          </div>
+
           <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox"><label class="form-check-label" for="mvIsBox">是否裝箱</label></div>
           <div class="mb-3"><label class="form-label">輸入箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName" placeholder="例如：A01"></div>
           <div class="row mb-4">
@@ -128,7 +155,21 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
 
+  <div class="modal fade" id="locModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <input type="text" id="modalLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位..." onkeyup="filterModalTree()">
+          <div id="modalLocContainer"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -136,46 +177,40 @@
   <script>
     // ==========================================
     // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
-    // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
+    // ==========================================
 
-    // 共用全域變數
     let currentManager = "";
+    let globalLocTree = [];   // 下拉名單的地點樹 (用於暫存地點)
+    let pendingLocTree = [];  // 專案待搬運的地點樹 (用於原典藏地點)
+    let currentModalTarget = ""; // 紀錄目前開啟 Modal 的是 mvLoc 還是 mvNewLoc
 
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
-    // 核心 API 呼叫：全面改用 POST，避免長度超標
     async function callAPI(action, payload = {}) {
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: action, payload: payload })
-        });
+        const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, payload: payload }) });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
       } catch (err) { throw new Error(err.message); }
     }
 
-    // ==================== 初始化 (取得下拉資料) ====================
+    // ==================== 初始化 ====================
     window.onload = async function() {
       try {
         const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
         
-        // 盤點地點：抓取藏品清單真實地點
-        let html = '';
-        invData.locations.forEach((loc, idx) => { html += `<div class="form-check"><input class="form-check-input loc-cb" type="checkbox" value="${loc}" id="cb${idx}"><label class="form-check-label" for="cb${idx}">${loc}</label></div>`; });
-        document.getElementById('locCheckboxes').innerHTML = html;
+        // 渲染盤點樹狀圖
+        renderTreeHTML(invData.locTree, 'locCheckboxes', 'inv', true);
         
-        // 搬運與管理員介面賦值
+        // 儲存搬運用的全域地點樹，並綁定選單
+        globalLocTree = workData.locTree;
         populateSelect('mvEvent', workData.events, true);
         populateSelect('mgrEvent', workData.events, true);
-        populateSelect('mvNewLoc', workData.locations);
         populateSelect('mvStaffInternal', workData.staffInternal);
         populateSelect('mvStaffOp', workData.staffOp);
-        
         hideLoading(); 
       } catch (err) {
         document.getElementById('loadingMask').innerHTML = `<div class="container p-4"><h4 class="text-danger fw-bold text-center mb-3">⚠️ 系統連線失敗</h4><div class="alert alert-warning">${err.message}</div></div>`;
@@ -184,12 +219,102 @@
 
     function populateSelect(id, arr, isObj = false) { 
         const el = document.getElementById(id); 
-        el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => {
-            return isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`;
-        }).join(''); 
+        el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => { return isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`; }).join(''); 
     }
 
-    // ==================== 1. 盤點系統邏輯 ====================
+    // ==================== 樹狀結構 UI 渲染引擎 ====================
+    // isMulti: true = 盤點用 (Checkbox), false = 搬運用 (按鈕)
+    function renderTreeHTML(treeData, containerId, prefix, isMulti) {
+      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-secondary">查無可用地點</div>'; return; }
+      
+      let html = `<div class="accordion" id="${prefix}Accordion">`;
+      treeData.forEach((mainNode, mIdx) => {
+        let totalLeaves = mainNode.subs.reduce((sum, sub) => sum + sub.details.length, 0);
+        let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
+        
+        html += `
+        <div class="accordion-item main-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed d-flex justify-content-between" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}">
+              <div><strong>${mainNode.main}</strong> ${badgeHtml}</div>
+            </button>
+          </h2>
+          <div id="${prefix}Col${mIdx}" class="accordion-collapse collapse">
+            <div class="accordion-body p-2">`;
+
+        mainNode.subs.forEach((subNode, sIdx) => {
+          html += `<div class="sub-group mb-2 border rounded p-2">`;
+          if (isMulti) {
+            html += `<div class="form-check fw-bold border-bottom pb-1 mb-2 text-primary">
+                       <input class="form-check-input sub-cb" type="checkbox" id="${prefix}_m${mIdx}_s${sIdx}" onchange="toggleSubCb(this)">
+                       <label class="form-check-label" for="${prefix}_m${mIdx}_s${sIdx}">📂 ${subNode.sub}</label>
+                     </div><div class="ms-3 row g-2">`;
+          } else {
+            html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary">📂 ${subNode.sub}</div><div class="ms-3 row g-2">`;
+          }
+
+          subNode.details.forEach((det, dIdx) => {
+            if(isMulti) {
+              html += `<div class="col-6 col-md-4 leaf-item"><div class="form-check">
+                         <input class="form-check-input loc-cb leaf-cb" type="checkbox" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()">
+                         <label class="form-check-label" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>
+                       </div></div>`;
+            } else {
+              html += `<div class="col-12 leaf-item"><button class="btn btn-sm btn-outline-dark w-100 text-start" onclick="selectModalLoc('${det.val}')">${det.label}</button></div>`;
+            }
+          });
+          html += `</div></div>`;
+        });
+        html += `</div></div></div>`;
+      });
+      html += '</div>';
+      document.getElementById(containerId).innerHTML = html;
+    }
+
+    // --- 盤點多選樹邏輯 ---
+    function toggleSubCb(cb) {
+      const group = cb.closest('.sub-group');
+      group.querySelectorAll('.leaf-cb').forEach(leaf => { if(leaf.closest('.leaf-item').style.display !== 'none') leaf.checked = cb.checked; });
+      updateCounts();
+    }
+    function updateCounts() {
+      document.querySelectorAll('#locCheckboxes .main-item').forEach(mainNode => {
+        const checkedCount = Array.from(mainNode.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length;
+        const badge = mainNode.querySelector('.count-badge');
+        badge.innerText = `已選 ${checkedCount}/${badge.getAttribute('data-total')}`;
+        if (checkedCount > 0) { badge.classList.remove('bg-secondary'); badge.classList.add('bg-success'); } 
+        else { badge.classList.remove('bg-success'); badge.classList.add('bg-secondary'); }
+      });
+    }
+    function batchSelectInv(targetState, isToggle, isClearAll = false) {
+      document.querySelectorAll('#locCheckboxes .leaf-cb').forEach(cb => {
+        if(isClearAll) cb.checked = false;
+        else if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isToggle ? !cb.checked : targetState;
+      });
+      updateCounts();
+    }
+    function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
+    
+    // --- Modal 單選樹邏輯 ---
+    function filterModalTree() { execFilter('modalLocSearch', 'modalLocContainer'); }
+    function execFilter(inputId, containerId) {
+      const term = document.getElementById(inputId).value.toLowerCase();
+      document.querySelectorAll(`#${containerId} .main-item`).forEach(main => {
+        let mainVis = false;
+        main.querySelectorAll('.sub-group').forEach(sub => {
+          let subVis = false;
+          sub.querySelectorAll('.leaf-item').forEach(leaf => {
+            const text = leaf.innerText.toLowerCase(); const val = leaf.innerHTML.toLowerCase();
+            if (text.includes(term) || val.includes(term)) { leaf.style.display = ''; subVis = true; mainVis = true; } 
+            else { leaf.style.display = 'none'; }
+          });
+          sub.style.display = subVis ? '' : 'none';
+        });
+        main.style.display = mainVis ? '' : 'none';
+      });
+    }
+
+    // ==================== 1. 盤點系統 API ====================
     let html5QrCode, lastScanAt = 0, sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 }, isProcessing = false;
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
     function beep({freq=880, duration=120, type='sine'} = {}){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.type=type; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); osc.start(); setTimeout(()=>{osc.stop(); ctx.close();}, duration);}catch{} }
@@ -198,12 +323,12 @@
     async function startInventorySession() {
       sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial';
       sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
-      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少勾選一個地點');
-      try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！\n" + err); }
+      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少展開列表勾選一個地點');
+      try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！"); }
       document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
-      callAPI('startInventory', sysState).then(res => { sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); }).catch(err => alert("進度讀取失敗：" + err.message));
+      callAPI('startInventory', sysState).then(res => { sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); }).catch(e => alert("錯誤：" + e.message));
       html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {}).catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
+      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {}).catch(e=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
     }
     function updateUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; var unscan = sysState.total - sysState.scanned; document.getElementById('valUnscanned').innerText = unscan < 0 ? 0 : unscan; var pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100); document.getElementById('progressBar').style.width = pct + '%'; document.getElementById('progressBar').innerText = pct + '%'; }
     
@@ -222,98 +347,103 @@
     }
 
     function endInventorySession() { if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); } document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; }
-    
-    function exportReport() { 
-      var email = document.getElementById('exportEmail').value; if(!email || !email.includes('@')) return alert('請輸入 Email'); 
-      showLoading('報表產生與寄送中，請稍候...');
-      callAPI('exportInventoryReport', { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { 
-        hideLoading(); alert('寄送成功！'); 
-      }).catch(err => { hideLoading(); alert(err.message); }); 
-    }
+    function exportReport() { var email = document.getElementById('exportEmail').value; if(!email || !email.includes('@')) return alert('請輸入 Email'); showLoading('報表寄送中...'); callAPI('exportInventoryReport', { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { hideLoading(); alert('寄送成功！'); }).catch(e => { hideLoading(); alert(e.message); }); }
 
-    // ==================== 2. 搬運系統邏輯 ====================
+    // ==================== 2. 搬運系統 API 與 Modal 控制 ====================
     async function loadWorkerLocations() {
       const eventId = document.getElementById('mvEvent').value;
-      if(!eventId) { document.getElementById('mvLoc').innerHTML = '<option value="">請先選擇事件</option>'; document.getElementById('mvLoc').disabled = true; return; }
-      showLoading('讀取待搬運地點...');
-      try { const locs = await callAPI('getPendingLocations', { eventId: eventId }); populateSelect('mvLoc', locs); document.getElementById('mvLoc').disabled = false; hideLoading(); } 
-      catch (e) { alert(e.message); hideLoading(); }
+      const display = document.getElementById('mvLocDisplay');
+      document.getElementById('mvLoc').value = ""; display.value = ""; document.getElementById('mvItem').innerHTML = '<option value="">請先選擇地點</option>'; document.getElementById('mvItem').disabled = true;
+      if(!eventId) { display.placeholder = "請先選擇上方事件"; return; }
+      showLoading('分析專案待搬運地點...');
+      try { 
+        const res = await callAPI('getPendingLocations', { eventId: eventId }); 
+        pendingLocTree = res.locTree; 
+        display.placeholder = "請點此選擇原地點..."; 
+        hideLoading(); 
+      } catch (e) { alert(e.message); hideLoading(); }
     }
+
+    function triggerMvLoc() {
+      if(!document.getElementById('mvEvent').value) return alert('請先選擇異動專案事件！');
+      currentModalTarget = 'mvLoc';
+      document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
+      document.getElementById('modalLocSearch').value = '';
+      renderTreeHTML(pendingLocTree, 'modalLocContainer', 'modal', false);
+      new bootstrap.Modal(document.getElementById('locModal')).show();
+    }
+
+    function triggerMvNewLoc() {
+      currentModalTarget = 'mvNewLoc';
+      document.getElementById('locModalTitle').innerText = "選擇「新地點(暫存)」";
+      document.getElementById('modalLocSearch').value = '';
+      renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
+      new bootstrap.Modal(document.getElementById('locModal')).show();
+    }
+
+    // Modal 內的按鈕點擊事件
+    function selectModalLoc(val) {
+      document.getElementById(currentModalTarget).value = val;
+      document.getElementById(currentModalTarget + 'Display').value = val;
+      bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
+      if(currentModalTarget === 'mvLoc') loadWorkerItems();
+    }
+
     async function loadWorkerItems() {
-      const eventId = document.getElementById('mvEvent').value; const loc = document.getElementById('mvLoc').value;
-      if(!loc) { document.getElementById('mvItem').innerHTML = '<option value="">請先選擇地點</option>'; document.getElementById('mvItem').disabled = true; return; }
+      const eventId = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
+      if(!loc) return;
       showLoading('讀取清單...');
       try { const items = await callAPI('getPendingItems', { eventId: eventId, location: loc }); document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + items.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join(''); document.getElementById('mvItem').disabled = false; hideLoading(); } 
       catch (e) { alert(e.message); hideLoading(); }
     }
+
     async function submitMovement() {
       const rowIndex = document.getElementById('mvItem').value, newLoc = document.getElementById('mvNewLoc').value;
       const staffInternal = document.getElementById('mvStaffInternal').value, staffOp = document.getElementById('mvStaffOp').value;
       if(!rowIndex || !newLoc || (!staffInternal && !staffOp)) return alert('請確認「文物」、「暫存地點」與「至少一位人員」皆已填寫！');
       document.getElementById('btnSubmitMove').disabled = true; showLoading('傳送單據中...');
-      
       const payload = { rowIndex: rowIndex, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInternal, staffOp: staffOp };
       try { await callAPI('submitMovement', payload); alert('送出成功！'); document.getElementById('mvItem').value = ""; document.getElementById('mvBoxName').value = ""; document.getElementById('btnSubmitMove').disabled = false; loadWorkerItems(); hideLoading(); } 
       catch (e) { alert(e.message); document.getElementById('btnSubmitMove').disabled = false; hideLoading(); }
     }
 
-    // ==================== 3. 管理員後台邏輯 ====================
+    // ==================== 3. 管理員後台 ====================
     async function loginManager() {
       const pwd = document.getElementById('mgrPwd').value; if(!pwd) return alert('請輸入密碼');
       showLoading('驗證身分...');
-      try { 
-        const res = await callAPI('verifyManager', { pwd: pwd }); 
-        currentManager = res.managerName;
-        document.getElementById('lblManagerName').innerText = `登入者：${currentManager}`;
-        document.getElementById('mgrLogin').style.display = 'none'; 
-        document.getElementById('mgrDashboard').style.display = 'block'; 
-        hideLoading(); 
-      } catch (e) { alert(e.message); hideLoading(); }
+      try { const res = await callAPI('verifyManager', { pwd: pwd }); currentManager = res.managerName; document.getElementById('lblManagerName').innerText = `登入者：${currentManager}`; document.getElementById('mgrLogin').style.display = 'none'; document.getElementById('mgrDashboard').style.display = 'block'; hideLoading(); } 
+      catch (e) { alert(e.message); hideLoading(); }
     }
     async function loadManagerData() {
       const eventId = document.getElementById('mgrEvent').value; if(!eventId) return;
       showLoading('載入表單...');
-      try {
-        const data = await callAPI('getManagerData', { eventId: eventId });
-        renderTable('tablePending', data.pending, 'chk-pend', true); renderTable('tableConfirmed', data.confirmed, 'chk-conf', false);
-        hideLoading();
-      } catch (e) { alert(e.message); hideLoading(); }
+      try { const data = await callAPI('getManagerData', { eventId: eventId }); renderTable('tablePending', data.pending, 'chk-pend', true); renderTable('tableConfirmed', data.confirmed, 'chk-conf', false); hideLoading(); } 
+      catch (e) { alert(e.message); hideLoading(); }
     }
     function renderTable(tableId, data, chkClass, showEdit) {
-      const tbody = document.querySelector(`#${tableId} tbody`);
-      tbody.innerHTML = data.map(x => `
-        <tr>
-          <td class="text-center"><input type="checkbox" class="form-check-input ${chkClass}" value="${x.rowIndex}"></td>
-          <td><b>${x.qrCode.split('\n')[0]}</b><br><small class="text-muted">原: ${x.oldLoc}</small></td>
-          <td>${x.newLoc} ${x.isBox=='TRUE' ? `<br>📦 ${x.boxName}` : ''}</td>
-          <td>${showEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex}, '${x.newLoc}', '${x.boxName}')">📝 修正</button>` : `<small class="text-success">${x.manager}</small>`}</td>
-        </tr>`).join('');
+      document.querySelector(`#${tableId} tbody`).innerHTML = data.map(x => `
+        <tr><td class="text-center"><input type="checkbox" class="form-check-input ${chkClass}" value="${x.rowIndex}"></td>
+        <td><b>${x.qrCode.split('\n')[0]}</b><br><small class="text-muted">原: ${x.oldLoc}</small></td>
+        <td>${x.newLoc} ${x.isBox=='TRUE' ? `<br>📦 ${x.boxName}` : ''}</td>
+        <td>${showEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex}, '${x.newLoc}', '${x.boxName}')">📝修正</button>` : `<small class="text-success">${x.manager}</small>`}</td></tr>`).join('');
     }
     function toggleAllCheck(source, targetClass) { document.querySelectorAll(targetClass).forEach(cb => cb.checked = source.checked); }
-    function getSelectedRows(chkClass) { return Array.from(document.querySelectorAll(`${chkClass}:checked`)).map(cb => parseInt(cb.value)); }
-
     async function changeStatus(chkClass, newStatus) {
       if(!currentManager) return alert('請重新登入！');
-      const rows = getSelectedRows(chkClass); if(rows.length === 0) return alert('請勾選項目');
-      showLoading('更新核對狀態...');
-      try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: newStatus, managerName: currentManager }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+      const rows = Array.from(document.querySelectorAll(`${chkClass}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請勾選項目');
+      showLoading('更新狀態...'); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: newStatus, managerName: currentManager }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
     }
-    function batchApprove() { changeStatus('.chk-pend', true); }
-    function batchRevert() { changeStatus('.chk-conf', false); }
-
+    function batchApprove() { changeStatus('.chk-pend', true); } function batchRevert() { changeStatus('.chk-conf', false); }
     async function promptEdit(rowIndex, oldLoc, oldBox) {
       if(!currentManager) return alert('請重新登入！');
       const newLoc = prompt("修改暫存地點：", oldLoc); if (newLoc === null) return;
       const boxName = prompt("修改箱號 (若無請留白)：", oldBox); if (boxName === null) return;
-      showLoading('寫入修正紀錄...');
-      try { await callAPI('editItem', { rowIndex: rowIndex, newLoc: newLoc, boxName: boxName, managerName: currentManager }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+      showLoading('寫入修正紀錄...'); try { await callAPI('editItem', { rowIndex: rowIndex, newLoc: newLoc, boxName: boxName, managerName: currentManager }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
     }
-
     async function syncToMaster() {
       const eventId = document.getElementById('mgrEvent').value; if(!eventId) return alert('請選擇專案');
-      if(!confirm(`確定要將此專案中所有【已核對】的項目，其暫存地點同步覆寫回「藏品總表」並結案嗎？此動作無法復原！`)) return;
-      showLoading('資料高速同步中，請勿關閉視窗...');
-      try { const res = await callAPI('syncToMaster', { eventId: eventId }); alert(`✅ 結案成功！共更新了 ${res.count} 筆資料至總表。`); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+      if(!confirm(`確定要將此專案已核對項目同步至總表並結案嗎？無法復原！`)) return;
+      showLoading('資料高速同步中...'); try { const res = await callAPI('syncToMaster', { eventId: eventId }); alert(`✅ 結案成功！更新 ${res.count} 筆。`); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
     }
   </script>
 </body>
