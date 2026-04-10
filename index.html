@@ -15,7 +15,6 @@
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
     
-    /* 掃描器與浮動卡片樣式 */
     #reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
     #reader { width: 100% !important; border: none !important; }
     
@@ -34,13 +33,10 @@
     .result-img { max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 5px; margin-right: 15px; }
     #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     
-    /* 折疊選單與大型觸控按鈕 */
     .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
     .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
     .fake-input-btn { cursor: pointer; text-align: left; }
-    .table-responsive { font-size: 0.85rem; }
-    .action-btn { width: 100%; margin-bottom: 5px; }
   </style>
 </head>
 <body>
@@ -63,7 +59,7 @@
     <div class="tab-content">
       <div class="tab-pane fade show active" id="inv">
         <div id="step1" class="step-card active">
-          <div class="alert alert-info py-2" id="baselineInfo" style="font-size: 0.85rem;">載入盤點基準日中...</div>
+          <div class="alert alert-info py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入盤點基準日中...</div>
           <h5 class="mb-3">選擇盤點模式</h5>
           <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
           <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
@@ -119,48 +115,14 @@
       <div class="tab-pane fade" id="move">
         <div class="step-card active">
           <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
-          <div class="mb-3">
-            <label class="form-label">選擇異動專案事件</label>
-            <select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">選擇原典藏地點</label>
-            <input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()">
-            <input type="hidden" id="mvLoc">
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">選擇要搬運的文物</label>
-            <select id="mvItem" class="form-select" disabled><option value="">請先選擇地點</option></select>
-          </div>
+          <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select></div>
+          <div class="mb-3"><label class="form-label">選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
+          <div class="mb-3"><label class="form-label">選擇文物</label><select id="mvItem" class="form-select" disabled></select></div>
           <hr>
-          <div class="mb-3">
-            <label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label>
-            <input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()">
-            <input type="hidden" id="mvNewLoc">
-          </div>
-
-          <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="mvIsBox">
-            <label class="form-check-label" for="mvIsBox">是否裝箱</label>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">箱號 (若有)</label>
-            <input type="text" class="form-control" id="mvBoxName">
-          </div>
-          
-          <div class="row mb-4">
-            <div class="col-6">
-              <label class="form-label text-danger small">本處人員</label>
-              <select id="mvStaffInternal" class="form-select"></select>
-            </div>
-            <div class="col-6">
-              <label class="form-label text-danger small">操作人</label>
-              <select id="mvStaffOp" class="form-select"></select>
-            </div>
-          </div>
+          <div class="mb-3"><label class="form-label text-success fw-bold">移往新地點 (暫存地點)</label><input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()"><input type="hidden" id="mvNewLoc"></div>
+          <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox"><label class="form-check-label" for="mvIsBox">是否裝箱</label></div>
+          <div class="mb-3"><label class="form-label">箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName"></div>
+          <div class="row mb-4"><div class="col-6"><label class="form-label text-danger small">本處人員</label><select id="mvStaffInternal" class="form-select"></select></div><div class="col-6"><label class="form-label text-danger small">操作人</label><select id="mvStaffOp" class="form-select"></select></div></div>
           <button class="btn btn-primary w-100 fw-bold fs-5 py-2" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
         </div>
       </div>
@@ -189,23 +151,18 @@
             </div>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label small">選擇審核專案</label>
-            <select id="mgrEvent" class="form-select" onchange="loadManagerData()"></select>
-          </div>
-          
+          <div class="mb-3"><label class="form-label small">選擇審核專案</label><select id="mgrEvent" class="form-select" onchange="loadManagerData()"></select></div>
           <ul class="nav nav-pills mb-3" id="mgrPills">
             <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrPending">待核對</button></li>
             <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已核對</button></li>
           </ul>
-          
           <div class="tab-content">
             <div class="tab-pane fade show active" id="mgrPending">
-              <div class="table-responsive"><table class="table table-bordered table-striped" id="tablePending"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物資訊</th><th>地點/箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
-              <button class="btn btn-success action-btn fw-bold" onclick="changeStatus('.chk-pend', true)">✅ 批次核對通過</button>
+              <div class="table-responsive"><table class="table table-bordered table-striped" id="tablePending"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物</th><th>地點/箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+              <button class="btn btn-success action-btn fw-bold" onclick="changeStatus('.chk-pend', true)">✅ 批次通過</button>
             </div>
             <div class="tab-pane fade" id="mgrConfirmed">
-              <div class="table-responsive"><table class="table table-bordered table-striped" id="tableConfirmed"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物資訊</th><th>地點/箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+              <div class="table-responsive"><table class="table table-bordered table-striped" id="tableConfirmed"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>地點/箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
               <button class="btn btn-warning action-btn fw-bold" onclick="changeStatus('.chk-conf', false)">↩️ 撤銷核對</button>
               <hr>
               <button class="btn btn-dark w-100 fw-bold mt-2" onclick="syncToMaster()">💾 結案：同步至藏品總表</button>
@@ -219,565 +176,261 @@
   <div class="modal fade" id="locModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
       <div class="modal-header bg-light"><h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body p-3"><input type="text" id="modalLocSearch" class="form-control mb-3" placeholder="🔍 搜尋區域/櫃位/層位..." onkeyup="filterModalTree()"><div id="modalLocContainer"></div></div>
+      <div class="modal-body p-3"><input type="text" id="modalLocSearch" class="form-control mb-3" placeholder="🔍 搜尋..." onkeyup="filterModalTree()"><div id="modalLocContainer"></div></div>
     </div></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // ==========================================
     // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
     // ==========================================
 
-    let currentManager = "";
-    let globalLocTree = [];   
-    let pendingLocTree = [];  
-    let currentModalTarget = ""; 
-    let baselineTime = 0;
+    let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
 
-    function showLoading(msg = "系統連線中...") { 
-      document.getElementById('loadingText').innerText = msg; 
-      document.getElementById('loadingMask').style.display = 'flex'; 
-    }
-    function hideLoading() { 
-      document.getElementById('loadingMask').style.display = 'none'; 
-    }
+    function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
+    function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
     async function callAPI(action, payload = {}) {
       try {
-        const response = await fetch(API_URL, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: action, payload: payload }) 
-        });
+        const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: action, payload: payload }) });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
-      } catch (err) { 
-        throw new Error(err.message); 
-      }
+      } catch (err) { throw new Error(err.message); }
     }
 
-    // ==================== 初始化 ====================
     window.onload = async function() {
       try {
-        const [invData, workData] = await Promise.all([
-          callAPI('getInventoryInitData'), 
-          callAPI('getWorkerInitData')
-        ]);
-        
-        // 盤點初始設定
+        const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
         baselineTime = invData.baselineTime;
-        document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${new Date(baselineTime).toLocaleString()}`;
-        renderTreeHTML(invData.locTree, 'locCheckboxes', 'inv', true);
         
-        // 異動與後台初始設定
+        // 防呆保護：確保日期有效，否則回退到當前時間
+        let d = new Date(baselineTime);
+        if (isNaN(d.getTime())) d = new Date();
+        document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
+        
+        renderTreeHTML(invData.locTree, 'locCheckboxes', 'inv', true);
         globalLocTree = workData.locTree;
         populateSelect('mvEvent', workData.events, true);
         populateSelect('mgrEvent', workData.events, true);
         populateSelect('mvStaffInternal', workData.staffInternal);
         populateSelect('mvStaffOp', workData.staffOp);
-        
         hideLoading(); 
-      } catch (err) { 
-        hideLoading();
-        alert("連線失敗：" + err.message); 
-      }
+      } catch (err) { alert("連線失敗：" + err.message); }
     };
 
     function populateSelect(id, arr, isObj = false) { 
-        document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + 
-          arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
+        document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
-    // ==================== 樹狀結構 UI 渲染引擎 ====================
+    // ==================== 樹狀結構與 UI 邏輯 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
-      if(!treeData || treeData.length === 0) { 
-        document.getElementById(containerId).innerHTML = '<div class="alert alert-secondary">查無可用地點</div>'; 
-        return; 
-      }
-      
+      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '無資料'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
       treeData.forEach((mainNode, mIdx) => {
         let totalLeaves = mainNode.subs.reduce((sum, sub) => sum + sub.details.length, 0);
         let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
-        
-        html += `
-        <div class="accordion-item main-item">
-          <h2 class="accordion-header">
-            <button class="accordion-button collapsed d-flex justify-content-between" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}">
-              <div><strong>${mainNode.main}</strong> ${badgeHtml}</div>
-            </button>
-          </h2>
-          <div id="${prefix}Col${mIdx}" class="accordion-collapse collapse">
-            <div class="accordion-body p-2">`;
-
+        html += `<div class="accordion-item main-item"><h2 class="accordion-header"><button class="accordion-button collapsed d-flex justify-content-between" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}"><div><strong>${mainNode.main}</strong> ${badgeHtml}</div></button></h2><div id="${prefix}Col${mIdx}" class="accordion-collapse collapse"><div class="accordion-body p-2">`;
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-
           if (subNode.details.length === 1 && subNode.details[0].label === "(本區)") {
             let det = subNode.details[0];
-            html += `<div class="sub-group mb-2"><div class="leaf-item">`;
-            if (isMulti) {
-              html += `<input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()">
-                       <label class="btn btn-outline-success w-100 text-start fw-bold fs-6 py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>`;
-            } else {
-              html += `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold fs-6 py-2" onclick="selectModalLoc('${det.val}')">📁 ${subNode.sub}</button>`;
-            }
-            html += `</div></div>`;
+            html += `<div class="sub-group mb-2"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-start fw-bold py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold py-2" onclick="selectModalLoc('${det.val}')">📁 ${subNode.sub}</button>`) + `</div></div>`;
           } else {
-            html += `<div class="sub-group mb-3 border rounded p-2 bg-light">`;
-            if (isMulti) {
-              html += `<div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-                         <div class="fw-bold text-primary flex-grow-1" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
-                           📂 ${subNode.sub} <span class="dropdown-toggle text-muted ms-1"></span>
-                         </div>
-                         <div class="btn-group">
-                           <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button>
-                           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button>
-                         </div>
-                       </div>
-                       <div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
-            } else {
-              html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
-                         📂 ${subNode.sub} <span class="dropdown-toggle text-muted ms-1"></span>
-                       </div>
-                       <div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
-            }
-
+            html += `<div class="sub-group mb-3 border rounded p-2 bg-light"><div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2"><div class="fw-bold text-primary flex-grow-1" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
             subNode.details.forEach((det, dIdx) => {
-              if(isMulti) {
-                html += `<div class="col-6 col-md-4 leaf-item">
-                           <input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()">
-                           <label class="btn btn-outline-success w-100 text-center py-2" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>
-                         </div>`;
-              } else {
-                html += `<div class="col-6 col-md-4 leaf-item"><button type="button" class="btn btn-outline-dark w-100 text-center py-2" onclick="selectModalLoc('${det.val}')">${det.label}</button></div>`;
-              }
+              html += `<div class="col-6 col-md-4 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`;
             });
             html += `</div></div></div>`;
           }
         });
         html += `</div></div></div>`;
       });
-      html += '</div>';
-      document.getElementById(containerId).innerHTML = html;
+      document.getElementById(containerId).innerHTML = html + '</div>';
     }
 
     function selectAllInSub(btn, isSelect, collapseId) {
-      const group = btn.closest('.sub-group');
-      group.querySelectorAll('.leaf-cb').forEach(cb => {
-        if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect;
-      });
-      if(isSelect && collapseId) {
-        const collapseDiv = document.getElementById(collapseId);
-        if(collapseDiv) collapseDiv.classList.add('show');
-      }
+      btn.closest('.sub-group').querySelectorAll('.leaf-cb').forEach(cb => { if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect; });
+      if(isSelect && collapseId) { const div = document.getElementById(collapseId); if(div) div.classList.add('show'); }
       updateCounts();
     }
     
     function updateCounts() {
-      document.querySelectorAll('.main-item').forEach(mainNode => {
-        const checkedCount = Array.from(mainNode.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length;
-        const badge = mainNode.querySelector('.count-badge');
-        if(!badge) return;
-        badge.innerText = `已選 ${checkedCount}/${badge.getAttribute('data-total')}`;
-        if (checkedCount > 0) { badge.classList.remove('bg-secondary'); badge.classList.add('bg-success'); } 
-        else { badge.classList.remove('bg-success'); badge.classList.add('bg-secondary'); }
+      document.querySelectorAll('.main-item').forEach(main => {
+        const checked = Array.from(main.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length;
+        const badge = main.querySelector('.count-badge'); if(!badge) return;
+        badge.innerText = `已選 ${checked}/${badge.getAttribute('data-total')}`;
+        badge.className = checked > 0 ? 'badge bg-success ms-2 count-badge' : 'badge bg-secondary ms-2 count-badge';
       });
     }
-    
+
     function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
     function filterModalTree() { execFilter('modalLocSearch', 'modalLocContainer'); }
-    function execFilter(inputId, containerId) {
-      const term = document.getElementById(inputId).value.toLowerCase();
-      document.querySelectorAll(`#${containerId} .main-item`).forEach(main => {
-        let mainVis = false;
+    function execFilter(id, container) {
+      const term = document.getElementById(id).value.toLowerCase();
+      document.querySelectorAll(`#${container} .main-item`).forEach(main => {
+        let mVis = false;
         main.querySelectorAll('.sub-group').forEach(sub => {
-          let subVis = false;
+          let sVis = false;
           sub.querySelectorAll('.leaf-item').forEach(leaf => {
-            const text = leaf.innerText.toLowerCase();
-            const input = leaf.querySelector('input');
-            const val = input ? input.value.toLowerCase() : '';
-            if (text.includes(term) || val.includes(term)) { leaf.style.display = ''; subVis = true; mainVis = true; } 
-            else { leaf.style.display = 'none'; }
+            const txt = leaf.innerText.toLowerCase();
+            if (txt.includes(term)) { leaf.style.display = ''; sVis = true; mVis = true; } else { leaf.style.display = 'none'; }
           });
-          sub.style.display = subVis ? '' : 'none';
-          
-          const collapseDiv = sub.querySelector('.collapse');
-          if (collapseDiv) {
-              if (term !== '' && subVis) { collapseDiv.classList.add('show'); } 
-              else if (term === '') { collapseDiv.classList.remove('show'); }
-          }
+          sub.style.display = sVis ? '' : 'none';
+          const coll = sub.querySelector('.collapse'); if(coll && term && sVis) coll.classList.add('show');
         });
-        
-        const mainCollapse = main.querySelector('.accordion-collapse');
-        if (mainCollapse) {
-            if (term !== '' && mainVis) { mainCollapse.classList.add('show'); } 
-            else if (term === '') { mainCollapse.classList.remove('show'); }
-        }
-        main.style.display = mainVis ? '' : 'none';
+        const mColl = main.querySelector('.accordion-collapse'); if(mColl && term && mVis) mColl.classList.add('show');
+        main.style.display = mVis ? '' : 'none';
       });
     }
 
-    // ==================== 1. 盤點系統 API ====================
+    // ==================== 1. 盤點 API ====================
     let scanner, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
 
-    function toggleLocBox() { 
-      document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; 
-    }
-
-    function beep({freq=880, duration=120, type='sine'} = {}){ 
-      try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.type=type; o.frequency.value=freq; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); o.start(); setTimeout(()=>{o.stop(); ctx.close();}, duration);}catch{} 
-    }
-    function playSound(kind){ 
-      if(kind==='success') beep({freq:1100,duration:140,type:'triangle'}); else beep({freq:550,duration:140,type:'square'}); 
-    }
+    function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
       sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial';
-      sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
-      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少展開列表點選一個地點');
+      sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
+      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
       
-      showLoading('同步全域團隊進度...');
+      showLoading('同步全域進度...');
       try {
         const res = await callAPI('startInventory', sysState);
-        sysState.total = res.total; 
-        sysState.scanned = res.scanned; 
-        updateProgressUI();
+        sysState.total = res.total; sysState.scanned = res.scanned; updateProgressUI();
+        
+        document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
         hideLoading();
-      } catch(e) {
+
+        scanner = new Html5Qrcode("reader");
+        const config = { 
+          fps: 20, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          videoConstraints: {
+            facingMode: "environment",
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 },
+            advanced: [{ focusMode: "continuous" }]
+          }
+        };
+        scanner.start({ facingMode: "environment" }, config, msg => submitScan(msg));
+      } catch (e) {
         hideLoading();
-        return alert("進度讀取錯誤：" + e.message);
+        alert("錯誤：" + e.message);
       }
-
-      document.getElementById('step1').style.display = 'none'; 
-      document.getElementById('step2').style.display = 'block';
-
-      // 優化相機參數：極致效能
-      scanner = new Html5Qrcode("reader");
-      const config = { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        videoConstraints: {
-          facingMode: "environment",
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          advanced: [{ focusMode: "continuous" }]
-        }
-      };
-      
-      scanner.start({ facingMode: "environment" }, config, msg => submitScan(msg))
-        .catch(e => {
-          document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗或無權限</div>`;
-        });
     }
 
-    function updateProgressUI() { 
-      document.getElementById('valTotal').innerText = sysState.total; 
-      document.getElementById('valScanned').innerText = sysState.scanned; 
-      var unscan = sysState.total - sysState.scanned; 
-      document.getElementById('valUnscanned').innerText = unscan < 0 ? 0 : unscan; 
-      var pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100); 
-      document.getElementById('progressBar').style.width = pct + '%'; 
+    function updateProgressUI() {
+      document.getElementById('valTotal').innerText = sysState.total;
+      document.getElementById('valScanned').innerText = sysState.scanned;
+      document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned);
+      const pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100);
+      document.getElementById('progressBar').style.width = pct + '%';
     }
-    
-    async function submitScan(qrCode){
+
+    async function submitScan(msg) {
       if (isProc || Date.now() - lastScan < 1500) return;
       isProc = true; lastScan = Date.now();
       
-      const qrDisplayId = qrCode.trim().split('\n')[0];
       const overlay = document.getElementById('resultOverlay');
-      
-      // 顯示浮動卡片
-      overlay.style.display = 'block'; 
-      overlay.style.borderColor = '#ffc107';
-      document.getElementById('resStatus').innerHTML = '⏳ 雲端同步核對中...'; 
-      document.getElementById('resImg').style.display = 'none'; 
-      document.getElementById('resName').innerText = ''; 
-      document.getElementById('resDesc').innerText = '';
+      overlay.style.display = 'block'; overlay.style.borderColor = '#ffc107';
+      document.getElementById('resStatus').innerText = '⏳ 雲端同步中...';
       
       try {
-        const res = await callAPI('submitScan', { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations });
-        playSound('success'); 
-        sysState.scanned = res.globalScanned; // 更新為全域進度
-        updateProgressUI(); 
-        
-        overlay.style.borderColor = '#198754'; 
-        document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>'; 
-        document.getElementById('resName').innerText = res.name; 
-        document.getElementById('resDesc').innerText = res.desc || '無說明'; 
-        if(res.img) { 
-          document.getElementById('resImg').src = res.img; 
-          document.getElementById('resImg').style.display = 'block'; 
-        }
-      } catch (err) {
-        playSound('error'); 
-        overlay.style.borderColor = '#dc3545'; 
-        document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 核對失敗</span>'; 
-        document.getElementById('resName').innerText = qrDisplayId; 
-        document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`;
-      }
-      
-      // 3秒後自動隱藏浮動卡片
-      setTimeout(function(){ 
-        overlay.style.display = 'none';
-        isProc = false; 
-      }, 3000);
-    }
-
-    function pauseInventorySession() { 
-      if(!confirm("🛑 確定要暫停目前的盤點作業並進行結算嗎？\n\n(進度已自動保存至雲端，下次隨時可接續盤點)")) return;
-      
-      if (scanner) { 
-        scanner.stop().then(() => scanner.clear()).catch(console.error); 
-      } 
-      document.getElementById('step2').style.display = 'none'; 
-      document.getElementById('step3').style.display = 'block'; 
-    }
-    
-    async function exportReport() { 
-      var email = document.getElementById('exportEmail').value; 
-      if(!email || !email.includes('@')) return alert('請輸入 Email'); 
-      showLoading('報表產生與寄送中，請稍候...'); 
-      try {
-        await callAPI('exportInventoryReport', { 
-          email: email, 
-          reportType: document.getElementById('exportType').value, 
-          mode: sysState.mode, 
-          locations: sysState.locations 
-        });
-        hideLoading(); 
-        alert('寄送成功！'); 
+        const res = await callAPI('submitScan', { qrStr: msg, mode: sysState.mode, locations: sysState.locations });
+        playSound('success');
+        sysState.scanned = res.globalScanned; updateProgressUI();
+        overlay.style.borderColor = '#198754';
+        document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>';
+        document.getElementById('resName').innerText = res.name;
+        document.getElementById('resDesc').innerText = res.desc || "";
+        if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'block'; }
       } catch (e) {
-        hideLoading(); 
-        alert(e.message);
+        playSound('error');
+        overlay.style.borderColor = '#dc3545';
+        document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 錯誤</span>';
+        document.getElementById('resName').innerText = msg;
+        document.getElementById('resDesc').innerText = e.message;
       }
+      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 3000);
     }
 
-    // ==================== 2. 搬運系統 API 與 Modal 控制 ====================
+    function pauseInventorySession() {
+      if(!confirm("確定要暫停目前的盤點作業嗎？\n(進度已自動儲存至雲端，隨時可接續盤點)")) return;
+      if (scanner) scanner.stop().then(() => scanner.clear());
+      document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
+    }
+
+    function playSound(k){ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.type=k==='success'?'triangle':'square'; o.frequency.value=k==='success'?1100:550; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); o.start(); setTimeout(()=>{o.stop(); ctx.close();}, 150); }
+
+    // ==================== 2. 搬運 API ====================
     async function loadWorkerLocations() {
-      const eventId = document.getElementById('mvEvent').value;
-      const display = document.getElementById('mvLocDisplay');
-      document.getElementById('mvLoc').value = ""; 
-      display.value = ""; 
-      document.getElementById('mvItem').innerHTML = '<option value="">請先選擇地點</option>'; 
-      document.getElementById('mvItem').disabled = true;
-      
-      if(!eventId) { display.placeholder = "請先選擇上方事件"; return; }
-      
-      showLoading('分析專案待搬運地點...');
-      try { 
-        const res = await callAPI('getPendingLocations', { eventId: eventId }); 
-        pendingLocTree = res.locTree; 
-        display.placeholder = "請點此選擇原地點..."; 
-        hideLoading(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
+      const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
+      document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvItem').disabled = true;
+      if(!eid) return;
+      showLoading();
+      try { const res = await callAPI('getPendingLocations', { eventId: eid }); pendingLocTree = res.locTree; d.placeholder = "請選擇..."; hideLoading(); } catch (e) { alert(e.message); hideLoading(); }
     }
-
-    function triggerMvLoc() {
-      if(!document.getElementById('mvEvent').value) return alert('請先選擇異動專案事件！');
-      currentModalTarget = 'mvLoc';
-      document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
-      document.getElementById('modalLocSearch').value = '';
-      renderTreeHTML(pendingLocTree, 'modalLocContainer', 'modal', false);
-      new bootstrap.Modal(document.getElementById('locModal')).show();
-    }
-
-    function triggerMvNewLoc() {
-      currentModalTarget = 'mvNewLoc';
-      document.getElementById('locModalTitle').innerText = "選擇「新地點(暫存)」";
-      document.getElementById('modalLocSearch').value = '';
-      renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
-      new bootstrap.Modal(document.getElementById('locModal')).show();
-    }
-
-    function selectModalLoc(val) {
-      document.getElementById(currentModalTarget).value = val;
-      document.getElementById(currentModalTarget + 'Display').value = val;
-      bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
-      if(currentModalTarget === 'mvLoc') loadWorkerItems();
-    }
-
+    function triggerMvLoc() { currentModalTarget='mvLoc'; renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); new bootstrap.Modal(document.getElementById('locModal')).show(); }
+    function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); new bootstrap.Modal(document.getElementById('locModal')).show(); }
+    function selectModalLoc(v) { document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); if(currentModalTarget==='mvLoc') loadWorkerItems(); }
     async function loadWorkerItems() {
-      const eventId = document.getElementById('mvEvent').value;
-      const loc = document.getElementById('mvLoc').value;
-      if(!loc) return;
-      
-      showLoading('讀取清單...');
-      try { 
-        const items = await callAPI('getPendingItems', { eventId: eventId, location: loc }); 
-        document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + 
-          items.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join(''); 
-        document.getElementById('mvItem').disabled = false; 
-        hideLoading(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
+      const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
+      const res = await callAPI('getPendingItems', { eventId: eid, location: loc });
+      document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + res.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join('');
+      document.getElementById('mvItem').disabled = false;
     }
-
     async function submitMovement() {
-      const rowIndex = document.getElementById('mvItem').value;
-      const newLoc = document.getElementById('mvNewLoc').value;
-      const staffInternal = document.getElementById('mvStaffInternal').value;
-      const staffOp = document.getElementById('mvStaffOp').value;
-      
-      if(!rowIndex || !newLoc || (!staffInternal && !staffOp)) {
-        return alert('請確認「文物」、「暫存地點」與「至少一位人員」皆已填寫！');
-      }
-      
-      document.getElementById('btnSubmitMove').disabled = true; 
-      showLoading('傳送單據中...');
-      
-      const payload = { 
-        rowIndex: rowIndex, 
-        newLoc: newLoc, 
-        isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', 
-        boxName: document.getElementById('mvBoxName').value, 
-        staffInternal: staffInternal, 
-        staffOp: staffOp 
-      };
-      
-      try { 
-        await callAPI('submitMovement', payload); 
-        alert('送出成功！'); 
-        document.getElementById('mvItem').value = ""; 
-        document.getElementById('mvBoxName').value = ""; 
-        document.getElementById('btnSubmitMove').disabled = false; 
-        loadWorkerItems(); 
-        hideLoading(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-        document.getElementById('btnSubmitMove').disabled = false; 
-      }
+      showLoading('送出中...');
+      const payload = { rowIndex: document.getElementById('mvItem').value, newLoc: document.getElementById('mvNewLoc').value, isBox: document.getElementById('mvIsBox').checked?'TRUE':'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: document.getElementById('mvStaffInternal').value, staffOp: document.getElementById('mvStaffOp').value };
+      await callAPI('submitMovement', payload); alert('送出成功！'); loadWorkerItems(); hideLoading();
     }
 
-    // ==================== 3. 管理員後台 ====================
+    // ==================== 3. 管理後台 ====================
     async function loginManager() {
-      const pwd = document.getElementById('mgrPwd').value; 
-      if(!pwd) return alert('請輸入密碼');
-      
-      showLoading('驗證身分...');
-      try { 
-        const res = await callAPI('verifyManager', { pwd: pwd }); 
-        currentManager = res.managerName; 
-        // 恢復顯示管理員名稱的邏輯
-        const lbl = document.getElementById('lblManagerName');
-        if(lbl) lbl.innerText = `👤 登入者：${currentManager}`; 
-        
-        document.getElementById('mgrLogin').style.display = 'none'; 
-        document.getElementById('mgrDashboard').style.display = 'block'; 
-        hideLoading(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
+      const res = await callAPI('verifyManager', { pwd: document.getElementById('mgrPwd').value });
+      currentManager = res.managerName; document.getElementById('mgrLogin').style.display='none'; document.getElementById('mgrDashboard').style.display='block';
     }
     
+    // ⭐ 防禦性更新基準日邏輯：不再傳送 Timestamp，而是傳送字串
     async function updateBaseline() {
-      const time = document.getElementById('newBaseline').value; 
-      if(!time) return alert('請選擇日期時間');
-      if(!confirm("確定要更新基準日嗎？\n這會重新判定全團隊的「已盤點」計數標準！")) return;
-      
-      showLoading('更新全域基準日...'); 
+      const timeVal = document.getElementById('newBaseline').value; 
+      if(!timeVal) return alert('請選擇日期時間');
+      if(!confirm("確定要更新基準日嗎？這會影響全團隊的已盤點計數。")) return;
+      showLoading('更新基準日中...'); 
       try {
-        await callAPI('updateBaseline', { time: new Date(time).getTime() }); 
-        alert('基準日更新成功！請重新整理頁面。');
+        await callAPI('updateBaseline', { timeString: timeVal }); 
+        alert('✅ 基準日更新成功！');
         location.reload();
-      } catch(e) {
+      } catch (e) {
+        alert("更新失敗：" + e.message);
         hideLoading();
-        alert(e.message);
       }
     }
     
     async function loadManagerData() {
-      const eventId = document.getElementById('mgrEvent').value; 
-      if(!eventId) return;
-      
-      showLoading('載入審核表單...');
-      try { 
-        const data = await callAPI('getManagerData', { eventId: eventId }); 
-        renderTable('tablePending', data.pending, 'chk-pend', true); 
-        renderTable('tableConfirmed', data.confirmed, 'chk-conf', false); 
-        hideLoading(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
+      const res = await callAPI('getManagerData', { eventId: document.getElementById('mgrEvent').value });
+      renderTable('tablePending', res.pending, 'chk-pend', true); renderTable('tableConfirmed', res.confirmed, 'chk-conf', false);
     }
-    
-    function renderTable(tableId, data, chkClass, showEdit) {
-      document.querySelector(`#${tableId} tbody`).innerHTML = data.map(x => `
-        <tr>
-          <td class="text-center align-middle"><input type="checkbox" class="form-check-input ${chkClass}" value="${x.rowIndex}"></td>
-          <td><b>${x.qrCode.split('\n')[0]}</b><br><small class="text-muted">原: ${x.oldLoc}</small></td>
-          <td>${x.newLoc} ${x.isBox=='TRUE' ? `<br>📦 ${x.boxName}` : ''}</td>
-          <td class="align-middle text-center">
-            ${showEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex}, '${x.newLoc}', '${x.boxName}')">📝修正</button>` : `<small class="text-success fw-bold">${x.manager}</small>`}
-          </td>
-        </tr>`).join('');
+    function renderTable(tid, data, cls, edit) {
+      document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b>${x.qrCode.split('\n')[0]}</b><br><small>${x.oldLoc}</small></td><td>${x.newLoc}<br><small>${x.boxName||''}</small></td><td>${edit?`<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${x.newLoc}','${x.boxName}')">📝</button>`:`<small>${x.manager}</small>`}</td></tr>`).join('');
     }
-    
-    function toggleAllCheck(source, targetClass) { 
-      document.querySelectorAll(targetClass).forEach(cb => cb.checked = source.checked); 
+    async function changeStatus(cls, stat) {
+      const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value));
+      await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData();
     }
-    
-    async function changeStatus(chkClass, newStatus) {
-      if(!currentManager) return alert('請重新登入！');
-      const rows = Array.from(document.querySelectorAll(`${chkClass}:checked`)).map(cb => parseInt(cb.value)); 
-      if(rows.length === 0) return alert('請先勾選要處理的項目');
-      
-      showLoading('批次更新狀態...'); 
-      try { 
-        await callAPI('toggleStatus', { rowIndices: rows, newStatus: newStatus, managerName: currentManager }); 
-        loadManagerData(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
+    async function promptEdit(ri, nl, nb) {
+      const loc = prompt("修改暫存地點：", nl); const box = prompt("修改箱號：", nb);
+      if(loc!==null) { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); }
     }
-    
-    async function promptEdit(rowIndex, oldLoc, oldBox) {
-      if(!currentManager) return alert('請重新登入！');
-      const newLoc = prompt("修改暫存地點：", oldLoc); 
-      if (newLoc === null) return;
-      const boxName = prompt("修改箱號 (若無請留白)：", oldBox); 
-      if (boxName === null) return;
-      
-      showLoading('寫入修正紀錄...'); 
-      try { 
-        await callAPI('editItem', { rowIndex: rowIndex, newLoc: newLoc, boxName: boxName, managerName: currentManager }); 
-        loadManagerData(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
-    }
-    
     async function syncToMaster() {
-      const eventId = document.getElementById('mgrEvent').value; 
-      if(!eventId) return alert('請選擇要結案的專案');
-      
-      if(!confirm(`⚠️ 警告：確定要將此專案所有【已核對】項目同步覆寫至藏品總表並結案嗎？\n\n此動作無法復原！`)) return;
-      
-      showLoading('資料高速同步寫入中，請勿關閉網頁...'); 
-      try { 
-        const res = await callAPI('syncToMaster', { eventId: eventId }); 
-        hideLoading();
-        alert(`✅ 結案成功！共更新了 ${res.count} 筆資料至總表。`); 
-        loadManagerData(); 
-      } catch (e) { 
-        hideLoading();
-        alert(e.message); 
-      }
+      if(!confirm("確定要結案同步嗎？")) return;
+      showLoading('寫入總表中...'); await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('結案成功！'); loadManagerData(); hideLoading();
     }
+    function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
+    function exportReport() { callAPI('exportInventoryReport', { email: document.getElementById('exportEmail').value, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=>alert('報表已寄出！')); }
   </script>
 </body>
 </html>
