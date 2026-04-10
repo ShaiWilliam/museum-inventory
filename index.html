@@ -17,7 +17,7 @@
     #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 12px; }
     .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
     .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
-    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
   </style>
 </head>
 <body>
@@ -32,93 +32,37 @@
 
   <div class="container">
     <ul class="nav nav-tabs nav-fill mb-3" id="systemTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="inv-tab" data-bs-toggle="tab" data-bs-target="#inv" type="button" role="tab">文物盤點</button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="move-tab" data-bs-toggle="tab" data-bs-target="#move" type="button" role="tab">文物異動 (搬運)</button>
-      </li>
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">文物盤點</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">文物異動</button></li>
     </ul>
 
-    <div class="tab-content" id="systemTabsContent">
-      
-      <div class="tab-pane fade show active" id="inv" role="tabpanel">
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="inv">
         
         <div id="step1" class="step-card active">
           <h5 class="mb-3">1. 選擇盤點模式</h5>
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()">
-            <label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label>
-          </div>
-          <div class="form-check mb-4">
-            <input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()">
-            <label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label>
-          </div>
-          <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded">
-            <label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label>
-            <div id="locCheckboxes">載入中...</div>
-          </div>
-          
+          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
+          <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
+          <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded"><label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label><div id="locCheckboxes">載入中...</div></div>
           <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
         </div>
 
         <div id="step2" class="step-card">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">2. 現場盤點作業</h5>
-            <button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 暫停/結束</button>
-          </div>
-          
+          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">2. 現場盤點作業</h5><button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button></div>
           <div class="row g-2 mb-2">
             <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件數</small></div></div>
             <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤點</small></div></div>
             <div class="col-4"><div class="stat-box"><div class="stat-num text-danger" id="valUnscanned">...</div><small>未盤點</small></div></div>
           </div>
-          <div class="progress mb-3" style="height: 20px;">
-            <div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;">0%</div>
-          </div>
-
+          <div class="progress mb-3" style="height: 20px;"><div id="progressBar" class="progress-bar bg-success" style="width: 0%;">0%</div></div>
           <div id="reader" class="card shadow-sm border-0"></div>
-
           <div id="resultCard" class="result-card bg-light">
-            <h3 id="resStatus" class="mb-3"></h3>
-            <img id="resImg" class="result-img" src="" alt="無圖片" onerror="this.style.display='none'">
-            <h5 id="resName" class="text-primary fw-bold"></h5>
-            <p id="resDesc" class="text-muted small mb-0"></p>
+            <h3 id="resStatus" class="mb-3"></h3><img id="resImg" class="result-img" src="" onerror="this.style.display='none'"><h5 id="resName" class="text-primary fw-bold"></h5><p id="resDesc" class="text-muted small mb-0"></p>
           </div>
-        </div>
-
-        <div id="step3" class="step-card">
-          <h5 class="mb-3 text-center">✅ 盤點任務已暫停/結束</h5>
-          <div class="mb-3">
-            <label>請輸入接收報表的 Email</label>
-            <input type="email" id="exportEmail" class="form-control" placeholder="example@email.com">
-          </div>
-          <label>選擇匯出內容</label>
-          <select id="exportType" class="form-select mb-4">
-            <option value="all">匯出本次範圍之「全部名單」</option>
-            <option value="scanned">僅匯出「已盤點」名單</option>
-            <option value="unscanned">僅匯出「未盤點 (缺漏)」名單</option>
-          </select>
-          <button class="btn btn-primary w-100 mb-2" onclick="exportReport()" id="btnExport">寄送 Excel/CSV 報表</button>
-          <button class="btn btn-outline-secondary w-100" onclick="location.reload()">返回首頁</button>
         </div>
 
       </div>
-
-      <div class="tab-pane fade" id="move" role="tabpanel">
-        <div class="step-card active">
-          <h5 class="mb-3 text-primary">🚚 搬運人員填報系統</h5>
-          <div class="mb-3">
-            <label class="form-label">選擇事件：</label>
-            <select id="mvEvent" class="form-select"></select>
-          </div>
-          <div class="alert alert-info small">
-            💡 前後端分離架構已就緒。異動系統的表單介面可依此架構直接串接 API 進行擴充。
-          </div>
-          <button class="btn btn-primary w-100 fw-bold" onclick="alert('異動系統 API 連線測試成功！後續可將舊版介面整合至此。')">測試連線</button>
-        </div>
-      </div>
-
+      <div class="tab-pane fade" id="move"><div class="step-card active"><h5 class="mb-3 text-primary">🚚 搬運系統擴充區</h5></div></div>
     </div>
   </div>
 
@@ -129,33 +73,22 @@
     // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
 
-    // ★ 終極引擎：純淨 POST 請求，無 Headers 阻擋
+    // ★ 終極引擎：自帶錯誤診斷器
     async function callAPI(action, payload = {}) {
+      if (!API_URL.endsWith('/exec')) {
+        throw new Error("🚨 API 網址錯誤！\n您貼的網址結尾不是 /exec。\n請回到 GAS 重新複製「網頁應用程式網址」。");
+      }
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: action, payload: payload })
-        });
-        
-        const text = await response.text();
-        let res;
-        try {
-          res = JSON.parse(text);
-        } catch(e) {
-          throw new Error("伺服器回傳格式異常。請確認您的 GAS 是否有重新「建立新版本」並開放給「所有人」。");
-        }
-        
-        if (!res.success) throw new Error(res.error || res.msg || "未知錯誤");
+        const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
+        const response = await fetch(API_URL + "?q=" + query, { method: 'GET' });
+        const res = await response.json();
+        if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
       } catch (err) {
-        console.error("API 錯誤:", err);
-        throw err;
+        throw new Error(`🚫 連線被 Google 阻擋或發生錯誤。\n\n錯誤詳情：${err.message}\n\n👉 請務必確認 GAS 部署設定：\n1. 版本：建立新版本\n2. 執行身分：我\n3. 存取權限：所有人 (Anyone)`);
       }
     }
 
-    // ==========================================
-    // 盤點系統邏輯
-    // ==========================================
     let html5QrCode, lastScanAt = 0;
     var sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 };
     var isProcessing = false;
@@ -165,24 +98,17 @@
         const data = await callAPI('getInventoryInitData');
         let html = '';
         data.locations.forEach((loc, idx) => {
-          html += `<div class="form-check">
-                     <input class="form-check-input loc-cb" type="checkbox" value="${loc}" id="cb${idx}">
-                     <label class="form-check-label" for="cb${idx}">${loc}</label>
-                   </div>`;
+          html += `<div class="form-check"><input class="form-check-input loc-cb" type="checkbox" value="${loc}" id="cb${idx}"><label class="form-check-label" for="cb${idx}">${loc}</label></div>`;
         });
         document.getElementById('locCheckboxes').innerHTML = html;
         document.getElementById('loadingMask').style.display = 'none'; 
       } catch (err) {
-        document.getElementById('loadingMask').innerHTML = `<div class="p-4 text-center"><h5 class="text-danger fw-bold">初始化連線失敗</h5><div class="alert alert-warning mt-3 text-start" style="font-size:14px; word-break:break-all;">${err.message}</div></div>`;
+        document.getElementById('loadingMask').innerHTML = `<div class="container p-4"><h4 class="text-danger fw-bold text-center mb-3">⚠️ 系統連線失敗</h4><div class="alert alert-warning" style="white-space: pre-wrap; font-size:14px;">${err.message}</div></div>`;
       }
     };
 
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
-    function esc(s){ return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-
-    function beep({freq=880, duration=120, type='sine'} = {}){ 
-      try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.type=type; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); osc.start(); setTimeout(()=>{osc.stop(); ctx.close();}, duration);}catch{} 
-    }
+    function beep({freq=880, duration=120, type='sine'} = {}){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.type=type; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); osc.start(); setTimeout(()=>{osc.stop(); ctx.close();}, duration);}catch{} }
     function playSound(kind){ if(kind==='success') beep({freq:1100,duration:140,type:'triangle'}); else beep({freq:550,duration:140,type:'square'}); }
 
     async function startInventorySession() {
@@ -190,22 +116,16 @@
       sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少勾選一個地點');
 
-      // 強制喚醒相機權限
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         stream.getTracks().forEach(track => track.stop());
-      } catch (err) {
-        return alert("⚠️ 無法取得相機權限！\n請檢查手機設定是否有開放 Chrome 使用相機。\n" + err);
-      }
+      } catch (err) { return alert("⚠️ 無法取得相機權限！請檢查瀏覽器設定。"); }
 
       document.getElementById('step1').style.display = 'none';
       document.getElementById('step2').style.display = 'block';
 
       callAPI('startInventory', sysState).then(res => {
-        sysState.total = res.total;
-        sysState.sessionTime = res.sessionTime;
-        sysState.scanned = 0;
-        updateUI(); 
+        sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); 
       }).catch(err => alert("進度讀取失敗：" + err.message));
 
       startScanner();
@@ -222,10 +142,9 @@
     }
 
     function startScanner(){
-      const qrbox = { width:250, height:250 }; const config = { fps:10, qrbox };
       html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode:"environment" }, config, msg => submitScan(msg), _err => {})
-      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗<br><small>${esc(String(err))}</small></div>`; });
+      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {})
+      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
     }
 
     function submitScan(qrCode){
@@ -233,37 +152,26 @@
       if (!qrCode || sysState.sessionTime === 0 || isProcessing) return;
       isProcessing = true; 
 
-      // 萃取多行 QR Code 的第一行 (編號) 來顯示
       const qrDisplayId = qrCode.trim().split('\n')[0];
-
       var resCard = document.getElementById('resultCard');
       resCard.style.display = 'block'; resCard.style.borderColor = '#ffc107';
-      document.getElementById('resStatus').innerHTML = '⏳ 雲端核對中...';
+      document.getElementById('resStatus').innerHTML = '⏳ 核對中...';
       document.getElementById('resImg').style.display = 'none';
       document.getElementById('resName').innerText = ''; document.getElementById('resDesc').innerText = '';
 
-      var payload = { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
-
-      callAPI('submitScan', payload).then(res => {
-        playSound('success'); 
-        sysState.scanned++; 
-        updateUI(); 
-        
+      callAPI('submitScan', { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => {
+        playSound('success'); sysState.scanned++; updateUI(); 
         resCard.style.borderColor = '#198754';
         document.getElementById('resStatus').innerHTML = '✅ 盤點成功';
         document.getElementById('resName').innerText = res.name;
         document.getElementById('resDesc').innerText = res.desc || '無說明';
         if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; }
-        
         setTimeout(function(){ isProcessing = false; }, 2000);
-
       }).catch(err => {
-        playSound('error'); 
-        resCard.style.borderColor = '#dc3545';
+        playSound('error'); resCard.style.borderColor = '#dc3545';
         document.getElementById('resStatus').innerHTML = '❌ 核對失敗';
         document.getElementById('resName').innerText = qrDisplayId;
         document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`;
-        
         setTimeout(function(){ isProcessing = false; }, 2000);
       });
     }
@@ -271,21 +179,7 @@
     function endInventorySession() {
       if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); }
       document.getElementById('step2').style.display = 'none';
-      document.getElementById('step3').style.display = 'block';
-    }
-
-    function exportReport() {
-      var email = document.getElementById('exportEmail').value;
-      if(!email || !email.includes('@')) return alert('請輸入有效的 Email');
-      let btn = document.getElementById('btnExport');
-      btn.innerText = '寄送中...'; btn.disabled = true;
-
-      var payload = { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
-
-      callAPI('exportInventoryReport', payload).then(res => {
-        alert('寄送成功！共匯出 ' + res.count + ' 筆資料。');
-        btn.innerText = '寄送 Excel/CSV 報表'; btn.disabled = false;
-      }).catch(err => { alert(err.message); btn.innerText = '寄送失敗'; btn.disabled = false; });
+      document.getElementById('step1').style.display = 'block';
     }
   </script>
 </body>
