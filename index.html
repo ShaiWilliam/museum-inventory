@@ -215,7 +215,7 @@
         el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => { return isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`; }).join(''); 
     }
 
-    // ==================== 樹狀結構 UI 渲染引擎 (優化版) ====================
+    // ==================== 樹狀結構 UI 渲染引擎 (深層折疊版) ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-secondary">查無可用地點</div>'; return; }
       
@@ -235,7 +235,8 @@
             <div class="accordion-body p-2">`;
 
         mainNode.subs.forEach((subNode, sIdx) => {
-          // 優化 2 & 3: 消滅(本區)贅字，並改為大型觸控按鈕
+          let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
+
           if (subNode.details.length === 1 && subNode.details[0].label === "(本區)") {
             let det = subNode.details[0];
             html += `<div class="sub-group mb-2"><div class="leaf-item">`;
@@ -247,23 +248,27 @@
             }
             html += `</div></div>`;
           } else {
-            // 正常多層顯示，優化 1: 將「全選/清除」下放到第二層標題旁
             html += `<div class="sub-group mb-3 border rounded p-2 bg-light">`;
             if (isMulti) {
               html += `<div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-                         <div class="fw-bold text-primary">📂 ${subNode.sub}</div>
+                         <div class="fw-bold text-primary flex-grow-1" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
+                           📂 ${subNode.sub} <span class="dropdown-toggle text-muted ms-1"></span>
+                         </div>
                          <div class="btn-group">
-                           <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true)">全選</button>
+                           <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button>
                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button>
                          </div>
-                       </div><div class="row g-2">`;
+                       </div>
+                       <div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
             } else {
-              html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary">📂 ${subNode.sub}</div><div class="row g-2">`;
+              html += `<div class="fw-bold border-bottom pb-1 mb-2 text-primary" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
+                         📂 ${subNode.sub} <span class="dropdown-toggle text-muted ms-1"></span>
+                       </div>
+                       <div id="${collapseId}" class="collapse"><div class="row g-2 pt-1">`;
             }
 
             subNode.details.forEach((det, dIdx) => {
               if(isMulti) {
-                // 優化 3: 廢除小方框，使用大型按鈕
                 html += `<div class="col-6 col-md-4 leaf-item">
                            <input type="checkbox" class="btn-check loc-cb leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()">
                            <label class="btn btn-outline-success w-100 text-center py-2" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>
@@ -272,7 +277,7 @@
                 html += `<div class="col-6 col-md-4 leaf-item"><button type="button" class="btn btn-outline-dark w-100 text-center py-2" onclick="selectModalLoc('${det.val}')">${det.label}</button></div>`;
               }
             });
-            html += `</div></div>`;
+            html += `</div></div></div>`; // 結束 row 與 collapse 與 sub-group
           }
         });
         html += `</div></div></div>`;
@@ -282,11 +287,16 @@
     }
 
     // --- 盤點多選樹邏輯 ---
-    function selectAllInSub(btn, isSelect) {
+    function selectAllInSub(btn, isSelect, collapseId) {
       const group = btn.closest('.sub-group');
       group.querySelectorAll('.leaf-cb').forEach(cb => {
         if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect;
       });
+      // 點擊全選時，自動展開該分類以便視覺確認
+      if(isSelect && collapseId) {
+        const collapseDiv = document.getElementById(collapseId);
+        if(collapseDiv) collapseDiv.classList.add('show');
+      }
       updateCounts();
     }
     
@@ -317,7 +327,21 @@
             else { leaf.style.display = 'none'; }
           });
           sub.style.display = subVis ? '' : 'none';
+          
+          // 搜尋時，如果有命中內容，自動展開第三層
+          const collapseDiv = sub.querySelector('.collapse');
+          if (collapseDiv) {
+              if (term !== '' && subVis) { collapseDiv.classList.add('show'); } 
+              else if (term === '') { collapseDiv.classList.remove('show'); }
+          }
         });
+        
+        // 搜尋時，自動展開第一層
+        const mainCollapse = main.querySelector('.accordion-collapse');
+        if (mainCollapse) {
+            if (term !== '' && mainVis) { mainCollapse.classList.add('show'); } 
+            else if (term === '') { mainCollapse.classList.remove('show'); }
+        }
         main.style.display = mainVis ? '' : 'none';
       });
     }
