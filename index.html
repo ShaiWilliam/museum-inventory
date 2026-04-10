@@ -191,7 +191,6 @@
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
-    // ⭐ 終極防護 1：強制加上時間戳記 &t=...，徹底摧毀手機瀏覽器的快取！
     async function callAPI(action, payload = {}) {
       try {
         const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
@@ -372,9 +371,23 @@
       document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
     }
 
-    function playSound(k){ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.type=k==='success'?'triangle':'square'; o.frequency.value=k==='success'?1100:550; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); o.start(); setTimeout(()=>{o.stop(); ctx.close();}, 150); }
+    // ⭐ 修正音效引擎 (共用 AudioContext 防止超過 6 個上限導致當機)
+    let audioCtx;
+    function playSound(k) { 
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const o = audioCtx.createOscillator(); 
+      const g = audioCtx.createGain(); 
+      o.type = k === 'success' ? 'triangle' : 'square'; 
+      o.frequency.value = k === 'success' ? 1100 : 550; 
+      o.connect(g); 
+      g.connect(audioCtx.destination); 
+      g.gain.setValueAtTime(0.05, audioCtx.currentTime); 
+      o.start(); 
+      setTimeout(() => { o.stop(); }, 150); 
+    }
 
-    // ==================== 2. 搬運 API (加入防彈攔截) ====================
+    // ==================== 2. 搬運 API ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvItem').disabled = true;
@@ -418,7 +431,6 @@
       }
     }
 
-    // ⭐ 終極防護 2：完全恢復 try...catch，避免默默當機
     async function submitMovement() {
       const rowIndex = document.getElementById('mvItem').value;
       const newLoc = document.getElementById('mvNewLoc').value;
@@ -445,7 +457,7 @@
       }
     }
 
-    // ==================== 3. 管理後台 (加入防彈攔截) ====================
+    // ==================== 3. 管理後台 ====================
     async function loginManager() {
       const pwd = document.getElementById('mgrPwd').value;
       if(!pwd) return alert("請輸入密碼！");
@@ -535,9 +547,15 @@
     }
     
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
+    
+    // ⭐ 修正 Email 防呆檢查
     function exportReport() { 
+      const emailInput = document.getElementById('exportEmail').value;
+      if (!emailInput) {
+        return alert('請先填寫「接收 Excel 報表的 Email」！');
+      }
       showLoading('報表寄送中...');
-      callAPI('exportInventoryReport', { email: document.getElementById('exportEmail').value, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations })
+      callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations })
       .then(()=> { alert('報表已寄出！'); hideLoading(); })
       .catch(e => { alert("寄送失敗：" + e.message); hideLoading(); }); 
     }
