@@ -145,7 +145,7 @@
               <h6 class="card-title text-primary small fw-bold">本期盤點基準日設定</h6>
               <div class="input-group input-group-sm">
                 <input type="datetime-local" id="newBaseline" class="form-control">
-                <button class="btn btn-primary" onclick="updateBaseline()">更新基準日</button>
+                <button class="btn btn-primary" onclick="updateBaseline()">更新</button>
               </div>
               <small class="text-muted">※ 基準日後的掃描才會計入「已盤點」</small>
             </div>
@@ -200,33 +200,39 @@
       } catch (err) { throw new Error(err.message); }
     }
 
+    // ⭐ 防禦性防護網：即使後端未更新，也不會讓前端卡死
     window.onload = async function() {
       try {
         const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
-        baselineTime = invData.baselineTime;
         
-        // 防呆保護：確保日期有效，否則回退到當前時間
+        baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
         if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         
-        renderTreeHTML(invData.locTree, 'locCheckboxes', 'inv', true);
-        globalLocTree = workData.locTree;
-        populateSelect('mvEvent', workData.events, true);
-        populateSelect('mgrEvent', workData.events, true);
-        populateSelect('mvStaffInternal', workData.staffInternal);
-        populateSelect('mvStaffOp', workData.staffOp);
+        renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
+        globalLocTree = workData.locTree || [];
+        populateSelect('mvEvent', workData.events || [], true);
+        populateSelect('mgrEvent', workData.events || [], true);
+        populateSelect('mvStaffInternal', workData.staffInternal || []);
+        populateSelect('mvStaffOp', workData.staffOp || []);
+        
+      } catch (err) { 
+        alert("⚠️ 系統載入異常！\n如果選單空白，通常是因為 GAS 後端尚未「發布為新版本」，導致前端讀不到新格式的資料。\n錯誤細節：" + err.message); 
+      } finally {
+        // ⭐ 不論成功失敗，都強制解除透明遮罩，恢復點擊功能
         hideLoading(); 
-      } catch (err) { alert("連線失敗：" + err.message); }
+      }
     };
 
     function populateSelect(id, arr, isObj = false) { 
+        if (!arr || !Array.isArray(arr)) return; // 防呆：如果後端沒給陣列就不處理
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
     // ==================== 樹狀結構與 UI 邏輯 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
-      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '無資料'; return; }
+      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點，請確認後端資料</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
       treeData.forEach((mainNode, mIdx) => {
         let totalLeaves = mainNode.subs.reduce((sum, sub) => sum + sub.details.length, 0);
@@ -370,12 +376,28 @@
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvItem').disabled = true;
       if(!eid) return;
-      showLoading();
-      try { const res = await callAPI('getPendingLocations', { eventId: eid }); pendingLocTree = res.locTree; d.placeholder = "請選擇..."; hideLoading(); } catch (e) { alert(e.message); hideLoading(); }
+      showLoading('分析中...');
+      try { const res = await callAPI('getPendingLocations', { eventId: eid }); pendingLocTree = res.locTree || []; d.placeholder = "請選擇..."; hideLoading(); } catch (e) { alert(e.message); hideLoading(); }
     }
-    function triggerMvLoc() { currentModalTarget='mvLoc'; renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); new bootstrap.Modal(document.getElementById('locModal')).show(); }
-    function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); new bootstrap.Modal(document.getElementById('locModal')).show(); }
-    function selectModalLoc(v) { document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); if(currentModalTarget==='mvLoc') loadWorkerItems(); }
+    
+    // ⭐ 修復 Modal 多重堆疊記憶體洩漏問題
+    function triggerMvLoc() { 
+      if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！');
+      currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
+      renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); 
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); 
+    }
+    function triggerMvNewLoc() { 
+      currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「新地點(暫存)」";
+      renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); 
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); 
+    }
+    function selectModalLoc(v) { 
+      document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; 
+      bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
+      if(currentModalTarget==='mvLoc') loadWorkerItems(); 
+    }
+
     async function loadWorkerItems() {
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
       const res = await callAPI('getPendingItems', { eventId: eid, location: loc });
@@ -394,7 +416,6 @@
       currentManager = res.managerName; document.getElementById('mgrLogin').style.display='none'; document.getElementById('mgrDashboard').style.display='block';
     }
     
-    // ⭐ 防禦性更新基準日邏輯：不再傳送 Timestamp，而是傳送字串
     async function updateBaseline() {
       const timeVal = document.getElementById('newBaseline').value; 
       if(!timeVal) return alert('請選擇日期時間');
