@@ -7,10 +7,10 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    body { background-color: #f1f3f5; padding-bottom: 50px; font-family: system-ui, -apple-system, sans-serif; }
-    .nav-tabs .nav-link { color: #495057; font-weight: bold; border-radius: 10px 10px 0 0; }
+    body { background-color: #f1f3f5; padding-bottom: 60px; font-family: system-ui, -apple-system, sans-serif; }
+    .nav-tabs .nav-link { color: #495057; font-weight: bold; border-radius: 10px 10px 0 0; font-size: 0.9rem; padding: 10px 5px;}
     .nav-tabs .nav-link.active { background-color: #198754; color: white; border-color: #198754; }
-    .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 20px;}
+    .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
     .step-card.active { display: block; }
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
@@ -18,11 +18,13 @@
     .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
     .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
     #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .table-responsive { font-size: 0.85rem; }
+    .action-btn { width: 100%; margin-bottom: 5px; }
   </style>
 </head>
 <body>
   <nav class="navbar navbar-dark bg-dark mb-3">
-    <div class="container-fluid"><span class="navbar-brand mb-0 h1">📦 典藏庫房管理系統</span></div>
+    <div class="container-fluid"><span class="navbar-brand mb-0 h1 fs-5">📦 典藏庫房管理系統</span></div>
   </nav>
 
   <div id="loadingMask">
@@ -30,17 +32,17 @@
     <h5 class="mt-3 text-success fw-bold">系統連線中...</h5>
   </div>
 
-  <div class="container">
-    <ul class="nav nav-tabs nav-fill mb-3" id="systemTabs" role="tablist">
+  <div class="container px-2">
+    <ul class="nav nav-tabs nav-fill mb-2" id="systemTabs" role="tablist">
       <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">文物盤點</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">文物異動</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理後台</button></li>
     </ul>
 
     <div class="tab-content">
       <div class="tab-pane fade show active" id="inv">
-        
         <div id="step1" class="step-card active">
-          <h5 class="mb-3">1. 選擇盤點模式</h5>
+          <h5 class="mb-3">選擇盤點模式</h5>
           <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
           <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
           <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded"><label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label><div id="locCheckboxes">載入中...</div></div>
@@ -48,7 +50,7 @@
         </div>
 
         <div id="step2" class="step-card">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">2. 現場盤點作業</h5><button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button></div>
+          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">現場盤點作業</h5><button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button></div>
           <div class="row g-2 mb-2">
             <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件數</small></div></div>
             <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤點</small></div></div>
@@ -61,53 +63,125 @@
           </div>
         </div>
 
+        <div id="step3" class="step-card">
+          <h5 class="mb-3 text-center">✅ 盤點任務已暫停/結束</h5>
+          <div class="mb-3"><label>請輸入接收報表的 Email</label><input type="email" id="exportEmail" class="form-control" placeholder="example@email.com"></div>
+          <label>選擇匯出內容</label>
+          <select id="exportType" class="form-select mb-4">
+            <option value="all">匯出本次範圍之「全部名單」</option>
+            <option value="scanned">僅匯出「已盤點」名單</option>
+            <option value="unscanned">僅匯出「未盤點 (缺漏)」名單</option>
+          </select>
+          <button class="btn btn-primary w-100 mb-2" onclick="exportReport()" id="btnExport">寄送 Excel 報表</button>
+          <button class="btn btn-outline-secondary w-100" onclick="location.reload()">返回首頁</button>
+        </div>
       </div>
-      <div class="tab-pane fade" id="move"><div class="step-card active"><h5 class="mb-3 text-primary">🚚 搬運系統擴充區</h5></div></div>
+
+      <div class="tab-pane fade" id="move">
+        <div class="step-card active">
+          <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
+          <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select></div>
+          <div class="mb-3"><label class="form-label">選擇原典藏地點</label><select id="mvLoc" class="form-select" onchange="loadWorkerItems()" disabled><option value="">請先選擇事件</option></select></div>
+          <div class="mb-3"><label class="form-label">選擇要搬運的文物</label><select id="mvItem" class="form-select" disabled><option value="">請先選擇地點</option></select></div>
+          <hr>
+          <div class="mb-3"><label class="form-label text-success fw-bold">移往新地點</label><select id="mvNewLoc" class="form-select"></select></div>
+          <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox"><label class="form-check-label" for="mvIsBox">是否裝箱</label></div>
+          <div class="mb-3"><label class="form-label">輸入箱號 (若有)</label><input type="text" class="form-control" id="mvBoxName" placeholder="例如：A01"></div>
+          <div class="mb-4"><label class="form-label text-danger fw-bold">搬運人員簽名</label><select id="mvStaff" class="form-select"></select></div>
+          <button class="btn btn-primary w-100 fw-bold fs-5" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="mgr">
+        <div id="mgrLogin" class="step-card active">
+          <h5 class="mb-3 text-danger">🔒 管理員登入</h5>
+          <input type="password" id="mgrPwd" class="form-control mb-3" placeholder="請輸入管理員密碼">
+          <button class="btn btn-danger w-100 fw-bold" onclick="loginManager()">登入後台</button>
+        </div>
+        
+        <div id="mgrDashboard" class="step-card">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 text-danger fw-bold">⚙️ 管理員面板</h5>
+            <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">登出</button>
+          </div>
+          <div class="mb-3"><label class="form-label">選擇審核專案</label><select id="mgrEvent" class="form-select" onchange="loadManagerData()"></select></div>
+          <input type="text" id="mgrNameInput" class="form-control mb-3" placeholder="請輸入您的姓名 (簽核用)">
+          
+          <ul class="nav nav-pills mb-3" id="mgrPills" role="tablist">
+            <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrPending">待確認</button></li>
+            <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已確認</button></li>
+          </ul>
+          
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="mgrPending">
+              <div class="table-responsive"><table class="table table-bordered table-striped" id="tablePending"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物資訊</th><th>新地點/箱號</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+              <button class="btn btn-success action-btn fw-bold" onclick="batchApprove()">✅ 批次核准</button>
+              <button class="btn btn-danger action-btn fw-bold" onclick="batchReject()">❌ 批次退回</button>
+            </div>
+            <div class="tab-pane fade" id="mgrConfirmed">
+              <div class="table-responsive"><table class="table table-bordered table-striped" id="tableConfirmed"><thead><tr><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物資訊</th><th>新地點/箱號</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+              <button class="btn btn-warning action-btn fw-bold" onclick="batchRevert()">↩️ 批次撤銷確認</button>
+              <hr>
+              <button class="btn btn-dark w-100 fw-bold mt-2" onclick="syncToMaster()">💾 結案：同步至藏品總表</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // ==========================================
-    // ⚠️ 核心設定：請貼上您剛剛建立的【最新版】API 網址！
+    // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
     // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
 
-    // ★ 終極引擎：自帶錯誤診斷器
+    // 共用全域變數與載入器
+    let workerLocations = [], workerStaff = [], workerEvents = [];
+    let currentManager = "";
+
+    function showLoading(msg = "系統連線中...") { document.querySelector('#loadingMask h5').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
+    function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
+
     async function callAPI(action, payload = {}) {
-      if (!API_URL.endsWith('/exec')) {
-        throw new Error("🚨 API 網址錯誤！\n您貼的網址結尾不是 /exec。\n請回到 GAS 重新複製「網頁應用程式網址」。");
-      }
       try {
         const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
         const response = await fetch(API_URL + "?q=" + query, { method: 'GET' });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
-      } catch (err) {
-        throw new Error(`🚫 連線被 Google 阻擋或發生錯誤。\n\n錯誤詳情：${err.message}\n\n👉 請務必確認 GAS 部署設定：\n1. 版本：建立新版本\n2. 執行身分：我\n3. 存取權限：所有人 (Anyone)`);
-      }
+      } catch (err) { throw new Error(err.message); }
     }
 
-    let html5QrCode, lastScanAt = 0;
-    var sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 };
-    var isProcessing = false;
-
+    // ==================== 初始化 (取得下拉資料) ====================
     window.onload = async function() {
       try {
-        const data = await callAPI('getInventoryInitData');
+        // 同時抓取盤點與搬運的初始資料
+        const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
+        
+        // 盤點介面賦值
         let html = '';
-        data.locations.forEach((loc, idx) => {
-          html += `<div class="form-check"><input class="form-check-input loc-cb" type="checkbox" value="${loc}" id="cb${idx}"><label class="form-check-label" for="cb${idx}">${loc}</label></div>`;
-        });
+        invData.locations.forEach((loc, idx) => { html += `<div class="form-check"><input class="form-check-input loc-cb" type="checkbox" value="${loc}" id="cb${idx}"><label class="form-check-label" for="cb${idx}">${loc}</label></div>`; });
         document.getElementById('locCheckboxes').innerHTML = html;
-        document.getElementById('loadingMask').style.display = 'none'; 
+        
+        // 搬運介面與管理員事件賦值
+        workerEvents = workData.events; workerLocations = workData.locations; workerStaff = workData.staff;
+        populateSelect('mvEvent', workerEvents); populateSelect('mgrEvent', workerEvents);
+        populateSelect('mvNewLoc', workerLocations); populateSelect('mvStaff', workerStaff);
+        
+        hideLoading(); 
       } catch (err) {
         document.getElementById('loadingMask').innerHTML = `<div class="container p-4"><h4 class="text-danger fw-bold text-center mb-3">⚠️ 系統連線失敗</h4><div class="alert alert-warning" style="white-space: pre-wrap; font-size:14px;">${err.message}</div></div>`;
       }
     };
+    function populateSelect(id, arr) { const el = document.getElementById(id); el.innerHTML = '<option value="">請選擇...</option>' + arr.map(x => `<option value="${x}">${x}</option>`).join(''); }
 
+    // ==================== 1. 盤點系統邏輯 (已完美運作) ====================
+    let html5QrCode, lastScanAt = 0, sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 }, isProcessing = false;
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
+    function esc(s){ return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
     function beep({freq=880, duration=120, type='sine'} = {}){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.type=type; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); osc.start(); setTimeout(()=>{osc.stop(); ctx.close();}, duration);}catch{} }
     function playSound(kind){ if(kind==='success') beep({freq:1100,duration:140,type:'triangle'}); else beep({freq:550,duration:140,type:'square'}); }
 
@@ -115,71 +189,102 @@
       sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial';
       sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少勾選一個地點');
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        stream.getTracks().forEach(track => track.stop());
-      } catch (err) { return alert("⚠️ 無法取得相機權限！請檢查瀏覽器設定。"); }
-
-      document.getElementById('step1').style.display = 'none';
-      document.getElementById('step2').style.display = 'block';
-
-      callAPI('startInventory', sysState).then(res => {
-        sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); 
-      }).catch(err => alert("進度讀取失敗：" + err.message));
-
-      startScanner();
-    }
-
-    function updateUI() {
-      document.getElementById('valTotal').innerText = sysState.total;
-      document.getElementById('valScanned').innerText = sysState.scanned;
-      var unscan = sysState.total - sysState.scanned;
-      document.getElementById('valUnscanned').innerText = unscan < 0 ? 0 : unscan;
-      var pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100);
-      document.getElementById('progressBar').style.width = pct + '%';
-      document.getElementById('progressBar').innerText = pct + '%';
-    }
-
-    function startScanner(){
+      try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop()); } catch (err) { return alert("⚠️ 無法取得相機權限！\n" + err); }
+      document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
+      callAPI('startInventory', sysState).then(res => { sysState.total = res.total; sysState.sessionTime = res.sessionTime; sysState.scanned = 0; updateUI(); }).catch(err => alert("進度讀取失敗：" + err.message));
       html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {})
-      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
+      html5QrCode.start({ facingMode:"environment" }, { fps:10, qrbox:{width:250,height:250} }, msg => submitScan(msg), _err => {}).catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗</div>`; });
     }
-
+    function updateUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; var unscan = sysState.total - sysState.scanned; document.getElementById('valUnscanned').innerText = unscan < 0 ? 0 : unscan; var pct = sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100); document.getElementById('progressBar').style.width = pct + '%'; document.getElementById('progressBar').innerText = pct + '%'; }
     function submitScan(qrCode){
       const now = Date.now(); if (now - lastScanAt < 800) return; lastScanAt = now;
       if (!qrCode || sysState.sessionTime === 0 || isProcessing) return;
-      isProcessing = true; 
+      isProcessing = true; const qrDisplayId = qrCode.trim().split('\n')[0];
+      var resCard = document.getElementById('resultCard'); resCard.style.display = 'block'; resCard.style.borderColor = '#ffc107';
+      document.getElementById('resStatus').innerHTML = '⏳ 核對中...'; document.getElementById('resImg').style.display = 'none'; document.getElementById('resName').innerText = ''; document.getElementById('resDesc').innerText = '';
+      callAPI('submitScan', { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { playSound('success'); sysState.scanned++; updateUI(); resCard.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '✅ 盤點成功'; document.getElementById('resName').innerText = res.name; document.getElementById('resDesc').innerText = res.desc || '無說明'; if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; } setTimeout(function(){ isProcessing = false; }, 2000);
+      }).catch(err => { playSound('error'); resCard.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '❌ 核對失敗'; document.getElementById('resName').innerText = qrDisplayId; document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`; setTimeout(function(){ isProcessing = false; }, 2000); });
+    }
+    function endInventorySession() { if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); } document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; }
+    function exportReport() { var email = document.getElementById('exportEmail').value; if(!email || !email.includes('@')) return alert('請輸入 Email'); let btn = document.getElementById('btnExport'); btn.innerText = '寄送中...'; btn.disabled = true; callAPI('exportInventoryReport', { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => { alert('寄送成功！'); btn.innerText = '寄送報表'; btn.disabled = false; }).catch(err => { alert(err.message); btn.innerText = '寄送失敗'; btn.disabled = false; }); }
 
-      const qrDisplayId = qrCode.trim().split('\n')[0];
-      var resCard = document.getElementById('resultCard');
-      resCard.style.display = 'block'; resCard.style.borderColor = '#ffc107';
-      document.getElementById('resStatus').innerHTML = '⏳ 核對中...';
-      document.getElementById('resImg').style.display = 'none';
-      document.getElementById('resName').innerText = ''; document.getElementById('resDesc').innerText = '';
-
-      callAPI('submitScan', { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime }).then(res => {
-        playSound('success'); sysState.scanned++; updateUI(); 
-        resCard.style.borderColor = '#198754';
-        document.getElementById('resStatus').innerHTML = '✅ 盤點成功';
-        document.getElementById('resName').innerText = res.name;
-        document.getElementById('resDesc').innerText = res.desc || '無說明';
-        if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; }
-        setTimeout(function(){ isProcessing = false; }, 2000);
-      }).catch(err => {
-        playSound('error'); resCard.style.borderColor = '#dc3545';
-        document.getElementById('resStatus').innerHTML = '❌ 核對失敗';
-        document.getElementById('resName').innerText = qrDisplayId;
-        document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`;
-        setTimeout(function(){ isProcessing = false; }, 2000);
-      });
+    // ==================== 2. 搬運系統邏輯 ====================
+    async function loadWorkerLocations() {
+      const eventName = document.getElementById('mvEvent').value;
+      if(!eventName) { document.getElementById('mvLoc').innerHTML = '<option value="">請先選擇事件</option>'; document.getElementById('mvLoc').disabled = true; return; }
+      showLoading('讀取地點...');
+      try { const locs = await callAPI('getPendingLocations', { eventName: eventName }); populateSelect('mvLoc', locs); document.getElementById('mvLoc').disabled = false; hideLoading(); } 
+      catch (e) { alert(e.message); hideLoading(); }
+    }
+    async function loadWorkerItems() {
+      const eventName = document.getElementById('mvEvent').value; const loc = document.getElementById('mvLoc').value;
+      if(!loc) { document.getElementById('mvItem').innerHTML = '<option value="">請先選擇地點</option>'; document.getElementById('mvItem').disabled = true; return; }
+      showLoading('讀取清單...');
+      try { const items = await callAPI('getPendingItems', { eventName: eventName, location: loc }); document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + items.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]} - ${x.name}</option>`).join(''); document.getElementById('mvItem').disabled = false; hideLoading(); } 
+      catch (e) { alert(e.message); hideLoading(); }
+    }
+    async function submitMovement() {
+      const rowIndex = document.getElementById('mvItem').value, newLoc = document.getElementById('mvNewLoc').value, staff = document.getElementById('mvStaff').value;
+      if(!rowIndex || !newLoc || !staff) return alert('請確認「文物」、「新地點」與「簽名」皆已填寫！');
+      document.getElementById('btnSubmitMove').disabled = true; showLoading('傳送單據中...');
+      const payload = { rowIndex: rowIndex, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? '是' : '否', boxName: document.getElementById('mvBoxName').value, staff: staff };
+      try { await callAPI('submitMovement', payload); alert('送出成功！'); document.getElementById('mvItem').value = ""; document.getElementById('mvBoxName').value = ""; document.getElementById('btnSubmitMove').disabled = false; loadWorkerItems(); hideLoading(); } 
+      catch (e) { alert(e.message); document.getElementById('btnSubmitMove').disabled = false; hideLoading(); }
     }
 
-    function endInventorySession() {
-      if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); }
-      document.getElementById('step2').style.display = 'none';
-      document.getElementById('step1').style.display = 'block';
+    // ==================== 3. 管理員後台邏輯 ====================
+    async function loginManager() {
+      const pwd = document.getElementById('mgrPwd').value; if(!pwd) return alert('請輸入密碼');
+      showLoading('驗證身分...');
+      try { await callAPI('verifyManager', { pwd: pwd }); document.getElementById('mgrLogin').style.display = 'none'; document.getElementById('mgrDashboard').style.display = 'block'; hideLoading(); } 
+      catch (e) { alert(e.message); hideLoading(); }
+    }
+    async function loadManagerData() {
+      const eventName = document.getElementById('mgrEvent').value; if(!eventName) return;
+      showLoading('載入表單...');
+      try {
+        const data = await callAPI('getManagerData', { eventName: eventName });
+        renderTable('tablePending', data.pending, 'chk-pend', true); renderTable('tableConfirmed', data.confirmed, 'chk-conf', false);
+        hideLoading();
+      } catch (e) { alert(e.message); hideLoading(); }
+    }
+    function renderTable(tableId, data, chkClass, showEdit) {
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      tbody.innerHTML = data.map(x => `
+        <tr>
+          <td class="text-center"><input type="checkbox" class="form-check-input ${chkClass}" value="${x.rowIndex}"></td>
+          <td><b>${x.name}</b><br><small class="text-muted">${x.qrCode.split('\n')[0]}</small><br><small>原: ${x.oldLoc}</small></td>
+          <td>${x.newLoc} ${x.isBox=='是' ? `<br>📦 ${x.boxName}` : ''}<br><small class="text-primary">${x.staff}</small></td>
+          <td>${showEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex}, '${x.newLoc}', '${x.boxName}')">📝</button>` : ''}</td>
+        </tr>`).join('');
+    }
+    function toggleAllCheck(source, targetClass) { document.querySelectorAll(targetClass).forEach(cb => cb.checked = source.checked); }
+    function getSelectedRows(chkClass) { return Array.from(document.querySelectorAll(`${chkClass}:checked`)).map(cb => parseInt(cb.value)); }
+    function getManagerName() { const n = document.getElementById('mgrNameInput').value; if(!n) alert('請先輸入管理員姓名！'); return n; }
+
+    async function changeStatus(chkClass, newStatus) {
+      const mgrName = getManagerName(); if(!mgrName) return;
+      const rows = getSelectedRows(chkClass); if(rows.length === 0) return alert('請勾選項目');
+      showLoading('更新狀態...');
+      try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: newStatus, managerName: mgrName }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    }
+    function batchApprove() { changeStatus('.chk-pend', '已確認'); }
+    function batchReject() { changeStatus('.chk-pend', ''); }
+    function batchRevert() { changeStatus('.chk-conf', '待確認'); }
+
+    async function promptEdit(rowIndex, oldLoc, oldBox) {
+      const mgrName = getManagerName(); if(!mgrName) return;
+      const newLoc = prompt("修改新地點：", oldLoc); if (newLoc === null) return;
+      const boxName = prompt("修改箱號 (若無請留白)：", oldBox); if (boxName === null) return;
+      showLoading('儲存修改...');
+      try { await callAPI('editItem', { rowIndex: rowIndex, newLoc: newLoc, boxName: boxName, managerName: mgrName }); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
+    }
+
+    async function syncToMaster() {
+      const eventName = document.getElementById('mgrEvent').value; if(!eventName) return alert('請選擇專案');
+      if(!confirm(`確定要將「${eventName}」中所有已確認的項目同步到藏品總表並結案嗎？此動作無法復原！`)) return;
+      showLoading('資料同步寫入中，請稍候...');
+      try { const res = await callAPI('syncToMaster', { eventName: eventName }); alert(`✅ 結案成功！共更新了 ${res.count} 筆資料至總表。`); loadManagerData(); } catch (e) { alert(e.message); hideLoading(); }
     }
   </script>
 </body>
