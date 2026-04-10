@@ -17,7 +17,7 @@
     .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
     .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
     /* 載入遮罩 */
-    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
   </style>
 </head>
 <body>
@@ -85,6 +85,21 @@
           </div>
         </div>
 
+        <div id="step3" class="step-card" style="display:none;">
+          <h5 class="mb-3 text-center">✅ 盤點任務已結束</h5>
+          <div class="mb-3">
+            <label>請輸入接收報表的 Email</label>
+            <input type="email" id="exportEmail" class="form-control" placeholder="example@email.com">
+          </div>
+          <select id="exportType" class="form-select mb-4">
+            <option value="all">匯出本次範圍之「全部名單」</option>
+            <option value="scanned">僅匯出「已盤點」名單</option>
+            <option value="unscanned">僅匯出「未盤點 (缺漏)」名單</option>
+          </select>
+          <button class="btn btn-primary w-100 mb-2" id="btnExport" onclick="exportReport()">寄送 Excel/CSV 報表</button>
+          <button class="btn btn-outline-secondary w-100" onclick="location.reload()">返回首頁</button>
+        </div>
+
       </div>
 
       <div class="tab-pane fade" id="move" role="tabpanel">
@@ -95,7 +110,7 @@
             <select id="mvEvent" class="form-select"></select>
           </div>
           <div class="alert alert-info small">
-            💡 前後端分離架構已就緒。異動系統的表單介面可依此架構直接串接 <code>getWorkerInitData</code> 與 <code>submitMovement</code> 等 API 進行擴充。
+            💡 前後端分離架構已就緒。異動系統的表單介面可依此架構直接串接 API 進行擴充。
           </div>
           <button class="btn btn-primary w-100 fw-bold" onclick="alert('異動系統 API 連線測試成功！後續可將舊版介面整合至此。')">測試連線</button>
         </div>
@@ -111,20 +126,17 @@
     // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
 
-    // 通用 Fetch API 呼叫引擎
+    // 通用 Fetch API 呼叫引擎 (GET 傳輸版，徹底避開 iOS 攔截)
     async function callAPI(action, payload = {}) {
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: action, payload: payload })
-        });
+        const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
+        const response = await fetch(API_URL + "?q=" + query, { method: 'GET' });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg || "未知錯誤");
         return res.data;
       } catch (err) {
         console.error("API 錯誤:", err);
-        throw err;
+        throw new Error("網路連線被阻擋或系統錯誤，請稍後再試");
       }
     }
 
@@ -135,9 +147,9 @@
     var sysState = { mode: 'all', locations: [], sessionTime: 0, total: 0, scanned: 0 };
     var isProcessing = false;
 
+    // 網頁載入時初始化
     window.onload = async function() {
       try {
-        // 網頁載入時，透過 API 取得下拉地點名單
         const data = await callAPI('getInventoryInitData');
         let html = '';
         data.locations.forEach((loc, idx) => {
@@ -149,8 +161,7 @@
         document.getElementById('locCheckboxes').innerHTML = html;
         document.getElementById('loadingMask').style.display = 'none'; // 隱藏遮罩
       } catch (err) {
-        alert("系統初始化失敗，請確認 API 網址是否正確。");
-        document.getElementById('loadingMask').innerHTML = `<h5 class="text-danger">初始化失敗</h5>`;
+        document.getElementById('loadingMask').innerHTML = `<h5 class="text-danger mt-3">連線失敗，請檢查 API 網址是否正確</h5><p class="text-muted small">${err.message}</p>`;
       }
     };
 
@@ -173,7 +184,7 @@
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         stream.getTracks().forEach(track => track.stop()); // 取得權限後立即釋放給套件
       } catch (err) {
-        return alert("⚠️ 無法取得相機權限！請確認瀏覽器設定已允許存取相機。\n" + err);
+        return alert("⚠️ 無法取得相機權限！請確認手機瀏覽器設定已允許存取相機。\n" + err);
       }
 
       // 2. 切換畫面
@@ -224,7 +235,9 @@
 
       // 向 API 送出掃描紀錄
       callAPI('submitScan', payload).then(res => {
-        playSound('success'); sysState.scanned++; updateUI();
+        playSound('success'); 
+        sysState.scanned++; 
+        updateUI(); 
         resCard.style.borderColor = '#198754';
         document.getElementById('resStatus').innerHTML = '✅ 盤點成功';
         document.getElementById('resName').innerText = res.name;
@@ -232,7 +245,8 @@
         if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'inline-block'; }
         setTimeout(function(){ isProcessing = false; }, 2000);
       }).catch(err => {
-        playSound('error'); resCard.style.borderColor = '#dc3545';
+        playSound('error'); 
+        resCard.style.borderColor = '#dc3545';
         document.getElementById('resStatus').innerHTML = '❌ 核對失敗';
         document.getElementById('resName').innerText = qrCode;
         document.getElementById('resDesc').innerText = err.message;
@@ -243,8 +257,25 @@
     function endInventorySession() {
       if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); }
       document.getElementById('step2').style.display = 'none';
-      document.getElementById('step1').style.display = 'block';
-      alert("盤點作業已暫停。請隨時重新點擊「開始盤點」繼續！");
+      document.getElementById('step3').style.display = 'block';
+    }
+
+    function exportReport() {
+      var email = document.getElementById('exportEmail').value;
+      if(!email || !email.includes('@')) return alert('請輸入有效的 Email');
+      
+      let btn = document.getElementById('btnExport');
+      btn.innerText = '寄送中...'; btn.disabled = true;
+
+      var payload = { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
+
+      callAPI('exportInventoryReport', payload).then(res => {
+        alert('寄送成功！共匯出 ' + res.count + ' 筆資料。');
+        btn.innerText = '寄送 Excel/CSV 報表'; btn.disabled = false;
+      }).catch(err => { 
+        alert(err); 
+        btn.innerText = '寄送失敗'; btn.disabled = false; 
+      });
     }
   </script>
 </body>
