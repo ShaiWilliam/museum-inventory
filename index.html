@@ -193,11 +193,15 @@
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
+    // ⭐ 優化 2：改用 POST 傳輸，徹底解決「勾選過多地點導致網址過長報錯」的問題
     async function callAPI(action, payload = {}) {
       try {
-        const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
-        const cacheBuster = "&t=" + new Date().getTime(); 
-        const response = await fetch(API_URL + "?q=" + query + cacheBuster, { method: 'GET' });
+        const cacheBuster = "?t=" + new Date().getTime(); 
+        const response = await fetch(API_URL + cacheBuster, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 使用 text/plain 繞過 CORS 預檢限制
+          body: JSON.stringify({ action: action, payload: payload })
+        });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
@@ -356,7 +360,15 @@
         document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>';
         document.getElementById('resName').innerText = res.name;
         document.getElementById('resDesc').innerText = res.desc || "";
-        if(res.img) { document.getElementById('resImg').src = res.img; document.getElementById('resImg').style.display = 'block'; }
+        
+        // ⭐ 優化 1：解決圖片殘留問題，當沒有圖片時確實隱藏與清空
+        if(res.img) { 
+          document.getElementById('resImg').src = res.img; 
+          document.getElementById('resImg').style.display = 'block'; 
+        } else {
+          document.getElementById('resImg').src = ''; 
+          document.getElementById('resImg').style.display = 'none'; 
+        }
       } catch (e) {
         playSound('error');
         overlay.style.borderColor = '#dc3545';
