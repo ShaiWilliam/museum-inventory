@@ -10,13 +10,13 @@
     body { background-color: #f1f3f5; padding-bottom: 50px; font-family: system-ui, -apple-system, sans-serif; }
     .nav-tabs .nav-link { color: #495057; font-weight: bold; border-radius: 10px 10px 0 0; }
     .nav-tabs .nav-link.active { background-color: #198754; color: white; border-color: #198754; }
-    .step-card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 20px;}
+    .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 20px;}
+    .step-card.active { display: block; }
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
-    #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; }
+    #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 12px; }
     .result-card { display: none; text-align: center; border: 2px solid #198754; border-radius: 10px; padding: 15px; margin-top: 10px;}
     .result-img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-bottom: 10px;}
-    /* 載入遮罩 */
     #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
   </style>
 </head>
@@ -44,7 +44,7 @@
       
       <div class="tab-pane fade show active" id="inv" role="tabpanel">
         
-        <div id="step1" class="step-card" style="display:block;">
+        <div id="step1" class="step-card active">
           <h5 class="mb-3">1. 選擇盤點模式</h5>
           <div class="form-check mb-2">
             <input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()">
@@ -56,16 +56,18 @@
           </div>
           <div id="locBox" style="display:none;" class="mb-4 bg-light p-3 border rounded">
             <label class="mb-2 text-muted">請勾選要盤點的地點 (可複選)</label>
-            <div id="locCheckboxes"></div>
+            <div id="locCheckboxes">載入中...</div>
           </div>
+          
           <button class="btn btn-success w-100 fw-bold fs-5" onclick="startInventorySession()">🚀 開始盤點</button>
         </div>
 
-        <div id="step2" class="step-card" style="display:none;">
+        <div id="step2" class="step-card">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h5 class="mb-0">2. 現場盤點作業</h5>
-            <button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 結束</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="endInventorySession()">🔙 暫停/結束</button>
           </div>
+          
           <div class="row g-2 mb-2">
             <div class="col-4"><div class="stat-box"><div class="stat-num text-primary" id="valTotal">...</div><small>總件數</small></div></div>
             <div class="col-4"><div class="stat-box"><div class="stat-num text-success" id="valScanned">0</div><small>已盤點</small></div></div>
@@ -85,10 +87,26 @@
           </div>
         </div>
 
+        <div id="step3" class="step-card">
+          <h5 class="mb-3 text-center">✅ 盤點任務已暫停/結束</h5>
+          <div class="mb-3">
+            <label>請輸入接收報表的 Email</label>
+            <input type="email" id="exportEmail" class="form-control" placeholder="example@email.com">
+          </div>
+          <label>選擇匯出內容</label>
+          <select id="exportType" class="form-select mb-4">
+            <option value="all">匯出本次範圍之「全部名單」</option>
+            <option value="scanned">僅匯出「已盤點」名單</option>
+            <option value="unscanned">僅匯出「未盤點 (缺漏)」名單</option>
+          </select>
+          <button class="btn btn-primary w-100 mb-2" onclick="exportReport()" id="btnExport">寄送 Excel/CSV 報表</button>
+          <button class="btn btn-outline-secondary w-100" onclick="location.reload()">返回首頁</button>
+        </div>
+
       </div>
 
       <div class="tab-pane fade" id="move" role="tabpanel">
-        <div class="step-card" style="display:block;">
+        <div class="step-card active">
           <h5 class="mb-3 text-primary">🚚 搬運人員填報系統</h5>
           <div class="mb-3">
             <label class="form-label">選擇事件：</label>
@@ -107,36 +125,32 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // ==========================================
-    // ⚠️ 核心設定：請將下方的網址替換為您的 GAS API 網址！
+    // ⚠️ 核心設定：請貼上您剛剛建立的【最新版】API 網址！
     // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbzcLS6cuQji3qWiQ5ydLdTGueW96R2CZo1J0eEdILB-J0GP3kgWVqg5wNbykpr7OW-uIA/exec"; 
 
-    // ★ 終極殺手鐧：JSONP 穿透引擎 (完美避開 iOS CORS 與 POST 阻擋)
-    function callAPI(action, payload = {}) {
-      return new Promise((resolve, reject) => {
-        const callbackName = 'gas_cb_' + Math.round(100000 * Math.random());
-        const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
-        // 透過 GET 參數傳遞資料，並指定 callback 函數名稱
-        const url = API_URL + "?q=" + query + "&callback=" + callbackName;
-
-        // 準備好接收伺服器回傳的腳本包裹
-        window[callbackName] = function(res) {
-          delete window[callbackName];
-          document.body.removeChild(script);
-          if (!res.success) reject(new Error(res.error || res.msg || "未知錯誤"));
-          else resolve(res.data);
-        };
-
-        // 動態產生 <script> 標籤強制穿透 iOS 防護罩
-        const script = document.createElement('script');
-        script.src = url;
-        script.onerror = function() {
-          delete window[callbackName];
-          document.body.removeChild(script);
-          reject(new Error("網路連線被阻擋或逾時，請確認 GAS API 是否已正確部署。"));
-        };
-        document.body.appendChild(script);
-      });
+    // ★ 終極引擎：純淨 POST 請求，無 Headers 阻擋
+    async function callAPI(action, payload = {}) {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: action, payload: payload })
+        });
+        
+        const text = await response.text();
+        let res;
+        try {
+          res = JSON.parse(text);
+        } catch(e) {
+          throw new Error("伺服器回傳格式異常。請確認您的 GAS 是否有重新「建立新版本」並開放給「所有人」。");
+        }
+        
+        if (!res.success) throw new Error(res.error || res.msg || "未知錯誤");
+        return res.data;
+      } catch (err) {
+        console.error("API 錯誤:", err);
+        throw err;
+      }
     }
 
     // ==========================================
@@ -159,7 +173,7 @@
         document.getElementById('locCheckboxes').innerHTML = html;
         document.getElementById('loadingMask').style.display = 'none'; 
       } catch (err) {
-        document.getElementById('loadingMask').innerHTML = `<h5 class="text-danger text-center">初始化連線失敗<br><small class="text-muted fs-6">${err.message}</small></h5>`;
+        document.getElementById('loadingMask').innerHTML = `<div class="p-4 text-center"><h5 class="text-danger fw-bold">初始化連線失敗</h5><div class="alert alert-warning mt-3 text-start" style="font-size:14px; word-break:break-all;">${err.message}</div></div>`;
       }
     };
 
@@ -176,27 +190,24 @@
       sysState.locations = Array.from(document.querySelectorAll('.loc-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請至少勾選一個地點');
 
-      // 1. 強制喚醒相機權限 (在 GitHub Pages 獨立網址下，iOS 會正常彈出詢問視窗)
+      // 強制喚醒相機權限
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         stream.getTracks().forEach(track => track.stop());
       } catch (err) {
-        return alert("⚠️ 無法取得相機權限！請確認瀏覽器設定已允許存取相機。\n" + err);
+        return alert("⚠️ 無法取得相機權限！\n請檢查手機設定是否有開放 Chrome 使用相機。\n" + err);
       }
 
-      // 2. 切換畫面
       document.getElementById('step1').style.display = 'none';
       document.getElementById('step2').style.display = 'block';
 
-      // 3. 背景向 API 請求盤點基準時間與總件數
       callAPI('startInventory', sysState).then(res => {
         sysState.total = res.total;
         sysState.sessionTime = res.sessionTime;
         sysState.scanned = 0;
         updateUI(); 
-      });
+      }).catch(err => alert("進度讀取失敗：" + err.message));
 
-      // 4. 啟動掃描套件
       startScanner();
     }
 
@@ -214,7 +225,7 @@
       const qrbox = { width:250, height:250 }; const config = { fps:10, qrbox };
       html5QrCode = new Html5Qrcode("reader");
       html5QrCode.start({ facingMode:"environment" }, config, msg => submitScan(msg), _err => {})
-      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 掃描模組啟動失敗<br><small>${esc(String(err))}</small></div>`; });
+      .catch(err=>{ document.getElementById('reader').innerHTML = `<div class="alert alert-danger m-3 text-center">⚠️ 相機啟動失敗<br><small>${esc(String(err))}</small></div>`; });
     }
 
     function submitScan(qrCode){
@@ -222,7 +233,7 @@
       if (!qrCode || sysState.sessionTime === 0 || isProcessing) return;
       isProcessing = true; 
 
-      // 萃取多行 QR Code 的第一行 (編號) 來顯示，避免畫面撐爆
+      // 萃取多行 QR Code 的第一行 (編號) 來顯示
       const qrDisplayId = qrCode.trim().split('\n')[0];
 
       var resCard = document.getElementById('resultCard');
@@ -233,12 +244,10 @@
 
       var payload = { qrStr: qrCode, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
 
-      // 透過 JSONP 呼叫 API 送出掃描紀錄
       callAPI('submitScan', payload).then(res => {
-        // 正確盤點成功
         playSound('success'); 
         sysState.scanned++; 
-        updateUI(); // 成功更新前端數字
+        updateUI(); 
         
         resCard.style.borderColor = '#198754';
         document.getElementById('resStatus').innerHTML = '✅ 盤點成功';
@@ -249,12 +258,11 @@
         setTimeout(function(){ isProcessing = false; }, 2000);
 
       }).catch(err => {
-        // 各種失敗 (包含被後台判定重複盤點、地點錯誤，或網路問題)
         playSound('error'); 
         resCard.style.borderColor = '#dc3545';
         document.getElementById('resStatus').innerHTML = '❌ 核對失敗';
         document.getElementById('resName').innerText = qrDisplayId;
-        document.getElementById('resDesc').innerText = err.message;
+        document.getElementById('resDesc').innerHTML = `<span class="text-danger fw-bold">${err.message}</span>`;
         
         setTimeout(function(){ isProcessing = false; }, 2000);
       });
@@ -263,7 +271,21 @@
     function endInventorySession() {
       if (html5QrCode) { html5QrCode.stop().then(()=>html5QrCode.clear()).catch(console.error); }
       document.getElementById('step2').style.display = 'none';
-      document.getElementById('step1').style.display = 'block';
+      document.getElementById('step3').style.display = 'block';
+    }
+
+    function exportReport() {
+      var email = document.getElementById('exportEmail').value;
+      if(!email || !email.includes('@')) return alert('請輸入有效的 Email');
+      let btn = document.getElementById('btnExport');
+      btn.innerText = '寄送中...'; btn.disabled = true;
+
+      var payload = { email: email, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations, sessionTime: sysState.sessionTime };
+
+      callAPI('exportInventoryReport', payload).then(res => {
+        alert('寄送成功！共匯出 ' + res.count + ' 筆資料。');
+        btn.innerText = '寄送 Excel/CSV 報表'; btn.disabled = false;
+      }).catch(err => { alert(err.message); btn.innerText = '寄送失敗'; btn.disabled = false; });
     }
   </script>
 </body>
