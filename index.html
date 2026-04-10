@@ -15,7 +15,6 @@
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
     
-    /* 掃描器與浮動卡片樣式 */
     #reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
     #reader { width: 100% !important; border: none !important; }
     
@@ -34,7 +33,6 @@
     .result-img { max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 5px; margin-right: 15px; }
     #loadingMask { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     
-    /* 折疊選單與大型觸控按鈕 */
     .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
     .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
@@ -76,7 +74,7 @@
         <div id="step2" class="step-card p-2">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="mb-0 fw-bold">團隊同步進度</h6>
-            <button class="btn btn-danger btn-sm fw-bold" onclick="pauseInventorySession()">🛑 暫停 / 結算進度</button>
+            <button class="btn btn-danger btn-sm fw-bold" onclick="pauseInventorySession()">🛑 暫停 / 結算</button>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-primary" id="valTotal" style="font-size: 1.2rem;">...</div><small>總件</small></div></div>
@@ -117,7 +115,7 @@
       <div class="tab-pane fade" id="move">
         <div class="step-card active">
           <h5 class="mb-3 text-primary">🚚 搬運人員填報</h5>
-          <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請選擇...</option></select></div>
+          <div class="mb-3"><label class="form-label">選擇異動專案事件</label><select id="mvEvent" class="form-select" onchange="loadWorkerLocations()"><option value="">請先等待系統載入...</option></select></div>
           <div class="mb-3"><label class="form-label">選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
           <div class="mb-3"><label class="form-label">選擇文物</label><select id="mvItem" class="form-select" disabled></select></div>
           <hr>
@@ -193,18 +191,20 @@
     function showLoading(msg = "系統連線中...") { document.getElementById('loadingText').innerText = msg; document.getElementById('loadingMask').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
 
-    // ⭐ 終極防當機修正：強制使用 GET 傳輸，徹底避開 GAS 的 POST 重新導向陷阱！
+    // ⭐ 終極防護 1：強制加上時間戳記 &t=...，徹底摧毀手機瀏覽器的快取！
     async function callAPI(action, payload = {}) {
       try {
         const query = encodeURIComponent(JSON.stringify({ action: action, payload: payload }));
-        const response = await fetch(API_URL + "?q=" + query, { method: 'GET' });
+        const cacheBuster = "&t=" + new Date().getTime(); 
+        const response = await fetch(API_URL + "?q=" + query + cacheBuster, { method: 'GET' });
         const res = await response.json();
         if (!res.success) throw new Error(res.error || res.msg);
         return res.data;
-      } catch (err) { throw new Error(err.message); }
+      } catch (err) { 
+        throw new Error(err.message); 
+      }
     }
 
-    // ⭐ 防禦性防護網：即使後端未更新，也不會讓前端卡死
     window.onload = async function() {
       try {
         const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
@@ -222,7 +222,7 @@
         populateSelect('mvStaffOp', workData.staffOp || []);
         
       } catch (err) { 
-        alert("⚠️ 系統載入異常！\n如果選單空白，通常是因為 GAS 後端尚未「發布為新版本」，導致前端讀不到新格式的資料。\n錯誤細節：" + err.message); 
+        alert("⚠️ 系統載入異常！\n請確定 GAS 已經成功「發布為新版本」。\n錯誤細節：" + err.message); 
       } finally {
         hideLoading(); 
       }
@@ -235,7 +235,7 @@
 
     // ==================== 樹狀結構與 UI 邏輯 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
-      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點，請確認後端資料</div>'; return; }
+      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
       treeData.forEach((mainNode, mIdx) => {
         let totalLeaves = mainNode.subs.reduce((sum, sub) => sum + sub.details.length, 0);
@@ -374,13 +374,20 @@
 
     function playSound(k){ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.type=k==='success'?'triangle':'square'; o.frequency.value=k==='success'?1100:550; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.05, ctx.currentTime); o.start(); setTimeout(()=>{o.stop(); ctx.close();}, 150); }
 
-    // ==================== 2. 搬運 API ====================
+    // ==================== 2. 搬運 API (加入防彈攔截) ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvItem').disabled = true;
       if(!eid) return;
       showLoading('分析中...');
-      try { const res = await callAPI('getPendingLocations', { eventId: eid }); pendingLocTree = res.locTree || []; d.placeholder = "請選擇..."; hideLoading(); } catch (e) { alert(e.message); hideLoading(); }
+      try { 
+        const res = await callAPI('getPendingLocations', { eventId: eid }); 
+        pendingLocTree = res.locTree || []; d.placeholder = "請選擇..."; 
+      } catch (e) { 
+        alert("載入失敗：" + e.message); 
+      } finally {
+        hideLoading();
+      }
     }
     
     function triggerMvLoc() { 
@@ -402,20 +409,57 @@
 
     async function loadWorkerItems() {
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
-      const res = await callAPI('getPendingItems', { eventId: eid, location: loc });
-      document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + res.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join('');
-      document.getElementById('mvItem').disabled = false;
-    }
-    async function submitMovement() {
-      showLoading('送出中...');
-      const payload = { rowIndex: document.getElementById('mvItem').value, newLoc: document.getElementById('mvNewLoc').value, isBox: document.getElementById('mvIsBox').checked?'TRUE':'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: document.getElementById('mvStaffInternal').value, staffOp: document.getElementById('mvStaffOp').value };
-      await callAPI('submitMovement', payload); alert('送出成功！'); loadWorkerItems(); hideLoading();
+      try {
+        const res = await callAPI('getPendingItems', { eventId: eid, location: loc });
+        document.getElementById('mvItem').innerHTML = '<option value="">請選擇...</option>' + res.map(x => `<option value="${x.rowIndex}">${x.qrCode.split('\n')[0]}</option>`).join('');
+        document.getElementById('mvItem').disabled = false;
+      } catch (e) {
+        alert("清單讀取失敗：" + e.message);
+      }
     }
 
-    // ==================== 3. 管理後台 ====================
+    // ⭐ 終極防護 2：完全恢復 try...catch，避免默默當機
+    async function submitMovement() {
+      const rowIndex = document.getElementById('mvItem').value;
+      const newLoc = document.getElementById('mvNewLoc').value;
+      const staffInt = document.getElementById('mvStaffInternal').value;
+      const staffOp = document.getElementById('mvStaffOp').value;
+      
+      if(!rowIndex || !newLoc || (!staffInt && !staffOp)) return alert('請確認「文物」、「暫存地點」與「至少一位人員」皆已填寫！');
+      
+      showLoading('送出中...');
+      const payload = { 
+        rowIndex: rowIndex, newLoc: newLoc, 
+        isBox: document.getElementById('mvIsBox').checked?'TRUE':'FALSE', 
+        boxName: document.getElementById('mvBoxName').value, 
+        staffInternal: staffInt, staffOp: staffOp 
+      };
+      try {
+        await callAPI('submitMovement', payload); 
+        alert('✅ 送出成功！'); 
+        loadWorkerItems(); 
+      } catch(e) {
+        alert("送出失敗：" + e.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // ==================== 3. 管理後台 (加入防彈攔截) ====================
     async function loginManager() {
-      const res = await callAPI('verifyManager', { pwd: document.getElementById('mgrPwd').value });
-      currentManager = res.managerName; document.getElementById('mgrLogin').style.display='none'; document.getElementById('mgrDashboard').style.display='block';
+      const pwd = document.getElementById('mgrPwd').value;
+      if(!pwd) return alert("請輸入密碼！");
+      showLoading('登入驗證中...');
+      try {
+        const res = await callAPI('verifyManager', { pwd: pwd });
+        currentManager = res.managerName; 
+        document.getElementById('mgrLogin').style.display='none'; 
+        document.getElementById('mgrDashboard').style.display='block';
+      } catch(e) {
+        alert("登入失敗：" + e.message);
+      } finally {
+        hideLoading();
+      }
     }
     
     async function updateBaseline() {
@@ -434,26 +478,69 @@
     }
     
     async function loadManagerData() {
-      const res = await callAPI('getManagerData', { eventId: document.getElementById('mgrEvent').value });
-      renderTable('tablePending', res.pending, 'chk-pend', true); renderTable('tableConfirmed', res.confirmed, 'chk-conf', false);
+      showLoading('載入表單中...');
+      try {
+        const res = await callAPI('getManagerData', { eventId: document.getElementById('mgrEvent').value });
+        renderTable('tablePending', res.pending, 'chk-pend', true); 
+        renderTable('tableConfirmed', res.confirmed, 'chk-conf', false);
+      } catch(e) {
+        alert("載入失敗：" + e.message);
+      } finally {
+        hideLoading();
+      }
     }
+    
     function renderTable(tid, data, cls, edit) {
       document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b>${x.qrCode.split('\n')[0]}</b><br><small>${x.oldLoc}</small></td><td>${x.newLoc}<br><small>${x.boxName||''}</small></td><td>${edit?`<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${x.newLoc}','${x.boxName}')">📝</button>`:`<small>${x.manager}</small>`}</td></tr>`).join('');
     }
+    
     async function changeStatus(cls, stat) {
       const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value));
-      await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData();
+      if(rows.length === 0) return alert('請先勾選項目！');
+      showLoading('處理中...');
+      try {
+        await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); 
+        loadManagerData();
+      } catch(e) {
+        alert("更新狀態失敗：" + e.message);
+        hideLoading();
+      }
     }
+    
     async function promptEdit(ri, nl, nb) {
       const loc = prompt("修改暫存地點：", nl); const box = prompt("修改箱號：", nb);
-      if(loc!==null) { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); }
+      if(loc!==null) { 
+        showLoading('更新中...');
+        try {
+          await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); 
+          loadManagerData(); 
+        } catch(e) {
+          alert("修改失敗：" + e.message);
+          hideLoading();
+        }
+      }
     }
+    
     async function syncToMaster() {
       if(!confirm("確定要結案同步嗎？")) return;
-      showLoading('寫入總表中...'); await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('結案成功！'); loadManagerData(); hideLoading();
+      showLoading('寫入總表中，請勿關閉視窗...'); 
+      try {
+        await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); 
+        alert('✅ 結案成功！'); 
+        loadManagerData(); 
+      } catch(e) {
+        alert("同步失敗：" + e.message);
+        hideLoading();
+      }
     }
+    
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
-    function exportReport() { callAPI('exportInventoryReport', { email: document.getElementById('exportEmail').value, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=>alert('報表已寄出！')); }
+    function exportReport() { 
+      showLoading('報表寄送中...');
+      callAPI('exportInventoryReport', { email: document.getElementById('exportEmail').value, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations })
+      .then(()=> { alert('報表已寄出！'); hideLoading(); })
+      .catch(e => { alert("寄送失敗：" + e.message); hideLoading(); }); 
+    }
   </script>
 </body>
 </html>
