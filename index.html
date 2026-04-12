@@ -38,7 +38,6 @@
     .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
     .fake-input-btn { cursor: pointer; text-align: left; }
     
-    /* 自訂漸進式展開的過場動畫 */
     .fade-in-section { animation: fadeIn 0.4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
@@ -332,7 +331,7 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
       
-      // 【新增優化】預先初始化並解鎖 AudioContext，解決瀏覽器阻擋音效的問題
+      // 【優化】解鎖 AudioContext
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
 
@@ -408,7 +407,7 @@
     function pauseInventorySession() {
       if(!confirm("確定要暫停目前的盤點作業嗎？\n(進度已自動儲存至雲端，隨時可接續盤點)")) return;
       
-      // 【新增優化】確保確實捕捉並釋放相機資源
+      // 【優化】釋放相機資源
       if (scanner) {
         scanner.stop().then(() => {
           scanner.clear();
@@ -432,7 +431,7 @@
       setTimeout(() => { o.stop(); }, 150); 
     }
 
-    // ==================== 2. 搬運 API (優化流暢度與批次) ====================
+    // ==================== 2. 搬運 API ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; 
@@ -456,7 +455,7 @@
       if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！');
       currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
       
-      // 【新增優化】開啟時自動清空先前的搜尋殘留狀態
+      // 【優化】開啟時自動清空先前的搜尋狀態
       document.getElementById('modalLocSearch').value = ''; 
       filterModalTree(); 
       
@@ -467,7 +466,7 @@
     function triggerMvNewLoc() { 
       currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「暫存地點」";
       
-      // 【新增優化】開啟時自動清空先前的搜尋殘留狀態
+      // 【優化】開啟時自動清空先前的搜尋狀態
       document.getElementById('modalLocSearch').value = ''; 
       filterModalTree(); 
       
@@ -493,10 +492,13 @@
           listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點所有文物皆已搬運完畢！</div>';
           document.getElementById('mvPhase3').style.display = 'none'; 
         } else {
+          // 【優化】整合藏品名稱顯示，介面更清晰
           listDiv.innerHTML = res.map((x, i) => `
             <div class="form-check mb-2 pb-2 border-bottom">
               <input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" onchange="checkPhase3Trigger()">
-              <label class="form-check-label w-100 fs-6" for="mvItem_${i}">${x.qrCode.split('\n')[0]}</label>
+              <label class="form-check-label w-100 fs-6" for="mvItem_${i}">
+                <span class="text-primary fw-bold">[${x.qrCode}]</span> ${x.name}
+              </label>
             </div>
           `).join('');
           checkPhase3Trigger(); 
@@ -556,14 +558,11 @@
         await callAPI('submitMovement', payload); 
         alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
         
-        // 【新增優化】提供「保留與修改」的雙重彈性設計
-        // 我們不再強制清空 mvNewLoc 與 mvBoxName，讓你進行下一批相同地點/箱子的裝箱作業時不必重新點選，
-        // 同時也保留了直接在欄位上點擊修改的空間。
-        
-        // 隱藏第三階段 (因為已送出，等待下一次勾選文物後自動顯示)
+        // 【優化】賦予批次處理的雙重彈性，保留特定欄位以便接續操作
+        // 隱藏第三階段等待下次勾選，但「不」清空新地點與箱名，提供手動再次調整空間
         document.getElementById('mvPhase3').style.display = 'none';
         
-        // 重新載入該地點文物 (會自動剔除剛剛搬走的，更新清單)
+        // 更新清單 (剔除已搬運文物)
         loadWorkerItems(); 
         
       } catch(e) {
