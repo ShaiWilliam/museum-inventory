@@ -14,17 +14,45 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    body { background-color: #f1f3f5; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+    /* 確保全螢幕高度覆蓋，避免滾動反白 */
+    html, body { 
+      background-color: #f1f3f5; 
+      min-height: 100dvh; 
+      margin: 0; 
+      padding: 0; 
+      font-family: system-ui, -apple-system, sans-serif; 
+      overflow-x: hidden; 
+      -webkit-tap-highlight-color: transparent;
+    }
     
-    /* 啟動進度條畫面 */
-    #splashScreen { position: fixed; top:0; left:0; right:0; bottom:0; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
+    /* 啟動進度條畫面 (修正 iOS 底部反白，使用 100dvh) */
+    #splashScreen { 
+      position: fixed; 
+      top: 0; left: 0; right: 0; bottom: 0; 
+      height: 100dvh; 
+      width: 100vw;
+      background: #212529; 
+      z-index: 9999; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      color: white; 
+      transition: opacity 0.5s; 
+    }
     .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite; }
     @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
     .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
     
-    /* 首頁大廳 (修正 iOS 安全區域與頂部留白) */
-    #homeMenu { padding: calc(40px + env(safe-area-inset-top)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 600px; margin: 0 auto;}
+    /* 首頁大廳 (修正 iOS 動態島/瀏海重疊問題，加深頂部留白) */
+    #homeMenu { 
+      padding: max(80px, calc(env(safe-area-inset-top) + 40px)) 20px 20px; 
+      display: none; 
+      animation: fadeIn 0.5s; 
+      max-width: 600px; 
+      margin: 0 auto;
+    }
     .home-card { background: white; border-radius: 15px; padding: 25px 20px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; }
     .home-card:active { transform: scale(0.97); }
     .home-card.c-inv { border-bottom-color: #198754; }
@@ -34,7 +62,13 @@
     
     /* 系統主體 */
     #mainApp { display: none; padding-bottom: 60px; animation: fadeIn 0.3s; }
-    .navbar { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    
+    /* 導航列 (修正 iOS 進入系統後 Navbar 被瀏海遮擋的問題) */
+    .navbar { 
+      padding-top: max(15px, env(safe-area-inset-top)) !important; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+    }
+    
     .nav-tabs { display: none; /* 隱藏傳統頁籤，改由首頁按鈕控制 */ }
     .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
     .step-card.active { display: block; }
@@ -299,7 +333,7 @@
       }
     }
 
-    // --- 啟動程序與預載 (Splash Screen 機制) ---
+    // --- 啟提程序與預載 (Splash Screen 機制) ---
     window.onload = async function() {
       setProgress(20, '喚醒伺服器...');
       try {
