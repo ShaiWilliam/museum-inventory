@@ -245,7 +245,6 @@
         renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
         globalLocTree = workData.locTree || [];
         
-        // 綁定下拉選單資料
         populateSelect('mvEvent', workData.events || [], true);
         populateSelect('mgrEvent', workData.events || [], true);
         populateSelect('mvStaffInternal', workData.staffInternal || []);
@@ -333,6 +332,10 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
       
+      // 【新增優化】預先初始化並解鎖 AudioContext，解決瀏覽器阻擋音效的問題
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
       showLoading('同步全域進度...');
       try {
         const res = await callAPI('startInventory', sysState);
@@ -404,7 +407,13 @@
 
     function pauseInventorySession() {
       if(!confirm("確定要暫停目前的盤點作業嗎？\n(進度已自動儲存至雲端，隨時可接續盤點)")) return;
-      if (scanner) scanner.stop().then(() => scanner.clear());
+      
+      // 【新增優化】確保確實捕捉並釋放相機資源
+      if (scanner) {
+        scanner.stop().then(() => {
+          scanner.clear();
+        }).catch(err => console.log("釋放相機資源時發生錯誤:", err));
+      }
       document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
     }
 
@@ -428,7 +437,6 @@
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; 
       
-      // 隱藏下方階段
       document.getElementById('mvPhase2').style.display = 'none';
       document.getElementById('mvPhase3').style.display = 'none';
       
@@ -447,12 +455,22 @@
     function triggerMvLoc() { 
       if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！');
       currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
+      
+      // 【新增優化】開啟時自動清空先前的搜尋殘留狀態
+      document.getElementById('modalLocSearch').value = ''; 
+      filterModalTree(); 
+      
       renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); 
     }
     
     function triggerMvNewLoc() { 
       currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「暫存地點」";
+      
+      // 【新增優化】開啟時自動清空先前的搜尋殘留狀態
+      document.getElementById('modalLocSearch').value = ''; 
+      filterModalTree(); 
+      
       renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); 
     }
@@ -460,10 +478,9 @@
     function selectModalLoc(v) { 
       document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; 
       bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
-      if(currentModalTarget==='mvLoc') loadWorkerItems(); // 選擇舊地點後自動載入文物
+      if(currentModalTarget==='mvLoc') loadWorkerItems();
     }
 
-    // 展開第二階段：載入文物核取方塊
     async function loadWorkerItems() {
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value;
       if (!eid || !loc) return;
@@ -474,7 +491,7 @@
         
         if (res.length === 0) {
           listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點所有文物皆已搬運完畢！</div>';
-          document.getElementById('mvPhase3').style.display = 'none'; // 隱藏提交區
+          document.getElementById('mvPhase3').style.display = 'none'; 
         } else {
           listDiv.innerHTML = res.map((x, i) => `
             <div class="form-check mb-2 pb-2 border-bottom">
@@ -482,9 +499,9 @@
               <label class="form-check-label w-100 fs-6" for="mvItem_${i}">${x.qrCode.split('\n')[0]}</label>
             </div>
           `).join('');
-          checkPhase3Trigger(); // 初始化檢查
+          checkPhase3Trigger(); 
         }
-        document.getElementById('mvPhase2').style.display = 'block'; // 顯示文物區塊
+        document.getElementById('mvPhase2').style.display = 'block'; 
       } catch (e) {
         alert("清單讀取失敗：" + e.message);
       } finally {
@@ -492,13 +509,11 @@
       }
     }
 
-    // 全選/清除按鈕邏輯
     function toggleAllItems(state) {
       document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state);
       checkPhase3Trigger();
     }
 
-    // 判斷是否顯示第三階段 (必須至少勾選一件文物)
     function checkPhase3Trigger() {
       const checkedCount = document.querySelectorAll('.mv-item-cb:checked').length;
       if (checkedCount > 0) {
@@ -508,7 +523,6 @@
       }
     }
 
-    // 條件式顯示箱名並自動清空
     function toggleBoxInput() {
       const isBox = document.getElementById('mvIsBox').checked;
       const boxContainer = document.getElementById('boxInputContainer');
@@ -518,11 +532,10 @@
         boxContainer.style.display = 'block';
       } else {
         boxContainer.style.display = 'none';
-        boxInput.value = ''; // 自動清空，避免幽靈資料
+        boxInput.value = ''; 
       }
     }
 
-    // 批次送出與無縫接軌重置機制
     async function submitMovement() {
       const selectedItems = Array.from(document.querySelectorAll('.mv-item-cb:checked')).map(cb => parseInt(cb.value));
       const newLoc = document.getElementById('mvNewLoc').value;
@@ -532,7 +545,7 @@
       
       showLoading(`正在寫入 ${selectedItems.length} 件異動紀錄...`);
       const payload = { 
-        rowIndices: selectedItems, // 傳送陣列
+        rowIndices: selectedItems, 
         newLoc: newLoc, 
         isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', 
         boxName: document.getElementById('mvBoxName').value, 
@@ -543,19 +556,14 @@
         await callAPI('submitMovement', payload); 
         alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
         
-        // --- 執行局部清空 (無縫接軌) ---
-        // 1. 清空新地點
-        document.getElementById('mvNewLoc').value = "";
-        document.getElementById('mvNewLocDisplay').value = "";
+        // 【新增優化】提供「保留與修改」的雙重彈性設計
+        // 我們不再強制清空 mvNewLoc 與 mvBoxName，讓你進行下一批相同地點/箱子的裝箱作業時不必重新點選，
+        // 同時也保留了直接在欄位上點擊修改的空間。
         
-        // 2. 復原箱名設定
-        document.getElementById('mvIsBox').checked = false;
-        toggleBoxInput(); // 隱藏並清空輸入框
-        
-        // 3. 隱藏第三階段 (因為新地點空了)
+        // 隱藏第三階段 (因為已送出，等待下一次勾選文物後自動顯示)
         document.getElementById('mvPhase3').style.display = 'none';
         
-        // 4. 重新載入該地點文物 (會自動剔除剛剛搬走的，更新清單)
+        // 重新載入該地點文物 (會自動剔除剛剛搬走的，更新清單)
         loadWorkerItems(); 
         
       } catch(e) {
