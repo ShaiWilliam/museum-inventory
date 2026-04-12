@@ -23,8 +23,8 @@
     .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
     .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
     
-    /* 首頁大廳 */
-    #homeMenu { padding: 20px; display: none; animation: fadeIn 0.5s; max-width: 600px; margin: 0 auto;}
+    /* 首頁大廳 (修正 iOS 安全區域與頂部留白) */
+    #homeMenu { padding: calc(40px + env(safe-area-inset-top)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 600px; margin: 0 auto;}
     .home-card { background: white; border-radius: 15px; padding: 25px 20px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; }
     .home-card:active { transform: scale(0.97); }
     .home-card.c-inv { border-bottom-color: #198754; }
