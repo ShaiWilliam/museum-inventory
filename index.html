@@ -24,7 +24,7 @@
     
     #homeMenu { padding: max(60px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     
-    /* 跑馬燈防等待：起點綁定 100vw，確保貼合各種螢幕邊緣出現 */
+    /* 跑馬燈起點綁定螢幕寬緣，告別等待 */
     .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
     .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
     @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
@@ -73,7 +73,8 @@
     .print-item { border-bottom: 1px solid #e9ecef; }
     .print-item:last-child { border-bottom: none; }
     
-    .modal-header { padding-top: max(1rem, env(safe-area-inset-top)); }
+    /* iOS 安全防撞設計：針對 Modal 內部推移，避開動態島 */
+    .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
   </style>
 </head>
 <body>
@@ -210,7 +211,7 @@
                   <div class="col-6"><label class="form-label fw-bold text-dark">蔣元素</label><select id="regJiang" class="form-select"><option value="不相關">不相關</option><option value="相關">相關</option><option value="待確認">待確認</option></select></div>
                 </div>
                 <div class="mb-4"><label class="form-label fw-bold text-dark">備註說明</label><textarea id="regDesc" class="form-control" rows="2" placeholder="選填"></textarea></div>
-                <div class="alert alert-info py-2 small">💡 提示：送出後，系統將自動於資料庫建檔，並立即為此藏品產生專屬 QR Code。</div>
+                <div class="alert alert-info py-2 small">💡 提示：送出後，系統將自動於資料庫建檔，並立刻同步至查詢與列印模組中。</div>
                 <button class="btn btn-info w-100 fw-bold py-3 text-white fs-5 shadow-sm" onclick="submitRegistration()">✅ 確認登錄建檔</button>
               </div>
             </div>
@@ -465,6 +466,7 @@
       }
     };
 
+    // 檢查是否有未完成的盤點
     function checkSavedSession() {
       if(localStorage.getItem('invSession')) {
         document.getElementById('continueInvBox').style.display = 'block';
@@ -487,9 +489,24 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
-    function backToHome() {
-      if (scanner && document.getElementById('step2').style.display === 'block') pauseAndSave();
-      if (queryScanner) stopQueryScanner();
+    // 💡 相機安全關閉邏輯
+    async function stopScannerSafe(cam) {
+      if (cam && cam.getState() === Html5QrcodeScannerState.SCANNING) {
+        try { await cam.stop(); } catch(e) { console.warn("Camera stop error:", e); }
+      }
+      if (cam) cam.clear();
+    }
+
+    async function backToHome() {
+      // 若盤點中，必須暫停並安全關閉相機
+      if (document.getElementById('step2').style.display === 'block') { await pauseAndSave(); }
+      // 若查詢中，安全關閉相機
+      if (queryScanner) {
+        await stopScannerSafe(queryScanner);
+        queryScanner = null;
+        document.getElementById('query-reader-container').style.display = 'none';
+        document.getElementById('btnStartQueryCam').style.display = 'block';
+      }
       
       window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; 
       document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block';
@@ -587,7 +604,10 @@
     
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
-      if(queryScanner) stopQueryScanner();
+      if(queryScanner) {
+        await stopScannerSafe(queryScanner);
+        queryScanner = null;
+      }
       
       const res = globalCatalog[cleanId];
       if(res) {
@@ -627,8 +647,9 @@
       queryScanner.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg));
     }
     
-    function stopQueryScanner() {
-      if(queryScanner) { queryScanner.stop().then(() => { queryScanner.clear(); queryScanner = null; }).catch(e => console.log(e)); }
+    async function stopQueryScanner() {
+      await stopScannerSafe(queryScanner);
+      queryScanner = null;
       document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block';
     }
 
@@ -647,10 +668,18 @@
       try {
         await callAPI('registerItem', p);
         alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
+        
+        // 💡 將新資料同步寫入全域圖鑑，實現 0 延遲查詢
         globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
+        
+        // 💡 即時將新資料推入列印清單頂端 (若清單已載入)
+        if(allPrintItems.length > 0) {
+            allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc });
+            filterPrintList();
+        }
+        
         ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('regJiang').value = '不相關';
-        allPrintItems = []; 
       } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
@@ -792,7 +821,7 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
 
-      // 將盤點設定寫入本機記憶體
+      // 💡 將盤點設定寫入本機記憶體
       localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations}));
       await executeInventoryStart();
     }
@@ -854,22 +883,34 @@
       isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
       while (syncQueue.length > 0) {
         let currentMsg = syncQueue[0];
-        try { await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); } catch(e) { console.warn(`同步失敗:`, e); }
-        syncQueue.shift(); 
+        try { 
+          await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
+          // 💡 防掉包機制：只有確認 API 成功，才把該筆資料移出隊列
+          syncQueue.shift(); 
+        } catch(e) { 
+          console.warn(`同步失敗，將保留於隊列中稍後重試:`, e); 
+          break; // 若網路中斷，跳出迴圈保留隊列
+        }
       }
       isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
     }
 
-    function pauseAndSave() {
-      if (scanner) { scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e)); }
-      document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block';
+    // 💡 暫停邏輯與相機安全關閉
+    async function pauseAndSave() {
+      await stopScannerSafe(scanner);
+      scanner = null;
+      document.getElementById('step2').style.display = 'none'; 
+      document.getElementById('step1').style.display = 'block';
       checkSavedSession(); // 確保重新回到 step1 時，會顯示繼續按鈕
     }
 
-    function finishInventory() {
+    // 💡 結算邏輯與相機安全關閉
+    async function finishInventory() {
       if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return;
-      if (scanner) { scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e)); }
-      document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
+      await stopScannerSafe(scanner);
+      scanner = null;
+      document.getElementById('step2').style.display = 'none'; 
+      document.getElementById('step3').style.display = 'block';
     }
 
     function clearAndBackToHome() {
