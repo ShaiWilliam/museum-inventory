@@ -14,14 +14,17 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
+    /* 三重防護：預設深色底、鎖死滾動、禁用橡皮筋回彈 */
     html, body { 
-      background-color: #f1f3f5; 
+      background-color: #212529; /* 預設深色，保護載入過程不露白 */
       min-height: 100dvh; 
       margin: 0; 
       padding: 0; 
       font-family: system-ui, -apple-system, sans-serif; 
-      overflow-x: hidden; 
+      overflow: hidden; /* 初始鎖死全域滾動，防止上下滑動 */
+      overscroll-behavior: none; /* 徹底禁用 iOS 的邊界回彈特效 */
       -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.5s ease; /* 底色切換時的平滑動畫 */
     }
     
     #splashScreen { 
@@ -321,7 +324,6 @@
     let syncQueue = [];      
     let isSyncing = false;   
 
-    // --- UI 載入狀態控制 ---
     function setProgress(pct, text) { 
       document.getElementById('splashProgress').style.width = pct + '%'; 
       if(text) document.getElementById('splashText').innerText = text; 
@@ -345,7 +347,6 @@
       }
     }
 
-    // --- 啟動程序與預載 (動態微進度與文字輪播) ---
     window.onload = async function() {
       let fakeProgress = 10;
       setProgress(fakeProgress, '喚醒雲端伺服器...');
@@ -360,7 +361,6 @@
       ];
       let msgIndex = 0;
 
-      // 開始假性微進度與文字輪播，緩慢逼近 85%
       const loadingInterval = setInterval(() => {
         fakeProgress += (85 - fakeProgress) * 0.1; 
         msgIndex = (msgIndex + 1) % loadingMessages.length;
@@ -373,9 +373,7 @@
           callAPI('getWorkerInitData')
         ]);
         
-        // 雲端資料回來了，立刻清除計時器
         clearInterval(loadingInterval);
-        
         setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
         
         baselineTime = invData.baselineTime || 0;
@@ -393,6 +391,12 @@
         
         setTimeout(() => {
           document.getElementById('splashScreen').style.opacity = '0';
+          
+          // 解除鎖定：將底色優雅切換為淺色，並恢復滑動功能
+          document.body.style.backgroundColor = '#f1f3f5';
+          document.body.style.overflowY = 'auto';
+          document.body.style.overflowX = 'hidden';
+          
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
             document.getElementById('homeMenu').style.display = 'block';
@@ -407,7 +411,6 @@
       }
     };
 
-    // --- 大廳導航 ---
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
@@ -455,7 +458,6 @@
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
-    // ==================== 樹狀結構 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
@@ -517,7 +519,6 @@
       });
     }
 
-    // ==================== 1. 盤點 API (快取秒殺版) ====================
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
@@ -639,7 +640,6 @@
       o.start(); setTimeout(() => { o.stop(); }, 150); 
     }
 
-    // ==================== 2. 搬運 API ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; 
@@ -736,7 +736,6 @@
       } catch(e) { alert("送出失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // ==================== 3. 管理後台 ====================
     async function loginManager() {
       const pwd = document.getElementById('mgrPwd').value;
       if(!pwd) return alert("請輸入密碼！");
