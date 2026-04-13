@@ -14,7 +14,6 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    /* 確保全螢幕高度覆蓋，避免滾動反白 */
     html, body { 
       background-color: #f1f3f5; 
       min-height: 100dvh; 
@@ -25,7 +24,6 @@
       -webkit-tap-highlight-color: transparent;
     }
     
-    /* 啟動進度條畫面 */
     #splashScreen { 
       position: fixed; 
       top: 0; left: 0; right: 0; bottom: 0; 
@@ -45,7 +43,6 @@
     .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
     .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
     
-    /* 首頁大廳 (修正 iOS 動態島/瀏海重疊問題，加深頂部留白) */
     #homeMenu { 
       padding: max(80px, calc(env(safe-area-inset-top) + 40px)) 20px 20px; 
       display: none; 
@@ -60,10 +57,8 @@
     .home-card.c-mgr { border-bottom-color: #dc3545; }
     .home-icon { font-size: 3rem; margin-bottom: 10px; }
     
-    /* 系統主體 */
     #mainApp { display: none; padding-bottom: 60px; animation: fadeIn 0.3s; }
     
-    /* 導航列 (修正 iOS 進入系統後 Navbar 被瀏海遮擋的問題) */
     .navbar { 
       padding-top: max(15px, env(safe-area-inset-top)) !important; 
       box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
@@ -89,7 +84,6 @@
     .fade-in-section { animation: fadeIn 0.4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     
-    /* 局部載入遮罩 */
     #miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
   </style>
 </head>
@@ -173,10 +167,11 @@
             </div>
             <div class="progress mb-3" style="height: 12px;"><div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div></div>
             
+            <div id="syncStatus" class="text-center text-muted small mb-2" style="display: none;">☁️ 雲端背景同步中...</div>
+            
             <div id="reader-container">
               <div id="resultOverlay">
                 <div class="d-flex align-items-center">
-                  <img id="resImg" class="result-img" src="" onerror="this.style.display='none'">
                   <div class="flex-grow-1">
                     <div id="resStatus" class="fw-bold mb-1" style="font-size: 1.1rem;"></div>
                     <div id="resName" class="text-primary fw-bold" style="font-size: 0.9rem;"></div>
@@ -336,11 +331,10 @@
       }
     }
 
-    // --- 啟動程序與預載 (Splash Screen 機制) ---
+    // --- 啟動程序與預載 ---
     window.onload = async function() {
       setProgress(20, '喚醒伺服器...');
       try {
-        // 並行發送預載請求，大幅節省時間
         setProgress(50, '載入藏品資料結構...');
         const [invData, workData] = await Promise.all([
           callAPI('getInventoryInitData'), 
@@ -349,14 +343,12 @@
         
         setProgress(80, '建構使用者介面...');
         
-        // 解析盤點資料
         baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
         if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
         
-        // 解析異動與管理資料
         globalLocTree = workData.locTree || [];
         populateSelect('mvEvent', workData.events || [], true);
         populateSelect('mgrEvent', workData.events || [], true);
@@ -364,7 +356,6 @@
         
         setProgress(100, '載入完成！');
         
-        // 延遲半秒讓使用者看見 100%，然後轉場到首頁大廳
         setTimeout(() => {
           document.getElementById('splashScreen').style.opacity = '0';
           setTimeout(() => {
@@ -380,26 +371,19 @@
       }
     };
 
-    // --- 大廳導航與獨立刷新邏輯 ---
+    // --- 大廳導航 ---
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
-      
-      // 自動點擊對應的隱藏 Tab 標籤
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`));
       tabTrigger.show();
-      
-      // 設定上方標題
       const titles = { 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
       document.getElementById('sysTitle').innerText = titles[sysId];
-      
-      // 解鎖音效引擎
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
     function backToHome() {
-      // 若盤點相機開啟中，強制關閉
       if (scanner && document.getElementById('step2').style.display === 'block') {
          pauseInventorySession();
       }
@@ -417,7 +401,7 @@
           const res = await callAPI('getWorkerInitData');
           globalLocTree = res.locTree || [];
           populateSelect('mvEvent', res.events || [], true);
-          loadWorkerLocations(); // 連動更新專案地點
+          loadWorkerLocations(); 
         } else if (sysId === 'mgr') {
           const res = await callAPI('getWorkerInitData');
           populateSelect('mgrEvent', res.events || [], true);
@@ -435,8 +419,7 @@
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
-    // ==================== 樹狀結構與 UI 邏輯 ====================
-    // 支援兩層半：大區 -> 次分區(SubFolder) -> 細節地點(Leaf)
+    // ==================== 樹狀結構 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
@@ -447,13 +430,10 @@
         
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-          
           if (subNode.details.length === 1 && subNode.details[0].label === "(本區)") {
-             // 只有一層細節，直接顯示為按鈕
              let det = subNode.details[0];
              html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-start fw-bold py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold py-3 border-0" onclick="selectModalLoc('${det.val}')">📍 ${subNode.sub}</button>`) + `</div></div>`;
           } else {
-             // 兩層半結構，顯示次分區資料夾
              html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
              subNode.details.forEach((det, dIdx) => {
                html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate bg-white" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`;
@@ -501,8 +481,11 @@
       });
     }
 
-    // ==================== 1. 盤點 API ====================
+    // ==================== 1. 盤點 API (快取秒殺 + 背景同步版) ====================
     let scanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
+    let localItemCache = {}; // 存放當前範圍內的所有文物資訊
+    let syncQueue = [];      // 等待上傳雲端的隊列
+    let isSyncing = false;   // 避免同時觸發多次上傳
 
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
@@ -511,15 +494,19 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
 
-      showMiniLoading('啟動相機模組...');
+      showMiniLoading('下載名單，準備極速盤點...');
       try {
+        // 向後端索取當前地點的文物名單，存在手機裡實現 0 秒比對
         const res = await callAPI('startInventory', sysState);
-        sysState.total = res.total; sysState.scanned = res.scanned; updateProgressUI();
+        sysState.total = res.total; 
+        sysState.scanned = res.scanned; 
+        localItemCache = res.itemMap || {}; 
         
-        document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block';
+        updateProgressUI();
+        document.getElementById('step1').style.display = 'none'; 
+        document.getElementById('step2').style.display = 'block';
         hideMiniLoading();
 
-        // 優化：確保相機實例不會重複疊加 (Memory Leak 修正)
         if (!scanner) {
           scanner = new Html5Qrcode("reader");
         }
@@ -529,9 +516,8 @@
           videoConstraints: { facingMode: "environment", focusMode: "continuous" }
         };
         
-        // 如果相機沒有在掃描中，才啟動它
         if (scanner.getState() !== Html5QrcodeScannerState.SCANNING) {
-          scanner.start({ facingMode: "environment" }, config, msg => submitScan(msg));
+          scanner.start({ facingMode: "environment" }, config, msg => processScanLocal(msg));
         }
       } catch (e) {
         hideMiniLoading(); alert("錯誤：" + e.message);
@@ -546,41 +532,79 @@
       document.getElementById('progressBar').style.width = pct + '%';
     }
 
-    async function submitScan(msg) {
-      if (isProc || Date.now() - lastScan < 1500) return;
-      isProc = true; lastScan = Date.now();
+    // [核心優化] 瞬間本地比對機制
+    async function processScanLocal(msg) {
+      if (isProc || Date.now() - lastScan < 800) return; // 縮短防抖，允許瘋狂掃描
+      isProc = true; 
+      lastScan = Date.now();
       
+      const cleanMsg = msg.trim().split('\n')[0];
+      const item = localItemCache[cleanMsg];
       const overlay = document.getElementById('resultOverlay');
-      overlay.style.display = 'block'; overlay.style.borderColor = '#ffc107';
-      document.getElementById('resStatus').innerText = '⏳ 雲端同步中...';
       
-      try {
-        const res = await callAPI('submitScan', { qrStr: msg, mode: sysState.mode, locations: sysState.locations });
-        playSound('success');
-        sysState.scanned = res.globalScanned; updateProgressUI();
-        overlay.style.borderColor = '#198754';
-        document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>';
-        document.getElementById('resName').innerText = res.name;
-        document.getElementById('resDesc').innerText = res.desc || "";
-      } catch (e) {
+      overlay.style.display = 'block';
+
+      if (!item) {
+        // 本地驗證失敗：不在範圍內
         playSound('error');
         overlay.style.borderColor = '#dc3545';
-        document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 錯誤</span>';
-        document.getElementById('resName').innerText = msg;
-        document.getElementById('resDesc').innerText = e.message;
+        document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在盤點範圍</span>';
+        document.getElementById('resName').innerText = cleanMsg;
+        document.getElementById('resDesc').innerText = "請確認是否錯置或尚未建檔";
+      } else if (item.isScanned) {
+        // 本地驗證失敗：已經盤點過了
+        playSound('error');
+        overlay.style.borderColor = '#ffc107';
+        document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點過</span>';
+        document.getElementById('resName').innerText = item.name;
+        document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點";
+      } else {
+        // 本地驗證成功：瞬間改變狀態
+        playSound('success');
+        item.isScanned = true; 
+        sysState.scanned++;
+        updateProgressUI();
+
+        overlay.style.borderColor = '#198754';
+        document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>';
+        document.getElementById('resName').innerText = item.name;
+        document.getElementById('resDesc').innerText = item.desc || "";
+
+        // 推入背景隊列，準備上傳雲端
+        syncQueue.push(cleanMsg);
+        triggerBackgroundSync();
       }
-      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 3000);
+
+      // 1.2 秒後畫面恢復乾淨，讓搬運人員可以掃下一件
+      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
+    }
+
+    // [核心優化] 背景非同步上傳機制
+    async function triggerBackgroundSync() {
+      if (isSyncing || syncQueue.length === 0) return;
+      isSyncing = true;
+      document.getElementById('syncStatus').style.display = 'block'; // 顯示上傳中小圖示
+
+      while (syncQueue.length > 0) {
+        let currentMsg = syncQueue[0];
+        try {
+          // 默默呼叫後端 API
+          await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations });
+        } catch(e) {
+          console.warn(`[背景同步警告] ${currentMsg} 同步失敗:`, e);
+        }
+        // 無論成功或錯誤都移出隊列，避免阻塞後續掃描
+        syncQueue.shift(); 
+      }
+      
+      isSyncing = false;
+      document.getElementById('syncStatus').style.display = 'none'; // 隱藏上傳圖示
     }
 
     function pauseInventorySession() {
       if(!confirm("確定要暫停目前的盤點作業嗎？")) return;
-      
-      // 優化：徹底釋放相機資源並重置變數
       if (scanner) {
-        scanner.stop().then(() => { 
-          scanner.clear(); 
-          scanner = null; 
-        }).catch(e => console.log("釋放相機錯誤:", e));
+        scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e));
       }
       document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
     }
