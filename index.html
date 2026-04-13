@@ -70,7 +70,6 @@
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
     
-    /* 後台登入保險箱風格 */
     .vault-card { background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); }
     .letter-spacing-2 { letter-spacing: 2px; }
     
@@ -96,7 +95,7 @@
   <div id="splashScreen">
     <div class="loading-logo">📦</div>
     <h3 class="fw-bold">典藏庫房管理系統</h3>
-    <p class="text-secondary mb-0 mt-2" id="splashText">預載資料庫中...</p>
+    <p class="text-secondary mb-0 mt-2" id="splashText">準備連線中...</p>
     <div class="progress-box"><div class="progress-fill" id="splashProgress"></div></div>
   </div>
 
@@ -346,26 +345,45 @@
       }
     }
 
-    // --- 啟動程序與預載 (優化：循序漸進的讀取與動態提示文字) ---
+    // --- 啟動程序與預載 (動態微進度與文字輪播) ---
     window.onload = async function() {
-      setProgress(20, '喚醒雲端伺服器...');
+      let fakeProgress = 10;
+      setProgress(fakeProgress, '喚醒雲端伺服器...');
+      
+      const loadingMessages = [
+        "正在建立安全連線...",
+        "讀取龐大藏品清單...",
+        "同步歷史異動紀錄...",
+        "解析空間樹狀圖...",
+        "核對專案清單與人員...",
+        "準備系統資源中..."
+      ];
+      let msgIndex = 0;
+
+      // 開始假性微進度與文字輪播，緩慢逼近 85%
+      const loadingInterval = setInterval(() => {
+        fakeProgress += (85 - fakeProgress) * 0.1; 
+        msgIndex = (msgIndex + 1) % loadingMessages.length;
+        setProgress(fakeProgress, loadingMessages[msgIndex]);
+      }, 1000); 
+
       try {
-        // 第一階段：抓取較輕量的異動與管理資料
-        const workData = await callAPI('getWorkerInitData');
-        setProgress(50, '✅ 專案名單載入完成！正在讀取藏品樹狀圖...');
+        const [invData, workData] = await Promise.all([
+          callAPI('getInventoryInitData'), 
+          callAPI('getWorkerInitData')
+        ]);
         
-        // 第二階段：抓取龐雜的盤點地點資料
-        const invData = await callAPI('getInventoryInitData');
-        setProgress(80, '✅ 地點結構解析完成！建構使用者介面...');
+        // 雲端資料回來了，立刻清除計時器
+        clearInterval(loadingInterval);
         
-        // 解析盤點資料
+        setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
+        
         baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
         if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
         
-        // 解析異動與管理資料
         globalLocTree = workData.locTree || [];
         populateSelect('mvEvent', workData.events || [], true);
         populateSelect('mgrEvent', workData.events || [], true);
@@ -373,7 +391,6 @@
         
         setProgress(100, '🚀 系統啟動！');
         
-        // 延遲半秒讓使用者看見 100%，然後平滑轉場到首頁大廳
         setTimeout(() => {
           document.getElementById('splashScreen').style.opacity = '0';
           setTimeout(() => {
@@ -383,6 +400,7 @@
         }, 500);
         
       } catch (err) { 
+        clearInterval(loadingInterval);
         alert("⚠️ 系統載入異常！\n錯誤細節：" + err.message); 
         document.getElementById('splashText').innerText = "載入失敗，請重新整理";
         document.getElementById('splashText').classList.add('text-danger');
@@ -499,7 +517,7 @@
       });
     }
 
-    // ==================== 1. 盤點 API (快取秒殺 + 背景同步版) ====================
+    // ==================== 1. 盤點 API (快取秒殺版) ====================
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
