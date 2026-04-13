@@ -14,58 +14,24 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    html, body { 
-      background-color: #212529; 
-      min-height: 100dvh; 
-      margin: 0; 
-      padding: 0; 
-      font-family: system-ui, -apple-system, sans-serif; 
-      overflow: hidden; 
-      overscroll-behavior: none; 
-      -webkit-tap-highlight-color: transparent;
-      transition: background-color 0.5s ease; 
-    }
+    html, body { background-color: #212529; min-height: 100dvh; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; transition: background-color 0.5s ease; }
     
-    #splashScreen { 
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-      height: 100dvh; width: 100vw; background: #212529; 
-      z-index: 9999; display: flex; flex-direction: column; 
-      justify-content: center; align-items: center; color: white; transition: opacity 0.5s; 
-    }
+    #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
     .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite; }
     @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
     .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
     
-    #homeMenu { 
-      padding: max(60px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; 
-      display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; 
-      height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; 
-    }
+    #homeMenu { padding: max(60px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     
-    /* 跑馬燈特效設計 */
-    .marquee-container {
-      width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); 
-      border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative;
-    }
-    .marquee-content {
-      display: inline-block; animation: marquee 25s linear infinite;
-      color: #495057; font-weight: 500; font-size: 0.9rem;
-    }
+    .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
+    .marquee-content { display: inline-block; animation: marquee 25s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
     @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
     .home-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding-bottom: 40px; }
-    @media (min-width: 768px) {
-      .home-grid { grid-template-columns: repeat(2, 1fr); }
-      .home-grid .home-card:last-child { grid-column: 1 / -1; }
-    }
+    @media (min-width: 768px) { .home-grid { grid-template-columns: repeat(2, 1fr); } .home-grid .home-card:last-child { grid-column: 1 / -1; } }
 
-    .home-card { 
-      background: white; border-radius: 15px; padding: 22px 20px; text-align: center; 
-      box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; 
-      border-bottom: 4px solid transparent; height: 100%; display: flex; flex-direction: column; 
-      justify-content: center; align-items: center;
-    }
+    .home-card { background: white; border-radius: 15px; padding: 22px 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     .home-card:active { transform: scale(0.97); }
     .home-card.c-query { border-bottom-color: #ffc107; }
     .home-card.c-reg { border-bottom-color: #0dcaf0; }
@@ -102,12 +68,10 @@
     
     #miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
 
-    /* 列印區清單專用 */
     #printListContainer { max-height: 40vh; overflow-y: auto; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; }
     .print-item { border-bottom: 1px solid #e9ecef; }
     .print-item:last-child { border-bottom: none; }
     
-    /* iOS 安全防撞設計 (避開動態島) */
     .modal-header { padding-top: max(1rem, env(safe-area-inset-top)); }
   </style>
 </head>
@@ -201,10 +165,8 @@
               <div class="card-body pt-4">
                 <h6 class="text-muted small mb-1">目前存放地點</h6>
                 <h3 class="fw-bold text-dark mb-4" id="qResLoc">--</h3>
-                
                 <h6 class="text-muted small mb-1">藏品名稱</h6>
                 <p class="fw-bold mb-3 text-primary fs-5" id="qResName">--</p>
-                
                 <h6 class="text-muted small mb-1">藏品編號 (Primary ID)</h6>
                 <p class="fw-bold mb-3 fs-5 text-dark" id="qResId" style="font-family: monospace; letter-spacing: 1px;">--</p>
                 
@@ -255,22 +217,18 @@
             <div class="tab-pane fade" id="regPrintTab">
               <div id="printSelectSec" class="step-card active border-secondary border-top border-4 fade-in-section">
                 <h6 class="fw-bold mb-3">請勾選欲列印標籤的文物</h6>
-                
                 <div class="row g-2 mb-3">
                   <div class="col-12 col-md-6"><input type="search" id="printSearch" class="form-control border-secondary" placeholder="🔍 搜尋編號或名稱..." onkeyup="filterPrintList()" onsearch="filterPrintList()"></div>
                   <div class="col-12 col-md-6"><select id="printLocFilter" class="form-select border-secondary" onchange="filterPrintList()"><option value="">所有地點</option></select></div>
                 </div>
-
                 <div class="d-flex justify-content-between mb-2 flex-wrap gap-2">
                   <div>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="togglePrintAll(true)">☑️ 全選過濾結果</button>
+                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="togglePrintAll(true)">☑️ 全選目前結果</button>
                     <button class="btn btn-sm btn-outline-secondary" onclick="togglePrintAll(false)">☐ 清除</button>
                   </div>
                   <button class="btn btn-sm btn-outline-primary fw-bold" onclick="selectTop10Print()">+ 選取最新 10 筆</button>
                 </div>
-                
                 <div id="printListContainer" class="mb-4 p-2 shadow-sm"></div>
-                
                 <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow" id="btnGoPreview" onclick="showPrintPreview()">🏷️ 檢視已選標籤 (共 0 件)</button>
               </div>
 
@@ -279,9 +237,7 @@
                   <h6 class="fw-bold mb-0 text-dark">已選列印清單確認</h6>
                   <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="hidePrintPreview()">🔙 繼續選擇</button>
                 </div>
-                
                 <div id="printPreviewContainer" class="mb-4 shadow-sm p-2" style="max-height: 45vh; overflow-y: auto; background: #fff; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-                
                 <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow" onclick="generatePrintPage()">🖨️ 確認產生 A4 畫面</button>
               </div>
             </div>
@@ -297,11 +253,7 @@
             <div class="alert alert-success py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入基準日中...</div>
             <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
             <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
-            
-            <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm">
-              <input type="search" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋地點..." onkeyup="filterInvTree()" onsearch="filterInvTree()">
-              <div id="locCheckboxes">載入地點中...</div>
-            </div>
+            <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm"><input type="search" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋地點..." onkeyup="filterInvTree()" onsearch="filterInvTree()"><div id="locCheckboxes">載入地點中...</div></div>
             <button class="btn btn-success w-100 fw-bold fs-5 py-3 shadow" onclick="startInventorySession()">🚀 進入掃描畫面</button>
           </div>
 
@@ -316,7 +268,6 @@
               <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-danger" id="valUnscanned" style="font-size: 1.2rem;">...</div><small>未盤</small></div></div>
             </div>
             <div class="progress mb-3" style="height: 12px;"><div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div></div>
-            
             <div id="syncStatus" class="text-center text-muted small mb-2" style="display: none;">☁️ 雲端背景同步中...</div>
             <div id="reader-container">
               <div id="resultOverlay">
@@ -336,11 +287,7 @@
             <h5 class="mb-4 text-center text-success fw-bold">✅ 本次盤點進度已暫存</h5>
             <div class="mb-3"><label>接收 Excel 報表的 Email</label><input type="email" id="exportEmail" class="form-control"></div>
             <label>匯出範圍</label>
-            <select id="exportType" class="form-select mb-4">
-              <option value="all">匯出「全部名單」</option>
-              <option value="scanned">僅匯出「已盤點」</option>
-              <option value="unscanned">僅匯出「未盤點 (缺漏)」</option>
-            </select>
+            <select id="exportType" class="form-select mb-4"><option value="all">匯出「全部名單」</option><option value="scanned">僅匯出「已盤點」</option><option value="unscanned">僅匯出「未盤點 (缺漏)」</option></select>
             <button class="btn btn-primary w-100 mb-2 py-3 fw-bold shadow-sm" onclick="exportReport()" id="btnExport">寄送 Email 報表</button>
             <button class="btn btn-outline-secondary w-100 py-2" onclick="backToHome()">返回首頁大廳</button>
           </div>
@@ -348,10 +295,7 @@
 
         <div class="tab-pane fade" id="move">
           <div class="step-card active">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0 fw-bold text-primary">🚚 搬運人員填報</h5>
-              <button class="btn btn-sm btn-light border" onclick="refreshSystem('move')">🔄 刷新名單</button>
-            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0 fw-bold text-primary">🚚 搬運人員填報</h5><button class="btn btn-sm btn-light border" onclick="refreshSystem('move')">🔄 刷新名單</button></div>
             <div id="mvPhase1">
               <div class="mb-3"><label class="form-label text-primary fw-bold">1. 選擇異動專案事件</label><select id="mvEvent" class="form-select border-primary" onchange="loadWorkerLocations()"><option value="">請選擇專案...</option></select></div>
               <div class="mb-3"><label class="form-label text-primary fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-primary" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
@@ -376,41 +320,22 @@
 
         <div class="tab-pane fade" id="mgr">
           <div id="mgrLogin" class="step-card active vault-card shadow-lg border-0" style="max-width: 400px; margin: 0 auto;">
-            <div class="text-center mb-4">
-              <span style="font-size: 3.5rem;">🔒</span>
-              <h4 class="fw-bold text-dark mt-2">管理員安全登入</h4>
-              <p class="text-muted small">請輸入專屬授權密碼</p>
-            </div>
-            <div class="form-floating mb-4">
-              <input type="password" class="form-control fw-bold fs-4 text-center letter-spacing-2 shadow-sm" id="mgrPwd" placeholder="請輸入密碼" inputmode="numeric" pattern="[0-9]*">
-              <label for="mgrPwd" class="text-muted">管理員密碼 (僅限數字)</label>
-            </div>
+            <div class="text-center mb-4"><span style="font-size: 3.5rem;">🔒</span><h4 class="fw-bold text-dark mt-2">管理員安全登入</h4><p class="text-muted small">請輸入專屬授權密碼</p></div>
+            <div class="form-floating mb-4"><input type="password" class="form-control fw-bold fs-4 text-center letter-spacing-2 shadow-sm" id="mgrPwd" placeholder="請輸入密碼" inputmode="numeric" pattern="[0-9]*"><label for="mgrPwd" class="text-muted">管理員密碼 (僅限數字)</label></div>
             <button class="btn btn-dark w-100 fw-bold py-3 fs-5 rounded-pill shadow-sm" onclick="loginManager()">🔓 登入系統</button>
           </div>
           
           <div id="mgrDashboard" class="step-card">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0 text-danger fw-bold">⚙️ 管理面板</h5>
-              <div>
-                <button class="btn btn-light btn-sm border me-1" onclick="refreshSystem('mgr')">🔄 刷新</button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">登出</button>
-              </div>
-            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0 text-danger fw-bold">⚙️ 管理面板</h5><div><button class="btn btn-light btn-sm border me-1" onclick="refreshSystem('mgr')">🔄 刷新</button><button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">登出</button></div></div>
             <div class="card mb-3 border-danger shadow-sm">
               <div class="card-body py-2">
                 <h6 class="card-title text-danger small fw-bold">本期盤點基準日設定</h6>
-                <div class="input-group input-group-sm">
-                  <input type="datetime-local" id="newBaseline" class="form-control border-danger">
-                  <button class="btn btn-danger" onclick="updateBaseline()">更新</button>
-                </div>
+                <div class="input-group input-group-sm"><input type="datetime-local" id="newBaseline" class="form-control border-danger"><button class="btn btn-danger" onclick="updateBaseline()">更新</button></div>
                 <small class="text-muted">※ 基準日後的掃描才會計入「已盤點」</small>
               </div>
             </div>
             <div class="mb-3"><label class="form-label small fw-bold">選擇審核專案</label><select id="mgrEvent" class="form-select border-primary" onchange="loadManagerData()"></select></div>
-            <ul class="nav nav-pills mb-3" id="mgrPills">
-              <li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrPending">待核對</button></li>
-              <li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已核對</button></li>
-            </ul>
+            <ul class="nav nav-pills mb-3" id="mgrPills"><li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrPending">待核對</button></li><li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已核對</button></li></ul>
             <div class="tab-content">
               <div class="tab-pane fade show active" id="mgrPending">
                 <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tablePending"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物</th><th>地點/箱</th><th>修改</th></tr></thead><tbody></tbody></table></div>
@@ -419,10 +344,7 @@
               <div class="tab-pane fade" id="mgrConfirmed">
                 <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tableConfirmed"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>地點/箱</th><th>管理員</th></tr></thead><tbody></tbody></table></div>
                 <button class="btn btn-warning action-btn fw-bold w-100 py-2 shadow-sm mb-4" onclick="changeStatus('.chk-conf', false)">↩️ 撤銷核對狀態</button>
-                <div class="card bg-dark text-white text-center p-3 shadow-sm rounded-3">
-                  <h6 class="mb-2">專案全部核對無誤後執行</h6>
-                  <button class="btn btn-light w-100 fw-bold" onclick="syncToMaster()">💾 結案：同步至藏品總表</button>
-                </div>
+                <div class="card bg-dark text-white text-center p-3 shadow-sm rounded-3"><h6 class="mb-2">專案全部核對無誤後執行</h6><button class="btn btn-light w-100 fw-bold" onclick="syncToMaster()">💾 結案：同步至藏品總表</button></div>
               </div>
             </div>
           </div>
@@ -457,9 +379,11 @@
     let syncQueue = [];      
     let isSyncing = false;   
     
-    // 🛒 購物車式列印快取清單
     let allPrintItems = []; 
-    let printCartMap = new Map(); // Map(id -> {name, loc})
+    let printCartMap = new Map(); 
+    
+    // 💡 零延遲快取引擎 (存放整本博物館圖鑑)
+    let globalCatalog = {}; 
 
     function setProgress(pct, text) { 
       document.getElementById('splashProgress').style.width = pct + '%'; 
@@ -483,7 +407,7 @@
       const directQueryId = urlParams.get('id');
 
       let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
-      const loadingMessages = ["正在建立安全連線...", "讀取龐大藏品清單...", "同步歷史異動紀錄...", "解析空間樹狀圖...", "準備系統資源中..."];
+      const loadingMessages = ["正在建立安全連線...", "載入全庫房數位圖鑑...", "同步歷史異動紀錄...", "解析空間樹狀圖...", "準備系統資源中..."];
       let msgIndex = 0;
       const loadingInterval = setInterval(() => {
         fakeProgress += (85 - fakeProgress) * 0.1; 
@@ -496,17 +420,17 @@
         clearInterval(loadingInterval);
         setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
         
+        // 💡 將後端打包的圖鑑存入前端快取
+        globalCatalog = invData.catalog || {}; 
+        
         baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
         if (isNaN(d.getTime())) d = new Date();
-        
-        // 更新跑馬燈與設定頁面日期
         const formattedDate = d.toLocaleString();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${formattedDate}`;
         document.getElementById('mqBaseline').innerText = `📅 本期盤點基準日：${formattedDate}`;
         
         renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
-        
         globalLocTree = workData.locTree || [];
         populateSelect('mvEvent', workData.events || [], true);
         populateSelect('mgrEvent', workData.events || [], true);
@@ -519,6 +443,7 @@
           document.body.style.backgroundColor = '#f1f3f5';
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
+            // 💡 如果是掃描直接進來，直接調用 0 毫秒極速查詢
             if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } 
             else { document.getElementById('homeMenu').style.display = 'block'; }
           }, 500);
@@ -553,7 +478,11 @@
     async function refreshSystem(sysId) {
       showMiniLoading('正在向雲端索取最新資料...');
       try {
-        if(sysId === 'inv') { const res = await callAPI('getInventoryInitData'); renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); } 
+        if(sysId === 'inv') { 
+          const res = await callAPI('getInventoryInitData'); 
+          globalCatalog = res.catalog || {}; // 更新快取
+          renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); 
+        } 
         else if (sysId === 'move') { const res = await callAPI('getWorkerInitData'); globalLocTree = res.locTree || []; populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); } 
         else if (sysId === 'mgr') { const res = await callAPI('getWorkerInitData'); populateSelect('mgrEvent', res.events || [], true); if(document.getElementById('mgrEvent').value) loadManagerData(); }
       } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
@@ -629,7 +558,7 @@
       });
     }
 
-    // ==================== 0. 藏品狀態查詢 ====================
+    // ==================== 0. 藏品狀態查詢 (極速快取版) ====================
     function triggerManualQuery() {
       const val = document.getElementById('queryManualInput').value;
       if(!val) return alert("請輸入編號"); execQuery(val);
@@ -637,28 +566,41 @@
     
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
-      showMiniLoading('🔍 查詢最新狀態中...');
       if(queryScanner) stopQueryScanner();
       
-      try {
-        const res = await callAPI('queryItem', { qrStr: cleanId });
-        document.getElementById('qResLoc').innerText = res.location || "無地點資料";
-        document.getElementById('qResName').innerText = res.name || "未知名稱";
-        document.getElementById('qResPropNum').innerText = res.propNum || "未建檔";
-        document.getElementById('qResId').innerText = res.id;
-        document.getElementById('qResAccession').innerText = res.accession || "未註明";
-        document.getElementById('qResJiang').innerText = res.jiang || "未註明";
-        document.getElementById('qResDesc').innerText = res.desc || "無備註說明";
-        
-        const badge = document.getElementById('qResBadge');
-        if(res.isScanned) {
-            badge.className = "badge bg-success position-absolute shadow-sm"; badge.innerHTML = `✅ 已盤點 (${res.lastScanStr})`;
-        } else {
-            badge.className = "badge bg-danger position-absolute shadow-sm"; badge.innerHTML = `⚠️ ${res.lastScanStr}`;
-        }
-        
-        document.getElementById('queryResultBox').style.display = 'block'; playSound('success');
-      } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
+      // 💡 極速引擎：直接從手機記憶體找資料，0 毫秒渲染！
+      const res = globalCatalog[cleanId];
+      
+      if(res) {
+        renderQueryUI(res);
+      } else {
+        // 若快取中沒有 (例如剛剛別人才建檔的)，才啟動雲端連線當作備案
+        showMiniLoading('🔍 查詢雲端最新狀態中...');
+        try {
+          const freshRes = await callAPI('queryItem', { qrStr: cleanId });
+          globalCatalog[cleanId] = freshRes; // 更新快取
+          renderQueryUI(freshRes);
+        } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
+      }
+    }
+    
+    function renderQueryUI(res) {
+      document.getElementById('qResLoc').innerText = res.location || "無地點資料";
+      document.getElementById('qResName').innerText = res.name || "未知名稱";
+      document.getElementById('qResPropNum').innerText = res.propNum || "未建檔";
+      document.getElementById('qResId').innerText = res.id;
+      document.getElementById('qResAccession').innerText = res.accession || "未註明";
+      document.getElementById('qResJiang').innerText = res.jiang || "未註明";
+      document.getElementById('qResDesc').innerText = res.desc || "無備註說明";
+      
+      const badge = document.getElementById('qResBadge');
+      if(res.isScanned) {
+          badge.className = "badge bg-success position-absolute shadow-sm"; badge.innerHTML = `✅ 已盤點 (${res.lastScanStr})`;
+      } else {
+          badge.className = "badge bg-danger position-absolute shadow-sm"; badge.innerHTML = `⚠️ ${res.lastScanStr}`;
+      }
+      
+      document.getElementById('queryResultBox').style.display = 'block'; playSound('success');
     }
     
     function startQueryScanner() {
@@ -672,7 +614,7 @@
       document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block';
     }
 
-    // ==================== 1. 新進藏品登錄與列印 ====================
+    // ==================== 1. 建檔與列印中心 ====================
     function triggerRegLoc() { 
       currentModalTarget='regLoc'; document.getElementById('locModalTitle').innerText = "選擇「初始存放地點」";
       document.getElementById('modalLocSearch').value = ''; filterModalTree(); 
@@ -687,6 +629,10 @@
       try {
         await callAPI('registerItem', p);
         alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
+        
+        // 💡 直接將新資料寫入本地快取，立即可被秒殺查詢！
+        globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
+        
         ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('regJiang').value = '不相關';
         allPrintItems = []; // 強制下次重抓清單
@@ -760,7 +706,7 @@
       document.getElementById('btnGoPreview').innerText = `🏷️ 檢視已選標籤 (共 ${printCartMap.size} 件)`;
     }
 
-    // --- 👁️ 預覽與 A4 動態生成 ---
+    // --- 🏷️ 預覽與 A4 動態生成 ---
     function showPrintPreview() {
       if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！");
       document.getElementById('printSelectSec').style.display = 'none';
@@ -774,6 +720,7 @@
             <div class="d-flex flex-column" style="max-width: 80%;">
               <span class="fw-bold text-dark text-break">${id}</span>
               <span class="small text-muted text-truncate">${data.name}</span>
+              <span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${data.loc}</span>
             </div>
             <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${id}')">❌ 移除</button>
           </div>
