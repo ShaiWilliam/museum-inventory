@@ -24,9 +24,10 @@
     
     #homeMenu { padding: max(60px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     
+    /* 跑馬燈防等待：起點綁定 100vw，確保貼合各種螢幕邊緣出現 */
     .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
-    .marquee-content { display: inline-block; animation: marquee 25s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
-    @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+    .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
+    @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
 
     .home-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding-bottom: 40px; }
     @media (min-width: 768px) { .home-grid { grid-template-columns: repeat(2, 1fr); } .home-grid .home-card:last-child { grid-column: 1 / -1; } }
@@ -250,6 +251,13 @@
               <h5 class="mb-0 fw-bold text-success">盤點設定</h5>
               <button class="btn btn-sm btn-light border" onclick="refreshSystem('inv')">🔄 刷新資料</button>
             </div>
+            
+            <div id="continueInvBox" style="display:none;" class="mb-4 p-3 bg-light border-warning border rounded shadow-sm">
+              <h6 class="text-dark fw-bold mb-2">⚠️ 發現未完成的盤點作業</h6>
+              <button class="btn btn-warning w-100 fw-bold shadow-sm mb-2" onclick="resumeInventorySession()">▶️ 繼續上次掃描進度</button>
+              <button class="btn btn-outline-secondary w-100 btn-sm" onclick="clearInventorySession()">放棄進度，重新設定地點</button>
+            </div>
+
             <div class="alert alert-success py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入基準日中...</div>
             <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
             <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
@@ -260,7 +268,10 @@
           <div id="step2" class="step-card p-2">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h6 class="mb-0 fw-bold">團隊同步進度</h6>
-              <button class="btn btn-danger btn-sm fw-bold shadow-sm" onclick="pauseInventorySession()">🛑 暫停 / 結算</button>
+              <div>
+                <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm me-1" onclick="pauseAndSave()">⏸️ 暫停</button>
+                <button class="btn btn-danger btn-sm fw-bold shadow-sm" onclick="finishInventory()">📊 結算</button>
+              </div>
             </div>
             <div class="row g-2 mb-2">
               <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-primary" id="valTotal" style="font-size: 1.2rem;">...</div><small>總件</small></div></div>
@@ -284,12 +295,16 @@
           </div>
 
           <div id="step3" class="step-card">
-            <h5 class="mb-4 text-center text-success fw-bold">✅ 本次盤點進度已暫存</h5>
+            <h5 class="mb-4 text-center text-success fw-bold">✅ 盤點任務已結算</h5>
             <div class="mb-3"><label>接收 Excel 報表的 Email</label><input type="email" id="exportEmail" class="form-control"></div>
             <label>匯出範圍</label>
-            <select id="exportType" class="form-select mb-4"><option value="all">匯出「全部名單」</option><option value="scanned">僅匯出「已盤點」</option><option value="unscanned">僅匯出「未盤點 (缺漏)」</option></select>
-            <button class="btn btn-primary w-100 mb-2 py-3 fw-bold shadow-sm" onclick="exportReport()" id="btnExport">寄送 Email 報表</button>
-            <button class="btn btn-outline-secondary w-100 py-2" onclick="backToHome()">返回首頁大廳</button>
+            <select id="exportType" class="form-select mb-4">
+              <option value="all">匯出「全部名單」</option>
+              <option value="scanned">僅匯出「已盤點」</option>
+              <option value="unscanned">僅匯出「未盤點 (缺漏)」</option>
+            </select>
+            <button class="btn btn-primary w-100 mb-2 py-3 fw-bold shadow-sm" onclick="exportReport()" id="btnExport">📊 結算並寄送報表</button>
+            <button class="btn btn-outline-secondary w-100 py-2" onclick="clearAndBackToHome()">結束並返回首頁</button>
           </div>
         </div>
 
@@ -381,8 +396,6 @@
     
     let allPrintItems = []; 
     let printCartMap = new Map(); 
-    
-    // 💡 零延遲快取引擎 (存放整本博物館圖鑑)
     let globalCatalog = {}; 
 
     function setProgress(pct, text) { 
@@ -420,7 +433,6 @@
         clearInterval(loadingInterval);
         setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
         
-        // 💡 將後端打包的圖鑑存入前端快取
         globalCatalog = invData.catalog || {}; 
         
         baselineTime = invData.baselineTime || 0;
@@ -443,7 +455,6 @@
           document.body.style.backgroundColor = '#f1f3f5';
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
-            // 💡 如果是掃描直接進來，直接調用 0 毫秒極速查詢
             if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } 
             else { document.getElementById('homeMenu').style.display = 'block'; }
           }, 500);
@@ -454,10 +465,20 @@
       }
     };
 
+    function checkSavedSession() {
+      if(localStorage.getItem('invSession')) {
+        document.getElementById('continueInvBox').style.display = 'block';
+      } else {
+        document.getElementById('continueInvBox').style.display = 'none';
+      }
+    }
+
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
       document.body.style.overflowY = 'auto'; 
+      
+      if(sysId === 'inv') checkSavedSession();
       
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
       const titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
@@ -467,7 +488,7 @@
     }
     
     function backToHome() {
-      if (scanner && document.getElementById('step2').style.display === 'block') pauseInventorySession();
+      if (scanner && document.getElementById('step2').style.display === 'block') pauseAndSave();
       if (queryScanner) stopQueryScanner();
       
       window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; 
@@ -480,7 +501,7 @@
       try {
         if(sysId === 'inv') { 
           const res = await callAPI('getInventoryInitData'); 
-          globalCatalog = res.catalog || {}; // 更新快取
+          globalCatalog = res.catalog || {}; 
           renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); 
         } 
         else if (sysId === 'move') { const res = await callAPI('getWorkerInitData'); globalLocTree = res.locTree || []; populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); } 
@@ -558,7 +579,7 @@
       });
     }
 
-    // ==================== 0. 藏品狀態查詢 (極速快取版) ====================
+    // ==================== 0. 藏品狀態查詢 ====================
     function triggerManualQuery() {
       const val = document.getElementById('queryManualInput').value;
       if(!val) return alert("請輸入編號"); execQuery(val);
@@ -568,17 +589,14 @@
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) stopQueryScanner();
       
-      // 💡 極速引擎：直接從手機記憶體找資料，0 毫秒渲染！
       const res = globalCatalog[cleanId];
-      
       if(res) {
         renderQueryUI(res);
       } else {
-        // 若快取中沒有 (例如剛剛別人才建檔的)，才啟動雲端連線當作備案
         showMiniLoading('🔍 查詢雲端最新狀態中...');
         try {
           const freshRes = await callAPI('queryItem', { qrStr: cleanId });
-          globalCatalog[cleanId] = freshRes; // 更新快取
+          globalCatalog[cleanId] = freshRes; 
           renderQueryUI(freshRes);
         } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
       }
@@ -629,17 +647,13 @@
       try {
         await callAPI('registerItem', p);
         alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
-        
-        // 💡 直接將新資料寫入本地快取，立即可被秒殺查詢！
         globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
-        
         ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('regJiang').value = '不相關';
-        allPrintItems = []; // 強制下次重抓清單
+        allPrintItems = []; 
       } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // --- 🛒 購物車式多選與預覽機制 ---
     async function loadPrintList() {
       if(allPrintItems && allPrintItems.length > 0) return; 
       showMiniLoading('取得資料庫清單...');
@@ -684,29 +698,20 @@
     }
 
     function updateCart(cb) {
-      if(cb.checked) {
-        printCartMap.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc') });
-      } else {
-        printCartMap.delete(cb.value);
-      }
+      if(cb.checked) { printCartMap.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc') }); } 
+      else { printCartMap.delete(cb.value); }
       updateCartBtn();
     }
 
-    function togglePrintAll(isCheck) {
-      document.querySelectorAll('.cb-print').forEach(cb => { cb.checked = isCheck; updateCart(cb); });
-    }
-
+    function togglePrintAll(isCheck) { document.querySelectorAll('.cb-print').forEach(cb => { cb.checked = isCheck; updateCart(cb); }); }
     function selectTop10Print() {
       togglePrintAll(false); 
       const cbs = document.querySelectorAll('.cb-print');
       for(let i=0; i<Math.min(10, cbs.length); i++) { cbs[i].checked = true; updateCart(cbs[i]); }
     }
 
-    function updateCartBtn() {
-      document.getElementById('btnGoPreview').innerText = `🏷️ 檢視已選標籤 (共 ${printCartMap.size} 件)`;
-    }
+    function updateCartBtn() { document.getElementById('btnGoPreview').innerText = `🏷️ 檢視已選標籤 (共 ${printCartMap.size} 件)`; }
 
-    // --- 🏷️ 預覽與 A4 動態生成 ---
     function showPrintPreview() {
       if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！");
       document.getElementById('printSelectSec').style.display = 'none';
@@ -731,8 +736,8 @@
 
     function removeFromCart(id) {
       printCartMap.delete(id);
-      showPrintPreview(); // 重繪預覽清單
-      filterPrintList();  // 同步更新選擇畫面的打勾狀態
+      showPrintPreview(); 
+      filterPrintList();  
       if(printCartMap.size === 0) hidePrintPreview(); 
     }
 
@@ -743,7 +748,6 @@
 
     function generatePrintPage() {
       if(printCartMap.size === 0) return alert("請至少選擇一筆項目！");
-
       const groups = {};
       printCartMap.forEach((data, id) => {
         const loc = data.loc || '未分類地點';
@@ -752,62 +756,31 @@
       });
 
       let printHtml = `
-        <html>
-        <head>
-          <title>實體標籤列印作業</title>
-          <style>
+        <html><head><title>實體標籤列印作業</title><style>
             body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #fff; }
             @page { margin: 1cm; size: A4 portrait; }
             .no-print { text-align: center; padding: 15px; background: #ffc107; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid #000; font-size: 11pt;}
             .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; padding: 0.5cm; }
-            
-            /* 絕對鎖死尺寸：3.2cm x 4.2cm */
-            .label-box {
-              width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; 
-              padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;
-              page-break-inside: avoid; overflow: hidden;
-            }
+            .label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; }
             .title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; }
             .qr-img { width: 3cm; height: 3cm; object-fit: contain; }
             .id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
             .name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
-            
             @media print { body { padding: 0; } .no-print { display: none !important; } .grid-container { padding: 0; } .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-          </style>
-        </head>
-        <body>
-          <div class="no-print">
-            ⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br>
-            <small style="font-weight:normal; margin-top:5px; display:block;">(請等待下方所有 QR Code 圖片載入完成後，再按 Ctrl+P 或 Cmd+P 進行列印)</small>
-          </div>
+          </style></head><body>
+          <div class="no-print">⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br><small style="font-weight:normal; margin-top:5px; display:block;">(請等待下方所有 QR Code 圖片載入完成後，再按 Ctrl+P 或 Cmd+P 進行列印)</small></div>
           <div class="grid-container">
       `;
-
       Object.keys(groups).sort().forEach(loc => {
-         printHtml += `
-           <div class="label-box title-label">
-             <div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div>
-             <div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div>
-             <div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div>
-           </div>
-         `;
+         printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
          groups[loc].forEach(item => {
            const urlStr = encodeURIComponent(`https://shaiwilliam.github.io/museum-inventory/?id=${item.id}`);
            const imgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${urlStr}`;
-           printHtml += `
-             <div class="label-box">
-               <img src="${imgSrc}" class="qr-img" alt="QR">
-               <div class="id-text">${item.id}</div>
-               <div class="name-text">${item.name}</div>
-             </div>
-           `;
+           printHtml += `<div class="label-box"><img src="${imgSrc}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
          });
       });
-
       printHtml += `</div></body></html>`;
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(printHtml);
-      printWindow.document.close();
+      const printWindow = window.open('', '_blank'); printWindow.document.write(printHtml); printWindow.document.close();
     }
 
 
@@ -819,6 +792,24 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
 
+      // 將盤點設定寫入本機記憶體
+      localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations}));
+      await executeInventoryStart();
+    }
+
+    async function resumeInventorySession() {
+      const saved = JSON.parse(localStorage.getItem('invSession'));
+      if(!saved) return;
+      sysState.mode = saved.mode; sysState.locations = saved.locations;
+      await executeInventoryStart();
+    }
+
+    function clearInventorySession() {
+      localStorage.removeItem('invSession');
+      document.getElementById('continueInvBox').style.display = 'none';
+    }
+
+    async function executeInventoryStart() {
       showMiniLoading('下載名單，準備極速盤點...');
       try {
         const res = await callAPI('startInventory', sysState);
@@ -869,10 +860,22 @@
       isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
     }
 
-    function pauseInventorySession() {
-      if(!confirm("確定要暫停目前的盤點作業嗎？")) return;
+    function pauseAndSave() {
+      if (scanner) { scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e)); }
+      document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block';
+      checkSavedSession(); // 確保重新回到 step1 時，會顯示繼續按鈕
+    }
+
+    function finishInventory() {
+      if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return;
       if (scanner) { scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e)); }
       document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
+    }
+
+    function clearAndBackToHome() {
+      clearInventorySession(); // 結案匯出後，徹底清除本機記憶
+      document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block';
+      backToHome();
     }
 
     function playSound(k) { 
