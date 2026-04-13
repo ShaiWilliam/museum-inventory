@@ -16,15 +16,15 @@
   <style>
     /* 三重防護：預設深色底、鎖死滾動、禁用橡皮筋回彈 */
     html, body { 
-      background-color: #212529; /* 預設深色，保護載入過程不露白 */
+      background-color: #212529; 
       min-height: 100dvh; 
       margin: 0; 
       padding: 0; 
       font-family: system-ui, -apple-system, sans-serif; 
-      overflow: hidden; /* 初始鎖死全域滾動，防止上下滑動 */
-      overscroll-behavior: none; /* 徹底禁用 iOS 的邊界回彈特效 */
+      overflow: hidden; /* 初始鎖死全域滾動 */
+      overscroll-behavior: none; /* 禁用 iOS 回彈 */
       -webkit-tap-highlight-color: transparent;
-      transition: background-color 0.5s ease; /* 底色切換時的平滑動畫 */
+      transition: background-color 0.5s ease; 
     }
     
     #splashScreen { 
@@ -85,7 +85,13 @@
     
     .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
-    .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; border-color: #198754; }
+    
+    /* 視覺優化：單一選項與斑馬紋交錯底色 */
+    .single-item-btn { background-color: #e8f5e9; border: 1px solid #198754 !important; color: #157347; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .single-item-btn:hover { background-color: #d1e7dd; }
+    .bg-zebra-even { background-color: #f0f4f8 !important; border-color: #dbe0e5 !important; }
+    .btn-check:checked + .btn-outline-success { background-color: #198754 !important; color: white !important; border-color: #198754 !important; }
+    
     .fake-input-btn { cursor: pointer; text-align: left; }
     .fade-in-section { animation: fadeIn 0.4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -392,10 +398,8 @@
         setTimeout(() => {
           document.getElementById('splashScreen').style.opacity = '0';
           
-          // 解除鎖定：將底色優雅切換為淺色，並恢復滑動功能
+          // 優化 1: 僅改變底色隱藏白邊，但維持 body 的 overflow: hidden，讓大廳鎖死無法滾動
           document.body.style.backgroundColor = '#f1f3f5';
-          document.body.style.overflowY = 'auto';
-          document.body.style.overflowX = 'hidden';
           
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
@@ -414,6 +418,10 @@
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
+      
+      // 優化 1: 進入內部系統模組時，才解鎖允許上下滾動
+      document.body.style.overflowY = 'auto';
+      
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`));
       tabTrigger.show();
       const titles = { 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
@@ -426,6 +434,11 @@
       if (scanner && document.getElementById('step2').style.display === 'block') {
          pauseInventorySession();
       }
+      
+      // 優化 1: 退回大廳時，自動捲動到最上方並重新鎖死滾動
+      window.scrollTo(0, 0);
+      document.body.style.overflowY = 'hidden';
+      
       document.getElementById('mainApp').style.display = 'none';
       document.getElementById('homeMenu').style.display = 'block';
     }
@@ -458,6 +471,7 @@
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
+    // ==================== 樹狀結構 (新增單一項目扁平化與斑馬紋) ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
@@ -468,13 +482,24 @@
         
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-          if (subNode.details.length === 1 && subNode.details[0].label === "(本區)") {
+          
+          // 優化 3: 智慧扁平化。只要底下只有 1 個選項，就自動消除資料夾外殼
+          if (subNode.details.length === 1) {
              let det = subNode.details[0];
-             html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-start fw-bold py-2" for="${prefix}_m${mIdx}_s${sIdx}_d0">📁 ${subNode.sub}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-start fw-bold py-3 border-0" onclick="selectModalLoc('${det.val}')">📍 ${subNode.sub}</button>`) + `</div></div>`;
+             let displayLabel = det.label === "(本區)" ? subNode.sub : det.label;
+             html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + 
+                     (isMulti ? 
+                     `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${displayLabel}</label>` : 
+                     `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${det.val}')">📍 ${displayLabel}</button>`) + `</div></div>`;
           } else {
              html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
              subNode.details.forEach((det, dIdx) => {
-               html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate bg-white" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`;
+               // 優化 2: 斑馬紋交錯底色 (讓雙數項目呈現淡淡的灰底)
+               let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white';
+               html += `<div class="col-6 leaf-item">` + 
+                       (isMulti ? 
+                       `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : 
+                       `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`;
              });
              html += `</div></div></div>`;
           }
@@ -519,6 +544,7 @@
       });
     }
 
+    // ==================== 1. 盤點 API ====================
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
@@ -640,6 +666,7 @@
       o.start(); setTimeout(() => { o.stop(); }, 150); 
     }
 
+    // ==================== 2. 搬運 API ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; 
@@ -736,6 +763,7 @@
       } catch(e) { alert("送出失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
+    // ==================== 3. 管理後台 ====================
     async function loginManager() {
       const pwd = document.getElementById('mgrPwd').value;
       if(!pwd) return alert("請輸入密碼！");
