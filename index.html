@@ -70,6 +70,10 @@
     .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .stat-num { font-size: 1.5rem; font-weight: bold; }
     
+    /* 後台登入保險箱風格 */
+    .vault-card { background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); }
+    .letter-spacing-2 { letter-spacing: 2px; }
+    
     #reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
     #reader { width: 100% !important; border: none !important; }
     
@@ -235,10 +239,17 @@
         </div>
 
         <div class="tab-pane fade" id="mgr">
-          <div id="mgrLogin" class="step-card active">
-            <h5 class="mb-3 text-danger fw-bold">🔒 管理員登入</h5>
-            <input type="password" id="mgrPwd" class="form-control mb-3" placeholder="輸入管理員密碼">
-            <button class="btn btn-danger w-100 fw-bold py-2 shadow-sm" onclick="loginManager()">登入系統</button>
+          <div id="mgrLogin" class="step-card active vault-card shadow-lg border-0" style="max-width: 400px; margin: 0 auto;">
+            <div class="text-center mb-4">
+              <span style="font-size: 3.5rem;">🔒</span>
+              <h4 class="fw-bold text-dark mt-2">管理員安全登入</h4>
+              <p class="text-muted small">請輸入專屬授權密碼</p>
+            </div>
+            <div class="form-floating mb-4">
+              <input type="password" class="form-control fw-bold fs-4 text-center letter-spacing-2 shadow-sm" id="mgrPwd" placeholder="請輸入密碼" inputmode="numeric" pattern="[0-9]*">
+              <label for="mgrPwd" class="text-muted">管理員密碼 (僅限數字)</label>
+            </div>
+            <button class="btn btn-dark w-100 fw-bold py-3 fs-5 rounded-pill shadow-sm" onclick="loginManager()">🔓 登入系統</button>
           </div>
           
           <div id="mgrDashboard" class="step-card">
@@ -274,7 +285,7 @@
               <div class="tab-pane fade" id="mgrConfirmed">
                 <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tableConfirmed"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>地點/箱</th><th>管理員</th></tr></thead><tbody></tbody></table></div>
                 <button class="btn btn-warning action-btn fw-bold w-100 py-2 shadow-sm mb-4" onclick="changeStatus('.chk-conf', false)">↩️ 撤銷核對狀態</button>
-                <div class="card bg-dark text-white text-center p-3">
+                <div class="card bg-dark text-white text-center p-3 shadow-sm rounded-3">
                   <h6 class="mb-2">專案全部核對無誤後執行</h6>
                   <button class="btn btn-light w-100 fw-bold" onclick="syncToMaster()">💾 結案：同步至藏品總表</button>
                 </div>
@@ -306,6 +317,10 @@
 
     let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
     let audioCtx;
+    let scanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
+    let localItemCache = {}; 
+    let syncQueue = [];      
+    let isSyncing = false;   
 
     // --- UI 載入狀態控制 ---
     function setProgress(pct, text) { 
@@ -331,31 +346,34 @@
       }
     }
 
-    // --- 啟動程序與預載 ---
+    // --- 啟動程序與預載 (優化：循序漸進的讀取與動態提示文字) ---
     window.onload = async function() {
-      setProgress(20, '喚醒伺服器...');
+      setProgress(20, '喚醒雲端伺服器...');
       try {
-        setProgress(50, '載入藏品資料結構...');
-        const [invData, workData] = await Promise.all([
-          callAPI('getInventoryInitData'), 
-          callAPI('getWorkerInitData')
-        ]);
+        // 第一階段：抓取較輕量的異動與管理資料
+        const workData = await callAPI('getWorkerInitData');
+        setProgress(50, '✅ 專案名單載入完成！正在讀取藏品樹狀圖...');
         
-        setProgress(80, '建構使用者介面...');
+        // 第二階段：抓取龐雜的盤點地點資料
+        const invData = await callAPI('getInventoryInitData');
+        setProgress(80, '✅ 地點結構解析完成！建構使用者介面...');
         
+        // 解析盤點資料
         baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
         if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         renderTreeHTML(invData.locTree || [], 'locCheckboxes', 'inv', true);
         
+        // 解析異動與管理資料
         globalLocTree = workData.locTree || [];
         populateSelect('mvEvent', workData.events || [], true);
         populateSelect('mgrEvent', workData.events || [], true);
         populateSelect('mvStaffInternal', workData.staffInternal || []);
         
-        setProgress(100, '載入完成！');
+        setProgress(100, '🚀 系統啟動！');
         
+        // 延遲半秒讓使用者看見 100%，然後平滑轉場到首頁大廳
         setTimeout(() => {
           document.getElementById('splashScreen').style.opacity = '0';
           setTimeout(() => {
@@ -482,11 +500,6 @@
     }
 
     // ==================== 1. 盤點 API (快取秒殺 + 背景同步版) ====================
-    let scanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
-    let localItemCache = {}; // 存放當前範圍內的所有文物資訊
-    let syncQueue = [];      // 等待上傳雲端的隊列
-    let isSyncing = false;   // 避免同時觸發多次上傳
-
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
@@ -496,7 +509,6 @@
 
       showMiniLoading('下載名單，準備極速盤點...');
       try {
-        // 向後端索取當前地點的文物名單，存在手機裡實現 0 秒比對
         const res = await callAPI('startInventory', sysState);
         sysState.total = res.total; 
         sysState.scanned = res.scanned; 
@@ -532,9 +544,8 @@
       document.getElementById('progressBar').style.width = pct + '%';
     }
 
-    // [核心優化] 瞬間本地比對機制
     async function processScanLocal(msg) {
-      if (isProc || Date.now() - lastScan < 800) return; // 縮短防抖，允許瘋狂掃描
+      if (isProc || Date.now() - lastScan < 800) return; 
       isProc = true; 
       lastScan = Date.now();
       
@@ -545,21 +556,18 @@
       overlay.style.display = 'block';
 
       if (!item) {
-        // 本地驗證失敗：不在範圍內
         playSound('error');
         overlay.style.borderColor = '#dc3545';
         document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在盤點範圍</span>';
         document.getElementById('resName').innerText = cleanMsg;
         document.getElementById('resDesc').innerText = "請確認是否錯置或尚未建檔";
       } else if (item.isScanned) {
-        // 本地驗證失敗：已經盤點過了
         playSound('error');
         overlay.style.borderColor = '#ffc107';
         document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點過</span>';
         document.getElementById('resName').innerText = item.name;
         document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點";
       } else {
-        // 本地驗證成功：瞬間改變狀態
         playSound('success');
         item.isScanned = true; 
         sysState.scanned++;
@@ -570,35 +578,30 @@
         document.getElementById('resName').innerText = item.name;
         document.getElementById('resDesc').innerText = item.desc || "";
 
-        // 推入背景隊列，準備上傳雲端
         syncQueue.push(cleanMsg);
         triggerBackgroundSync();
       }
 
-      // 1.2 秒後畫面恢復乾淨，讓搬運人員可以掃下一件
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
-    // [核心優化] 背景非同步上傳機制
     async function triggerBackgroundSync() {
       if (isSyncing || syncQueue.length === 0) return;
       isSyncing = true;
-      document.getElementById('syncStatus').style.display = 'block'; // 顯示上傳中小圖示
+      document.getElementById('syncStatus').style.display = 'block';
 
       while (syncQueue.length > 0) {
         let currentMsg = syncQueue[0];
         try {
-          // 默默呼叫後端 API
           await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations });
         } catch(e) {
           console.warn(`[背景同步警告] ${currentMsg} 同步失敗:`, e);
         }
-        // 無論成功或錯誤都移出隊列，避免阻塞後續掃描
         syncQueue.shift(); 
       }
       
       isSyncing = false;
-      document.getElementById('syncStatus').style.display = 'none'; // 隱藏上傳圖示
+      document.getElementById('syncStatus').style.display = 'none';
     }
 
     function pauseInventorySession() {
@@ -710,7 +713,6 @@
         await callAPI('submitMovement', payload); 
         alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
         
-        // 批次保留彈性：隱藏第三階段，但不清空新地點/箱名
         document.getElementById('mvPhase3').style.display = 'none';
         loadWorkerItems(); 
       } catch(e) { alert("送出失敗：" + e.message); } finally { hideMiniLoading(); }
