@@ -45,14 +45,52 @@
     .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
     .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
     
+    /* 大廳容器優化：滿版高度 + 內部智慧滾動 */
     #homeMenu { 
       padding: max(80px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; 
       display: none; 
       animation: fadeIn 0.5s; 
-      max-width: 600px; 
+      max-width: 800px; /* 配合電腦版放寬 */
       margin: 0 auto;
+      height: 100dvh; 
+      overflow-y: auto; /* 允許內容超長時內部滾動 */
+      -webkit-overflow-scrolling: touch;
     }
-    .home-card { background: white; border-radius: 15px; padding: 22px 20px; text-align: center; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; }
+    
+    /* 網格排版 (Grid) 基礎設定 */
+    .home-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 15px;
+      padding-bottom: 40px; /* 底部安全留白 */
+    }
+    
+    /* 電腦/平板版橫向並列設定 */
+    @media (min-width: 768px) {
+      .home-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      /* 讓最後一個管理員模組橫跨兩欄，視覺更平衡 */
+      .home-grid .home-card:last-child {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .home-card { 
+      background: white; 
+      border-radius: 15px; 
+      padding: 22px 20px; 
+      text-align: center; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+      cursor: pointer; 
+      transition: transform 0.2s; 
+      border-bottom: 4px solid transparent; 
+      height: 100%; /* 確保網格內高度一致 */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
     .home-card:active { transform: scale(0.97); }
     .home-card.c-query { border-bottom-color: #ffc107; }
     .home-card.c-reg { border-bottom-color: #0dcaf0; }
@@ -107,34 +145,38 @@
   </div>
 
   <div id="homeMenu">
-    <div class="home-card c-query" onclick="enterSystem('query')">
-      <div class="home-icon">🔍</div>
-      <h5 class="fw-bold text-warning mb-1" style="color: #d39e00 !important;">藏品狀態查詢</h5>
-      <p class="text-muted small mb-0">掃描取得最新地點與財產編號</p>
-    </div>
+    <h4 class="fw-bold mb-4 text-dark text-center">請選擇系統模組</h4>
     
-    <div class="home-card c-reg" onclick="enterSystem('register')">
-      <div class="home-icon">📝</div>
-      <h5 class="fw-bold text-info mb-1" style="color: #087990 !important;">新進藏品登錄</h5>
-      <p class="text-muted small mb-0">防呆建檔並自動生成 QR Code</p>
-    </div>
+    <div class="home-grid">
+      <div class="home-card c-query" onclick="enterSystem('query')">
+        <div class="home-icon">🔍</div>
+        <h5 class="fw-bold text-warning mb-1" style="color: #d39e00 !important;">藏品狀態查詢</h5>
+        <p class="text-muted small mb-0">掃描取得最新地點與財產編號</p>
+      </div>
+      
+      <div class="home-card c-reg" onclick="enterSystem('register')">
+        <div class="home-icon">📝</div>
+        <h5 class="fw-bold text-info mb-1" style="color: #087990 !important;">新進藏品登錄</h5>
+        <p class="text-muted small mb-0">防呆建檔並自動生成 QR Code</p>
+      </div>
 
-    <div class="home-card c-inv" onclick="enterSystem('inv')">
-      <div class="home-icon">📱</div>
-      <h5 class="fw-bold text-success mb-1">文物盤點系統</h5>
-      <p class="text-muted small mb-0">全區/指定區域極速掃描</p>
-    </div>
-    
-    <div class="home-card c-move" onclick="enterSystem('move')">
-      <div class="home-icon">🚚</div>
-      <h5 class="fw-bold text-primary mb-1">文物異動搬運</h5>
-      <p class="text-muted small mb-0">專案提報、地點轉換與裝箱</p>
-    </div>
-    
-    <div class="home-card c-mgr" onclick="enterSystem('mgr')">
-      <div class="home-icon">⚙️</div>
-      <h5 class="fw-bold text-danger mb-1">管理員後台</h5>
-      <p class="text-muted small mb-0">異動審核、基準日設定與結案</p>
+      <div class="home-card c-inv" onclick="enterSystem('inv')">
+        <div class="home-icon">📱</div>
+        <h5 class="fw-bold text-success mb-1">文物盤點系統</h5>
+        <p class="text-muted small mb-0">全區/指定區域極速掃描</p>
+      </div>
+      
+      <div class="home-card c-move" onclick="enterSystem('move')">
+        <div class="home-icon">🚚</div>
+        <h5 class="fw-bold text-primary mb-1">文物異動搬運</h5>
+        <p class="text-muted small mb-0">專案提報、地點轉換與裝箱</p>
+      </div>
+      
+      <div class="home-card c-mgr" onclick="enterSystem('mgr')">
+        <div class="home-icon">⚙️</div>
+        <h5 class="fw-bold text-danger mb-1">管理員後台</h5>
+        <p class="text-muted small mb-0">異動審核、基準日設定與結案</p>
+      </div>
     </div>
   </div>
 
@@ -644,7 +686,6 @@
       try {
         const res = await callAPI('queryItem', { qrStr: cleanId });
         
-        // 寫入查詢結果
         document.getElementById('qResLoc').innerText = res.location || "無地點資料";
         document.getElementById('qResName').innerText = res.name || "未知名稱";
         document.getElementById('qResPropNum').innerText = res.propNum || "未建檔";
@@ -653,7 +694,6 @@
         document.getElementById('qResJiang').innerText = res.jiang || "未註明";
         document.getElementById('qResDesc').innerText = res.desc || "無備註說明";
         
-        // 動態改變盤點狀態標籤
         const badge = document.getElementById('qResBadge');
         if(res.isScanned) {
             badge.className = "badge bg-success position-absolute shadow-sm";
@@ -708,7 +748,6 @@
       try {
         await callAPI('registerItem', p);
         alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
-        // 清空表單
         ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('regJiang').value = '不相關';
       } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); }
