@@ -14,15 +14,14 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    /* 三重防護：預設深色底、鎖死滾動、禁用橡皮筋回彈 */
     html, body { 
       background-color: #212529; 
       min-height: 100dvh; 
       margin: 0; 
       padding: 0; 
       font-family: system-ui, -apple-system, sans-serif; 
-      overflow: hidden; /* 初始鎖死全域滾動 */
-      overscroll-behavior: none; /* 禁用 iOS 回彈 */
+      overflow: hidden; 
+      overscroll-behavior: none; 
       -webkit-tap-highlight-color: transparent;
       transition: background-color 0.5s ease; 
     }
@@ -53,20 +52,17 @@
       max-width: 600px; 
       margin: 0 auto;
     }
-    .home-card { background: white; border-radius: 15px; padding: 25px 20px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; }
+    .home-card { background: white; border-radius: 15px; padding: 25px 20px; text-align: center; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; }
     .home-card:active { transform: scale(0.97); }
     .home-card.c-inv { border-bottom-color: #198754; }
     .home-card.c-move { border-bottom-color: #0d6efd; }
+    .home-card.c-query { border-bottom-color: #ffc107; }
     .home-card.c-mgr { border-bottom-color: #dc3545; }
-    .home-icon { font-size: 3rem; margin-bottom: 10px; }
+    .home-icon { font-size: 2.5rem; margin-bottom: 10px; }
     
     #mainApp { display: none; padding-bottom: 60px; animation: fadeIn 0.3s; }
     
-    .navbar { 
-      padding-top: max(15px, env(safe-area-inset-top)) !important; 
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-    }
-    
+    .navbar { padding-top: max(15px, env(safe-area-inset-top)) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
     .nav-tabs { display: none; }
     .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
     .step-card.active { display: block; }
@@ -76,25 +72,21 @@
     .vault-card { background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); }
     .letter-spacing-2 { letter-spacing: 2px; }
     
-    #reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
-    #reader { width: 100% !important; border: none !important; }
+    #reader-container, #query-reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
+    #reader, #query-reader { width: 100% !important; border: none !important; }
     
     #resultOverlay { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 100; display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); border-radius: 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); border: 2px solid #198754; animation: slideIn 0.3s; }
     @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    .result-img { max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 5px; margin-right: 15px; }
     
     .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
     .sub-group { border-left: 3px solid #198754; background: #fafafa; }
     
-    /* 視覺優化：單一選項與斑馬紋交錯底色 */
     .single-item-btn { background-color: #e8f5e9; border: 1px solid #198754 !important; color: #157347; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .single-item-btn:hover { background-color: #d1e7dd; }
     .bg-zebra-even { background-color: #f0f4f8 !important; border-color: #dbe0e5 !important; }
     .btn-check:checked + .btn-outline-success { background-color: #198754 !important; color: white !important; border-color: #198754 !important; }
     
     .fake-input-btn { cursor: pointer; text-align: left; }
     .fade-in-section { animation: fadeIn 0.4s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     
     #miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
   </style>
@@ -114,20 +106,29 @@
   </div>
 
   <div id="homeMenu">
-    <h4 class="fw-bold mb-4 text-dark px-2">請選擇系統模組</h4>
-    <div class="home-card c-inv" onclick="enterSystem('inv')">
+    <h4 class="fw-bold mb-3 text-dark px-2">請選擇系統模組</h4>
+    
+    <div class="home-card c-query py-3" onclick="enterSystem('query')">
+      <div class="home-icon">🔍</div>
+      <h5 class="fw-bold text-warning mb-1" style="color: #d39e00 !important;">藏品狀態查詢</h5>
+      <p class="text-muted small mb-0">掃描 QR Code 取得最新存放地點</p>
+    </div>
+    
+    <div class="home-card c-inv py-3" onclick="enterSystem('inv')">
       <div class="home-icon">📱</div>
-      <h4 class="fw-bold text-success mb-1">文物盤點系統</h4>
+      <h5 class="fw-bold text-success mb-1">文物盤點系統</h5>
       <p class="text-muted small mb-0">全區/指定區域掃描與進度統計</p>
     </div>
-    <div class="home-card c-move" onclick="enterSystem('move')">
+    
+    <div class="home-card c-move py-3" onclick="enterSystem('move')">
       <div class="home-icon">🚚</div>
-      <h4 class="fw-bold text-primary mb-1">文物異動搬運</h4>
+      <h5 class="fw-bold text-primary mb-1">文物異動搬運</h5>
       <p class="text-muted small mb-0">專案提報、地點轉換與裝箱</p>
     </div>
-    <div class="home-card c-mgr" onclick="enterSystem('mgr')">
+    
+    <div class="home-card c-mgr py-3" onclick="enterSystem('mgr')">
       <div class="home-icon">⚙️</div>
-      <h4 class="fw-bold text-danger mb-1">管理員後台</h4>
+      <h5 class="fw-bold text-danger mb-1">管理員後台</h5>
       <p class="text-muted small mb-0">異動審核、基準日設定與結案</p>
     </div>
   </div>
@@ -144,12 +145,46 @@
 
     <div class="container px-2">
       <ul class="nav nav-tabs nav-fill mb-2 d-none" id="systemTabs">
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query">查詢</button></li>
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">盤點</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異動</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理</button></li>
       </ul>
 
       <div class="tab-content mt-3">
+        <div class="tab-pane fade" id="query">
+          <div class="step-card active">
+            <h5 class="fw-bold text-warning mb-3" style="color: #d39e00 !important;">🔍 藏品即時定位</h5>
+            
+            <div class="input-group mb-3">
+              <input type="text" id="queryManualInput" class="form-control" placeholder="手動輸入藏品編號 (選填)">
+              <button class="btn btn-outline-secondary" type="button" onclick="triggerManualQuery()">查詢</button>
+            </div>
+            
+            <div id="queryResultBox" class="card shadow-sm border-warning mb-3" style="display:none; background-color: #fffdf5;">
+              <div class="card-body">
+                <h6 class="text-muted small mb-1">目前存放地點</h6>
+                <h3 class="fw-bold text-dark mb-3" id="qResLoc">--</h3>
+                <h6 class="text-muted small mb-1">藏品名稱</h6>
+                <p class="fw-bold mb-2 text-primary" id="qResName">--</p>
+                <h6 class="text-muted small mb-1">編號</h6>
+                <p class="mb-2" id="qResId">--</p>
+                <div class="d-flex justify-content-between mt-3 pt-2 border-top">
+                  <small class="text-muted" id="qResDesc">--</small>
+                  <small class="text-success fw-bold" id="qResTime">--</small>
+                </div>
+              </div>
+            </div>
+            
+            <button class="btn btn-warning w-100 fw-bold py-2 shadow-sm mb-3" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動相機掃描</button>
+            
+            <div id="query-reader-container" style="display:none;">
+              <div id="query-reader"></div>
+              <button class="btn btn-danger w-100 mt-2" onclick="stopQueryScanner()">關閉相機</button>
+            </div>
+          </div>
+        </div>
+
         <div class="tab-pane fade show active" id="inv">
           <div id="step1" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -325,7 +360,8 @@
 
     let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
     let audioCtx;
-    let scanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
+    let scanner = null, queryScanner = null;
+    let lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
     let localItemCache = {}; 
     let syncQueue = [];      
     let isSyncing = false;   
@@ -353,20 +389,16 @@
       }
     }
 
+    // --- 攔截器與載入邏輯 ---
     window.onload = async function() {
+      // 網址攔截：檢查是否帶有 ?id= 參數 (手機原生相機掃描進入)
+      const urlParams = new URLSearchParams(window.location.search);
+      const directQueryId = urlParams.get('id');
+
       let fakeProgress = 10;
       setProgress(fakeProgress, '喚醒雲端伺服器...');
-      
-      const loadingMessages = [
-        "正在建立安全連線...",
-        "讀取龐大藏品清單...",
-        "同步歷史異動紀錄...",
-        "解析空間樹狀圖...",
-        "核對專案清單與人員...",
-        "準備系統資源中..."
-      ];
+      const loadingMessages = ["正在建立安全連線...", "讀取龐大藏品清單...", "同步歷史異動紀錄...", "解析空間樹狀圖...", "準備系統資源中..."];
       let msgIndex = 0;
-
       const loadingInterval = setInterval(() => {
         fakeProgress += (85 - fakeProgress) * 0.1; 
         msgIndex = (msgIndex + 1) % loadingMessages.length;
@@ -374,11 +406,7 @@
       }, 1000); 
 
       try {
-        const [invData, workData] = await Promise.all([
-          callAPI('getInventoryInitData'), 
-          callAPI('getWorkerInitData')
-        ]);
-        
+        const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
         clearInterval(loadingInterval);
         setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
         
@@ -397,13 +425,18 @@
         
         setTimeout(() => {
           document.getElementById('splashScreen').style.opacity = '0';
-          
-          // 優化 1: 僅改變底色隱藏白邊，但維持 body 的 overflow: hidden，讓大廳鎖死無法滾動
           document.body.style.backgroundColor = '#f1f3f5';
           
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
-            document.getElementById('homeMenu').style.display = 'block';
+            
+            // 如果帶有參數，直接開啟「查詢」模組並執行查詢；否則顯示大廳
+            if(directQueryId) {
+              enterSystem('query');
+              execQuery(directQueryId);
+            } else {
+              document.getElementById('homeMenu').style.display = 'block';
+            }
           }, 500);
         }, 500);
         
@@ -418,29 +451,28 @@
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
-      
-      // 優化 1: 進入內部系統模組時，才解鎖允許上下滾動
-      document.body.style.overflowY = 'auto';
+      document.body.style.overflowY = 'auto'; // 解鎖滾動
       
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`));
       tabTrigger.show();
-      const titles = { 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
+      const titles = { 'query': '🔍 藏品狀態查詢', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
       document.getElementById('sysTitle').innerText = titles[sysId];
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
     function backToHome() {
-      if (scanner && document.getElementById('step2').style.display === 'block') {
-         pauseInventorySession();
-      }
+      if (scanner && document.getElementById('step2').style.display === 'block') pauseInventorySession();
+      if (queryScanner) stopQueryScanner();
       
-      // 優化 1: 退回大廳時，自動捲動到最上方並重新鎖死滾動
       window.scrollTo(0, 0);
-      document.body.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden'; // 退回大廳鎖死滾動
       
       document.getElementById('mainApp').style.display = 'none';
       document.getElementById('homeMenu').style.display = 'block';
+      
+      // 清除網址參數，避免重整又跳進去
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
     
     async function refreshSystem(sysId) {
@@ -459,11 +491,7 @@
           populateSelect('mgrEvent', res.events || [], true);
           if(document.getElementById('mgrEvent').value) loadManagerData();
         }
-      } catch(e) {
-        alert("刷新失敗：" + e.message);
-      } finally {
-        hideMiniLoading();
-      }
+      } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
     function populateSelect(id, arr, isObj = false) { 
@@ -471,7 +499,7 @@
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
-    // ==================== 樹狀結構 (新增單一項目扁平化與斑馬紋) ====================
+    // ==================== 樹狀結構 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
@@ -482,8 +510,6 @@
         
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-          
-          // 優化 3: 智慧扁平化。只要底下只有 1 個選項，就自動消除資料夾外殼
           if (subNode.details.length === 1) {
              let det = subNode.details[0];
              let displayLabel = det.label === "(本區)" ? subNode.sub : det.label;
@@ -494,7 +520,6 @@
           } else {
              html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
              subNode.details.forEach((det, dIdx) => {
-               // 優化 2: 斑馬紋交錯底色 (讓雙數項目呈現淡淡的灰底)
                let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white';
                html += `<div class="col-6 leaf-item">` + 
                        (isMulti ? 
@@ -544,6 +569,59 @@
       });
     }
 
+    // ==================== 0. 藏品狀態查詢 ====================
+    function triggerManualQuery() {
+      const val = document.getElementById('queryManualInput').value;
+      if(!val) return alert("請輸入編號");
+      execQuery(val);
+    }
+    
+    async function execQuery(rawStr) {
+      // 若掃描到網址，過濾並取得 ?id= 後面的參數；否則取第一行
+      let cleanId = rawStr;
+      if(rawStr.includes('?id=')) {
+         cleanId = new URL(rawStr).searchParams.get('id');
+      } else {
+         cleanId = rawStr.trim().split('\n')[0];
+      }
+      
+      showMiniLoading('🔍 查詢最新狀態中...');
+      if(queryScanner) stopQueryScanner();
+      
+      try {
+        const res = await callAPI('queryItem', { qrStr: cleanId });
+        document.getElementById('qResLoc').innerText = res.location || "無地點資料";
+        document.getElementById('qResName').innerText = res.name || "未知名稱";
+        document.getElementById('qResId').innerText = res.id;
+        document.getElementById('qResDesc').innerText = res.desc || "無備註";
+        document.getElementById('qResTime').innerText = "盤點: " + res.lastScan;
+        
+        document.getElementById('queryResultBox').style.display = 'block';
+        playSound('success');
+      } catch(e) {
+        alert(e.message);
+      } finally {
+        hideMiniLoading();
+      }
+    }
+    
+    function startQueryScanner() {
+      document.getElementById('queryResultBox').style.display = 'none';
+      document.getElementById('btnStartQueryCam').style.display = 'none';
+      document.getElementById('query-reader-container').style.display = 'block';
+      
+      if (!queryScanner) queryScanner = new Html5Qrcode("query-reader");
+      queryScanner.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg));
+    }
+    
+    function stopQueryScanner() {
+      if(queryScanner) {
+        queryScanner.stop().then(() => { queryScanner.clear(); queryScanner = null; }).catch(e => console.log(e));
+      }
+      document.getElementById('query-reader-container').style.display = 'none';
+      document.getElementById('btnStartQueryCam').style.display = 'block';
+    }
+
     // ==================== 1. 盤點 API ====================
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
@@ -555,30 +633,18 @@
       showMiniLoading('下載名單，準備極速盤點...');
       try {
         const res = await callAPI('startInventory', sysState);
-        sysState.total = res.total; 
-        sysState.scanned = res.scanned; 
-        localItemCache = res.itemMap || {}; 
+        sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; 
         
         updateProgressUI();
         document.getElementById('step1').style.display = 'none'; 
         document.getElementById('step2').style.display = 'block';
         hideMiniLoading();
 
-        if (!scanner) {
-          scanner = new Html5Qrcode("reader");
-        }
-        
-        const config = { 
-          fps: 15, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0,
-          videoConstraints: { facingMode: "environment", focusMode: "continuous" }
-        };
-        
+        if (!scanner) scanner = new Html5Qrcode("reader");
         if (scanner.getState() !== Html5QrcodeScannerState.SCANNING) {
-          scanner.start({ facingMode: "environment" }, config, msg => processScanLocal(msg));
+          scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg));
         }
-      } catch (e) {
-        hideMiniLoading(); alert("錯誤：" + e.message);
-      }
+      } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); }
     }
 
     function updateProgressUI() {
@@ -591,13 +657,18 @@
 
     async function processScanLocal(msg) {
       if (isProc || Date.now() - lastScan < 800) return; 
-      isProc = true; 
-      lastScan = Date.now();
+      isProc = true; lastScan = Date.now();
       
-      const cleanMsg = msg.trim().split('\n')[0];
+      // 自動過濾網址標籤，取出 ID
+      let cleanMsg = msg;
+      if(msg.includes('?id=')) {
+         cleanMsg = new URL(msg).searchParams.get('id');
+      } else {
+         cleanMsg = msg.trim().split('\n')[0];
+      }
+      
       const item = localItemCache[cleanMsg];
       const overlay = document.getElementById('resultOverlay');
-      
       overlay.style.display = 'block';
 
       if (!item) {
@@ -614,10 +685,7 @@
         document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點";
       } else {
         playSound('success');
-        item.isScanned = true; 
-        sysState.scanned++;
-        updateProgressUI();
-
+        item.isScanned = true; sysState.scanned++; updateProgressUI();
         overlay.style.borderColor = '#198754';
         document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>';
         document.getElementById('resName').innerText = item.name;
@@ -626,7 +694,6 @@
         syncQueue.push(cleanMsg);
         triggerBackgroundSync();
       }
-
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
@@ -637,23 +704,17 @@
 
       while (syncQueue.length > 0) {
         let currentMsg = syncQueue[0];
-        try {
-          await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations });
-        } catch(e) {
-          console.warn(`[背景同步警告] ${currentMsg} 同步失敗:`, e);
-        }
+        try { await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); } 
+        catch(e) { console.warn(`同步失敗:`, e); }
         syncQueue.shift(); 
       }
-      
       isSyncing = false;
       document.getElementById('syncStatus').style.display = 'none';
     }
 
     function pauseInventorySession() {
       if(!confirm("確定要暫停目前的盤點作業嗎？")) return;
-      if (scanner) {
-        scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e));
-      }
+      if (scanner) { scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(e => console.log(e)); }
       document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
     }
 
@@ -672,7 +733,6 @@
       document.getElementById('mvLoc').value = ""; d.value = ""; 
       document.getElementById('mvPhase2').style.display = 'none';
       document.getElementById('mvPhase3').style.display = 'none';
-      
       if(!eid) return;
       showMiniLoading('分析地點中...');
       try { 
@@ -748,18 +808,13 @@
       const selectedItems = Array.from(document.querySelectorAll('.mv-item-cb:checked')).map(cb => parseInt(cb.value));
       const newLoc = document.getElementById('mvNewLoc').value;
       const staffInt = document.getElementById('mvStaffInternal').value;
-      
       if(selectedItems.length === 0 || !newLoc || !staffInt) return alert('請確認皆已完整填寫！');
       
       showMiniLoading(`寫入 ${selectedItems.length} 件紀錄...`);
-      const payload = { rowIndices: selectedItems, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInt };
-      
       try {
-        await callAPI('submitMovement', payload); 
+        await callAPI('submitMovement', { rowIndices: selectedItems, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInt }); 
         alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
-        
-        document.getElementById('mvPhase3').style.display = 'none';
-        loadWorkerItems(); 
+        document.getElementById('mvPhase3').style.display = 'none'; loadWorkerItems(); 
       } catch(e) { alert("送出失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
