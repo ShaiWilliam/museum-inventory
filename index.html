@@ -143,8 +143,10 @@
     <nav class="navbar navbar-dark bg-dark mb-2 sticky-top">
       <div class="container-fluid d-flex justify-content-between align-items-center">
         <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="btnNavHome" onclick="backToHome()"><span>🏠</span> 首頁</button>
+        
         <span class="navbar-brand mb-0 h1 fs-6 text-truncate text-center flex-grow-1 px-2" id="sysTitle" onclick="onTitleClick()">系統載入中</span>
-        <a href="https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true" target="_blank" class="btn btn-sm btn-outline-info text-light d-flex align-items-center" style="border-color: #0dcaf0;">📖 <span class="d-none d-sm-inline ms-1">說明</span></a>
+        
+        <a href="https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true" target="_blank" id="btnNavHelp" class="btn btn-sm btn-outline-info text-light d-flex align-items-center" style="border-color: #0dcaf0;">📖 <span class="d-none d-sm-inline ms-1">說明</span></a>
       </div>
     </nav>
 
@@ -199,8 +201,7 @@
               <div id="query-reader"></div>
               <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
             </div>
-            
-            </div>
+          </div>
         </div>
 
         <div class="tab-pane fade" id="register">
@@ -448,13 +449,17 @@
       const urlParams = new URLSearchParams(window.location.search);
       const directQueryId = urlParams.get('id');
 
+      // 💡 訪客絕對隔離防線：徹底隱藏首頁與說明按鈕
       if(!isStaff) {
-          document.getElementById('btnNavHome').style.display = 'none';
+          let btnHome = document.getElementById('btnNavHome');
+          if(btnHome) { btnHome.classList.add('d-none'); btnHome.classList.remove('d-flex'); }
+          let btnHelp = document.getElementById('btnNavHelp');
+          if(btnHelp) { btnHelp.classList.add('d-none'); btnHelp.classList.remove('d-flex'); }
+          
           document.getElementById('queryHeaderTitle').innerText = "典藏庫房藏品資訊";
           document.getElementById('qResAdvancedArea').style.display = 'none'; 
           document.getElementById('queryInputGrp').style.display = 'none';
           document.getElementById('btnStartQueryCam').style.display = 'none';
-          // 💡 訪客提示已徹底移除
       }
 
       let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
