@@ -464,10 +464,16 @@
       }
     };
 
+    // 💡 容錯處理：防止 LocalStorage 被禁用導致白畫面
     function checkSavedSession() {
-      if(localStorage.getItem('invSession')) {
-        document.getElementById('continueInvBox').style.display = 'block';
-      } else {
+      try {
+        if(localStorage.getItem('invSession')) {
+          document.getElementById('continueInvBox').style.display = 'block';
+        } else {
+          document.getElementById('continueInvBox').style.display = 'none';
+        }
+      } catch(e) {
+        console.warn("LocalStorage disabled", e);
         document.getElementById('continueInvBox').style.display = 'none';
       }
     }
@@ -477,7 +483,13 @@
       document.getElementById('mainApp').style.display = 'block';
       document.body.style.overflowY = 'auto'; 
       
-      if(sysId === 'inv') checkSavedSession();
+      // 💡 強制重置介面，拒絕殭屍狀態
+      if(sysId === 'inv') {
+        document.getElementById('step2').style.display = 'none';
+        document.getElementById('step3').style.display = 'none';
+        document.getElementById('step1').style.display = 'block';
+        checkSavedSession();
+      }
       
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
       const titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
@@ -490,7 +502,9 @@
     async function stopScannerSafe(cam) {
       if (cam) {
         try {
-          if (cam.getState() === 2 || cam.getState() === 3) {
+          let state = cam.getState();
+          // 使用絕對常數 2(SCANNING) 與 3(PAUSED) 防呆
+          if (state === 2 || state === 3) {
             await cam.stop();
           }
         } catch(e) { console.warn("Camera stop error:", e); }
@@ -503,6 +517,9 @@
       if (document.getElementById('step2').style.display === 'block') {
         await stopScannerSafe(scanner);
         scanner = null;
+        // 💡 退回大廳時，一併強制重置盤點為 Step1
+        document.getElementById('step2').style.display = 'none';
+        document.getElementById('step1').style.display = 'block';
       }
       if (queryScanner) {
         await stopScannerSafe(queryScanner);
@@ -650,7 +667,10 @@
     function startQueryScanner() {
       document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block';
       if (!queryScanner) queryScanner = new Html5Qrcode("query-reader");
-      queryScanner.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg));
+      // 💡 相機常數防呆
+      if (queryScanner.getState() !== 2) {
+        queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg));
+      }
     }
     
     async function stopQueryScanner() {
@@ -827,19 +847,24 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
 
-      localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations}));
+      try {
+        localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations}));
+      } catch(e) { console.warn("LocalStorage error", e); }
+      
       await executeInventoryStart();
     }
 
     async function resumeInventorySession() {
-      const saved = JSON.parse(localStorage.getItem('invSession'));
-      if(!saved) return;
-      sysState.mode = saved.mode; sysState.locations = saved.locations;
+      try {
+        const saved = JSON.parse(localStorage.getItem('invSession'));
+        if(!saved) return;
+        sysState.mode = saved.mode; sysState.locations = saved.locations;
+      } catch(e) {}
       await executeInventoryStart();
     }
 
     function clearInventorySession() {
-      localStorage.removeItem('invSession');
+      try { localStorage.removeItem('invSession'); } catch(e) {}
       document.getElementById('continueInvBox').style.display = 'none';
     }
 
@@ -853,7 +878,12 @@
         hideMiniLoading();
 
         if (!scanner) scanner = new Html5Qrcode("reader");
-        if (scanner.getState() !== Html5QrcodeScannerState.SCANNING) { scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); }
+        
+        // 💡 絕對常數防呆 (2 = SCANNING)
+        if (scanner.getState() !== 2) { 
+          // 💡 降幀省電 (fps: 10)
+          scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); 
+        }
       } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); }
     }
 
@@ -883,7 +913,6 @@
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
-    // 💡 智能佇列清道夫：區分邏輯錯誤與網路中斷
     async function triggerBackgroundSync() {
       if (isSyncing || syncQueue.length === 0) return;
       isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
@@ -892,10 +921,9 @@
         let currentMsg = syncQueue[0];
         try { 
           await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
-          syncQueue.shift(); // 傳輸成功，踢除
+          syncQueue.shift(); 
         } catch(e) { 
           let errStr = e.message.toLowerCase();
-          // 若是網路或 fetch 失敗，保留佇列等下一次；否則為資料邏輯錯誤，強行踢除避免永久卡死
           if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) {
              console.warn(`網路異常，保留佇列稍後重試:`, e); 
              break; 
@@ -912,7 +940,9 @@
       showMiniLoading('正在安全關閉相機...');
       await stopScannerSafe(scanner);
       scanner = null;
+      // 💡 確保完全退回 step1
       document.getElementById('step2').style.display = 'none'; 
+      document.getElementById('step3').style.display = 'none'; 
       document.getElementById('step1').style.display = 'block';
       checkSavedSession(); 
       hideMiniLoading();
