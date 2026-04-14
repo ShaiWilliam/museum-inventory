@@ -28,7 +28,7 @@
     .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
     @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
 
-    .home-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding-bottom: 40px; }
+    .home-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding-bottom: 20px; }
     @media (min-width: 768px) { .home-grid { grid-template-columns: repeat(2, 1fr); } .home-grid .home-card:last-child { grid-column: 1 / -1; } }
 
     .home-card { background: white; border-radius: 15px; padding: 22px 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
@@ -74,7 +74,6 @@
     
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
 
-    /* 💡 Toast 飄浮提示樣式 */
     #toastBox { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(25, 135, 84, 0.95); color: white; padding: 10px 20px; border-radius: 30px; z-index: 10000; display: none; opacity: 0; transition: opacity 0.3s; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(5px); }
   </style>
 </head>
@@ -133,15 +132,19 @@
         <p class="text-muted small mb-0">異動審核、基準日設定與結案</p>
       </div>
     </div>
+
+    <div class="alert alert-info text-center shadow-sm mx-auto mt-4 mb-4" style="max-width: 800px; cursor: pointer; border: 1px solid #b6effb;" onclick="window.open('https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true', '_blank')">
+      <h6 class="fw-bold mb-1 text-dark">📖 不知道怎麼操作嗎？</h6>
+      <span class="small text-dark">點擊此處查看《系統操作手冊》</span>
+    </div>
   </div>
 
   <div id="mainApp">
     <nav class="navbar navbar-dark bg-dark mb-2 sticky-top">
-      <div class="container-fluid">
-        <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="btnNavHome" onclick="backToHome()">
-          <span>🏠</span> 首頁
-        </button>
-        <span class="navbar-brand mb-0 h1 fs-6" id="sysTitle" onclick="onTitleClick()">典藏庫房管理系統</span>
+      <div class="container-fluid d-flex justify-content-between align-items-center">
+        <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="btnNavHome" onclick="backToHome()"><span>🏠</span> 首頁</button>
+        <span class="navbar-brand mb-0 h1 fs-6 text-truncate text-center flex-grow-1 px-2" id="sysTitle" onclick="onTitleClick()">系統載入中</span>
+        <a href="https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true" target="_blank" class="btn btn-sm btn-outline-info text-light d-flex align-items-center" style="border-color: #0dcaf0;">📖 <span class="d-none d-sm-inline ms-1">說明</span></a>
       </div>
     </nav>
 
@@ -157,7 +160,9 @@
       <div class="tab-content mt-3">
         <div class="tab-pane fade" id="query">
           <div class="step-card active">
-            <h5 class="fw-bold text-warning mb-3" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fw-bold text-warning mb-0" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
+            </div>
             
             <div class="input-group mb-3 shadow-sm" id="queryInputGrp">
               <input type="text" id="queryManualInput" class="form-control border-warning" placeholder="手動輸入藏品編號 (選填)">
@@ -193,6 +198,10 @@
             <div id="query-reader-container" style="display:none;">
               <div id="query-reader"></div>
               <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
+            </div>
+            
+            <div id="guestHint" class="text-center mt-4" style="display:none;">
+                <small class="text-muted">員工欲操作進階功能，請參閱說明書指示解鎖</small>
             </div>
           </div>
         </div>
@@ -448,9 +457,10 @@
       if(!isStaff) {
           document.getElementById('btnNavHome').style.display = 'none';
           document.getElementById('queryHeaderTitle').innerText = "典藏庫房藏品資訊";
-          document.getElementById('qResAdvancedArea').style.display = 'none'; // 隱藏機密資訊
+          document.getElementById('qResAdvancedArea').style.display = 'none'; 
           document.getElementById('queryInputGrp').style.display = 'none';
           document.getElementById('btnStartQueryCam').style.display = 'none';
+          document.getElementById('guestHint').style.display = 'block';
       }
 
       let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
@@ -489,10 +499,9 @@
           document.body.style.backgroundColor = '#f1f3f5';
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
-            // 如果是掃描進來，強制進入 query 模組
             if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } 
             else if (isStaff) { document.getElementById('homeMenu').style.display = 'block'; }
-            else { enterSystem('query'); } // 訪客沒掃 ID，卡在查詢空白頁
+            else { enterSystem('query'); } 
           }, 500);
         }, 500);
       } catch (err) { 
@@ -523,7 +532,6 @@
 
     // 💡 心跳偵測與背景同步器
     setInterval(async () => {
-        // 若在盤點或異動模組，發送心跳
         if(document.getElementById('step2').style.display === 'block' || document.getElementById('step1').style.display === 'block' || document.getElementById('mvPhase1').offsetParent !== null) {
             try {
                 let res = await callAPI('heartbeat', {user: myUserId});
@@ -532,7 +540,6 @@
             } catch(e){}
         }
         
-        // 若正在掃描盤點，背景默默向雲端要最新的總進度
         if(document.getElementById('step2').style.display === 'block') {
             try {
                 let res = await callAPI('startInventory', sysState);
@@ -543,20 +550,18 @@
                 }
             } catch(e){}
         }
-    }, 60000); // 每一分鐘發送一次
+    }, 60000);
 
-    // 💡 網頁切換/縮小保護
+    // 💡 網頁切換保護
     document.addEventListener("visibilitychange", async () => {
         if (document.hidden) {
             if (scanner && document.getElementById('step2').style.display === 'block') {
-                console.log("網頁縮小，背景強關盤點相機");
                 await stopScannerSafe(scanner); scanner = null;
                 document.getElementById('step2').style.display = 'none'; 
                 document.getElementById('step1').style.display = 'block';
                 checkSavedSession(); 
             }
             if (queryScanner) {
-                console.log("網頁縮小，背景強關查詢相機");
                 await stopScannerSafe(queryScanner); queryScanner = null;
                 document.getElementById('query-reader-container').style.display = 'none'; 
                 document.getElementById('btnStartQueryCam').style.display = 'block';
@@ -568,7 +573,6 @@
       try {
         if(localStorage.getItem('invSession')) {
           document.getElementById('continueInvBox').style.display = 'block';
-          // 💡 防呆隱藏設定區
           document.getElementById('invSettingsArea').style.display = 'none';
         } else {
           document.getElementById('continueInvBox').style.display = 'none';
@@ -606,7 +610,7 @@
     }
 
     async function backToHome() {
-      if(!isStaff) return; // 訪客不能回首頁
+      if(!isStaff) return;
       showMiniLoading('正在安全關閉模組...');
       if (document.getElementById('step2').style.display === 'block') {
         await stopScannerSafe(scanner); scanner = null;
@@ -756,7 +760,6 @@
       document.getElementById('query-reader-container').style.display = 'block';
       if (!queryScanner) queryScanner = new Html5Qrcode("query-reader");
       if (queryScanner.getState() !== 2) {
-        // 💡 降幀省電
         queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg));
       }
     }
