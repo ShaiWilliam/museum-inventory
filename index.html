@@ -200,10 +200,7 @@
               <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
             </div>
             
-            <div id="guestHint" class="text-center mt-4" style="display:none;">
-                <small class="text-muted">員工欲操作進階功能，請參閱說明書指示解鎖</small>
             </div>
-          </div>
         </div>
 
         <div class="tab-pane fade" id="register">
@@ -418,7 +415,6 @@
     let printCartMap = new Map(); 
     let globalCatalog = {}; 
     
-    // 💡 權限與連線狀態變數
     let isStaff = localStorage.getItem('staffToken') === 'true';
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
     localStorage.setItem('myUid', myUserId);
@@ -431,7 +427,6 @@
     function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
     function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
     
-    // 💡 Toast 飄浮提示
     function showToast(msg) {
         const tb = document.getElementById('toastBox');
         tb.innerText = msg; tb.style.display = 'block'; 
@@ -453,14 +448,13 @@
       const urlParams = new URLSearchParams(window.location.search);
       const directQueryId = urlParams.get('id');
 
-      // 💡 訪客隔離：沒有員工 Token 就隱藏首頁按鈕
       if(!isStaff) {
           document.getElementById('btnNavHome').style.display = 'none';
           document.getElementById('queryHeaderTitle').innerText = "典藏庫房藏品資訊";
           document.getElementById('qResAdvancedArea').style.display = 'none'; 
           document.getElementById('queryInputGrp').style.display = 'none';
           document.getElementById('btnStartQueryCam').style.display = 'none';
-          document.getElementById('guestHint').style.display = 'block';
+          // 💡 訪客提示已徹底移除
       }
 
       let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
@@ -510,7 +504,6 @@
       }
     };
 
-    // 💡 員工 5 連點解鎖彩蛋
     function onTitleClick() {
         titleClickCount++;
         clearTimeout(titleClickTimer);
@@ -530,7 +523,6 @@
         }
     }
 
-    // 💡 心跳偵測與背景同步器
     setInterval(async () => {
         if(document.getElementById('step2').style.display === 'block' || document.getElementById('step1').style.display === 'block' || document.getElementById('mvPhase1').offsetParent !== null) {
             try {
@@ -552,7 +544,6 @@
         }
     }, 60000);
 
-    // 💡 網頁切換保護
     document.addEventListener("visibilitychange", async () => {
         if (document.hidden) {
             if (scanner && document.getElementById('step2').style.display === 'block') {
@@ -599,7 +590,6 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
-    // 💡 硬核相機關閉鎖
     async function stopScannerSafe(cam) {
       if (cam) {
         try {
@@ -641,7 +631,6 @@
         document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); 
     }
 
-    // ==================== 樹狀結構 ====================
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
@@ -706,7 +695,6 @@
       });
     }
 
-    // ==================== 0. 藏品狀態查詢 (一鍵下一件版) ====================
     function triggerManualQuery() {
       const val = document.getElementById('queryManualInput').value;
       if(!val) return alert("請輸入編號"); execQuery(val);
@@ -715,7 +703,6 @@
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       
-      // 💡 掃描成功瞬間，秒殺相機，淨空背景
       if(queryScanner) {
         await stopScannerSafe(queryScanner); queryScanner = null;
         document.getElementById('query-reader-container').style.display = 'none';
@@ -772,7 +759,6 @@
       hideMiniLoading();
     }
 
-    // ==================== 1. 建檔與列印中心 ====================
     function triggerRegLoc() { 
       currentModalTarget='regLoc'; document.getElementById('locModalTitle').innerText = "選擇「初始存放地點」";
       document.getElementById('modalLocSearch').value = ''; filterModalTree(); 
@@ -898,8 +884,6 @@
       const printWindow = window.open('', '_blank'); printWindow.document.write(printHtml); printWindow.document.close();
     }
 
-
-    // ==================== 2. 盤點 API ====================
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
@@ -966,7 +950,6 @@
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
-    // 💡 智能佇列清道夫
     async function triggerBackgroundSync() {
       if (isSyncing || syncQueue.length === 0) return;
       isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
@@ -979,7 +962,7 @@
         } catch(e) { 
           let errStr = e.message.toLowerCase();
           if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) { break; } 
-          else { syncQueue.shift(); } // 邏輯異常，捨棄以免卡死
+          else { syncQueue.shift(); } 
         }
       }
       isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
@@ -1014,7 +997,6 @@
       o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => { o.stop(); }, 150); 
     }
 
-    // ==================== 3. 搬運 API ====================
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; const d = document.getElementById('mvLocDisplay');
       document.getElementById('mvLoc').value = ""; d.value = ""; document.getElementById('mvPhase2').style.display = 'none'; document.getElementById('mvPhase3').style.display = 'none';
@@ -1069,7 +1051,6 @@
       } catch(e) { alert("送出失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // ==================== 4. 管理後台 ====================
     async function loginManager() {
       const pwd = document.getElementById('mgrPwd').value;
       if(!pwd) return alert("請輸入密碼！");
