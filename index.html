@@ -73,9 +73,14 @@
     .print-item:last-child { border-bottom: none; }
     
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
+
+    /* 💡 Toast 飄浮提示樣式 */
+    #toastBox { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(25, 135, 84, 0.95); color: white; padding: 10px 20px; border-radius: 30px; z-index: 10000; display: none; opacity: 0; transition: opacity 0.3s; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(5px); }
   </style>
 </head>
 <body>
+
+  <div id="toastBox">✅ 最新進度已同步</div>
 
   <div id="splashScreen">
     <div class="loading-logo">📦</div>
@@ -133,10 +138,10 @@
   <div id="mainApp">
     <nav class="navbar navbar-dark bg-dark mb-2 sticky-top">
       <div class="container-fluid">
-        <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" onclick="backToHome()">
+        <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="btnNavHome" onclick="backToHome()">
           <span>🏠</span> 首頁
         </button>
-        <span class="navbar-brand mb-0 h1 fs-6" id="sysTitle">系統載入中</span>
+        <span class="navbar-brand mb-0 h1 fs-6" id="sysTitle" onclick="onTitleClick()">典藏庫房管理系統</span>
       </div>
     </nav>
 
@@ -152,9 +157,9 @@
       <div class="tab-content mt-3">
         <div class="tab-pane fade" id="query">
           <div class="step-card active">
-            <h5 class="fw-bold text-warning mb-3" style="color: #d39e00 !important;">🔍 藏品即時定位與查核</h5>
+            <h5 class="fw-bold text-warning mb-3" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
             
-            <div class="input-group mb-3 shadow-sm">
+            <div class="input-group mb-3 shadow-sm" id="queryInputGrp">
               <input type="text" id="queryManualInput" class="form-control border-warning" placeholder="手動輸入藏品編號 (選填)">
               <button class="btn btn-warning fw-bold text-dark" type="button" onclick="triggerManualQuery()">查詢</button>
             </div>
@@ -170,23 +175,24 @@
                 <h6 class="text-muted small mb-1">藏品編號 (Primary ID)</h6>
                 <p class="fw-bold mb-3 fs-5 text-dark" id="qResId" style="font-family: monospace; letter-spacing: 1px;">--</p>
                 
-                <div class="mt-3 pt-3 border-top" style="border-color: #e0d9b4 !important;">
+                <div class="mt-3 pt-3 border-top" style="border-color: #e0d9b4 !important;" id="qResAdvancedArea">
                   <h6 class="text-muted small mb-1">財產編號 <span class="badge bg-secondary text-light ms-1">查核重點</span></h6>
                   <p class="fw-bold mb-3 text-secondary" id="qResPropNum">--</p>
-                  
                   <div class="row g-2 mb-2">
                     <div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div>
                     <div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div>
                   </div>
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
+
+                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
               </div>
             </div>
             
             <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動掃描器</button>
             <div id="query-reader-container" style="display:none;">
               <div id="query-reader"></div>
-              <button class="btn btn-danger w-100 mt-2 py-2 fw-bold" onclick="stopQueryScanner()">關閉相機</button>
+              <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
             </div>
           </div>
         </div>
@@ -196,7 +202,6 @@
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regFormSec">📝 新增登錄</button></li>
             <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regPrintTab" onclick="loadPrintList()">🖨️ 標籤列印</button></li>
           </ul>
-          
           <div class="tab-content">
             <div class="tab-pane fade show active" id="regFormSec">
               <div class="step-card active border-info border-top border-4">
@@ -222,10 +227,7 @@
                   <div class="col-12 col-md-6"><select id="printLocFilter" class="form-select border-secondary" onchange="filterPrintList()"><option value="">所有地點</option></select></div>
                 </div>
                 <div class="d-flex justify-content-between mb-2 flex-wrap gap-2">
-                  <div>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="togglePrintAll(true)">☑️ 全選目前結果</button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="togglePrintAll(false)">☐ 清除</button>
-                  </div>
+                  <div><button class="btn btn-sm btn-outline-secondary me-1" onclick="togglePrintAll(true)">☑️ 全選目前結果</button><button class="btn btn-sm btn-outline-secondary" onclick="togglePrintAll(false)">☐ 清除</button></div>
                   <button class="btn btn-sm btn-outline-primary fw-bold" onclick="selectTop10Print()">+ 選取最新 10 筆</button>
                 </div>
                 <div id="printListContainer" class="mb-4 p-2 shadow-sm"></div>
@@ -248,7 +250,10 @@
           <div id="step1" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0 fw-bold text-success">盤點設定</h5>
-              <button class="btn btn-sm btn-light border" onclick="refreshSystem('inv')">🔄 刷新資料</button>
+              <div>
+                <span class="badge bg-light text-dark border me-2" id="onlineUsersInv">👥 線上：1 人</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshSystem('inv')">🔄 刷新</button>
+              </div>
             </div>
             
             <div id="continueInvBox" style="display:none;" class="mb-4 p-3 bg-light border-warning border rounded shadow-sm">
@@ -257,11 +262,13 @@
               <button class="btn btn-outline-secondary w-100 btn-sm" onclick="clearInventorySession()">放棄進度，重新設定地點</button>
             </div>
 
-            <div class="alert alert-success py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入基準日中...</div>
-            <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
-            <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
-            <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm"><input type="search" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋地點..." onkeyup="filterInvTree()" onsearch="filterInvTree()"><div id="locCheckboxes">載入地點中...</div></div>
-            <button class="btn btn-success w-100 fw-bold fs-5 py-3 shadow" onclick="startInventorySession()">🚀 進入掃描畫面</button>
+            <div id="invSettingsArea">
+              <div class="alert alert-success py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入基準日中...</div>
+              <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
+              <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
+              <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm"><input type="search" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋地點..." onkeyup="filterInvTree()" onsearch="filterInvTree()"><div id="locCheckboxes">載入地點中...</div></div>
+              <button class="btn btn-success w-100 fw-bold fs-5 py-3 shadow" onclick="startInventorySession()">🚀 進入掃描畫面</button>
+            </div>
           </div>
 
           <div id="step2" class="step-card p-2">
@@ -309,7 +316,13 @@
 
         <div class="tab-pane fade" id="move">
           <div class="step-card active">
-            <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0 fw-bold text-primary">🚚 搬運人員填報</h5><button class="btn btn-sm btn-light border" onclick="refreshSystem('move')">🔄 刷新名單</button></div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0 fw-bold text-primary">🚚 搬運人員填報</h5>
+              <div>
+                 <span class="badge bg-light text-dark border me-1" id="onlineUsersMove">👥 線上：1 人</span>
+                 <button class="btn btn-sm btn-outline-secondary" onclick="refreshSystem('move')">🔄 刷新</button>
+              </div>
+            </div>
             <div id="mvPhase1">
               <div class="mb-3"><label class="form-label text-primary fw-bold">1. 選擇異動專案事件</label><select id="mvEvent" class="form-select border-primary" onchange="loadWorkerLocations()"><option value="">請選擇專案...</option></select></div>
               <div class="mb-3"><label class="form-label text-primary fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-primary" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
@@ -392,10 +405,15 @@
     let localItemCache = {}; 
     let syncQueue = [];      
     let isSyncing = false;   
-    
     let allPrintItems = []; 
     let printCartMap = new Map(); 
     let globalCatalog = {}; 
+    
+    // 💡 權限與連線狀態變數
+    let isStaff = localStorage.getItem('staffToken') === 'true';
+    let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
+    localStorage.setItem('myUid', myUserId);
+    let titleClickCount = 0, titleClickTimer;
 
     function setProgress(pct, text) { 
       document.getElementById('splashProgress').style.width = pct + '%'; 
@@ -403,6 +421,14 @@
     }
     function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
     function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
+    
+    // 💡 Toast 飄浮提示
+    function showToast(msg) {
+        const tb = document.getElementById('toastBox');
+        tb.innerText = msg; tb.style.display = 'block'; 
+        setTimeout(()=> tb.style.opacity = '1', 10);
+        setTimeout(() => { tb.style.opacity = '0'; setTimeout(()=> tb.style.display = 'none', 300); }, 2500);
+    }
 
     async function callAPI(action, payload = {}) {
       try {
@@ -417,6 +443,15 @@
     window.onload = async function() {
       const urlParams = new URLSearchParams(window.location.search);
       const directQueryId = urlParams.get('id');
+
+      // 💡 訪客隔離：沒有員工 Token 就隱藏首頁按鈕
+      if(!isStaff) {
+          document.getElementById('btnNavHome').style.display = 'none';
+          document.getElementById('queryHeaderTitle').innerText = "典藏庫房藏品資訊";
+          document.getElementById('qResAdvancedArea').style.display = 'none'; // 隱藏機密資訊
+          document.getElementById('queryInputGrp').style.display = 'none';
+          document.getElementById('btnStartQueryCam').style.display = 'none';
+      }
 
       let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
       const loadingMessages = ["正在建立安全連線...", "載入全庫房數位圖鑑...", "同步歷史異動紀錄...", "解析空間樹狀圖...", "準備系統資源中..."];
@@ -454,8 +489,10 @@
           document.body.style.backgroundColor = '#f1f3f5';
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
+            // 如果是掃描進來，強制進入 query 模組
             if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } 
-            else { document.getElementById('homeMenu').style.display = 'block'; }
+            else if (isStaff) { document.getElementById('homeMenu').style.display = 'block'; }
+            else { enterSystem('query'); } // 訪客沒掃 ID，卡在查詢空白頁
           }, 500);
         }, 500);
       } catch (err) { 
@@ -464,18 +501,80 @@
       }
     };
 
-    // 💡 容錯處理：防止 LocalStorage 被禁用導致白畫面
+    // 💡 員工 5 連點解鎖彩蛋
+    function onTitleClick() {
+        titleClickCount++;
+        clearTimeout(titleClickTimer);
+        titleClickTimer = setTimeout(() => titleClickCount = 0, 2000);
+        if(titleClickCount >= 5) {
+            titleClickCount = 0;
+            if(isStaff) return alert("您已具備永久員工權限！");
+            let pwd = prompt("請輸入員工授權密碼：");
+            if(pwd) {
+                showMiniLoading('驗證中...');
+                callAPI('verifyManager', {pwd: pwd}).then(res => {
+                    localStorage.setItem('staffToken', 'true');
+                    alert(`✅ 授權成功！歡迎員工：${res.managerName}\n手機已永久解鎖所有功能。`);
+                    location.reload();
+                }).catch(e => { hideMiniLoading(); alert("密碼錯誤，拒絕存取"); });
+            }
+        }
+    }
+
+    // 💡 心跳偵測與背景同步器
+    setInterval(async () => {
+        // 若在盤點或異動模組，發送心跳
+        if(document.getElementById('step2').style.display === 'block' || document.getElementById('step1').style.display === 'block' || document.getElementById('mvPhase1').offsetParent !== null) {
+            try {
+                let res = await callAPI('heartbeat', {user: myUserId});
+                document.getElementById('onlineUsersInv').innerText = `👥 線上：${res.count} 人`;
+                document.getElementById('onlineUsersMove').innerText = `👥 線上：${res.count} 人`;
+            } catch(e){}
+        }
+        
+        // 若正在掃描盤點，背景默默向雲端要最新的總進度
+        if(document.getElementById('step2').style.display === 'block') {
+            try {
+                let res = await callAPI('startInventory', sysState);
+                if(res.total !== sysState.total || res.scanned !== sysState.scanned) {
+                    sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; 
+                    updateProgressUI();
+                    showToast('✅ 最新盤點進度已同步');
+                }
+            } catch(e){}
+        }
+    }, 60000); // 每一分鐘發送一次
+
+    // 💡 網頁切換/縮小保護
+    document.addEventListener("visibilitychange", async () => {
+        if (document.hidden) {
+            if (scanner && document.getElementById('step2').style.display === 'block') {
+                console.log("網頁縮小，背景強關盤點相機");
+                await stopScannerSafe(scanner); scanner = null;
+                document.getElementById('step2').style.display = 'none'; 
+                document.getElementById('step1').style.display = 'block';
+                checkSavedSession(); 
+            }
+            if (queryScanner) {
+                console.log("網頁縮小，背景強關查詢相機");
+                await stopScannerSafe(queryScanner); queryScanner = null;
+                document.getElementById('query-reader-container').style.display = 'none'; 
+                document.getElementById('btnStartQueryCam').style.display = 'block';
+            }
+        }
+    });
+
     function checkSavedSession() {
       try {
         if(localStorage.getItem('invSession')) {
           document.getElementById('continueInvBox').style.display = 'block';
+          // 💡 防呆隱藏設定區
+          document.getElementById('invSettingsArea').style.display = 'none';
         } else {
           document.getElementById('continueInvBox').style.display = 'none';
+          document.getElementById('invSettingsArea').style.display = 'block';
         }
-      } catch(e) {
-        console.warn("LocalStorage disabled", e);
-        document.getElementById('continueInvBox').style.display = 'none';
-      }
+      } catch(e) { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
     }
 
     function enterSystem(sysId) {
@@ -483,7 +582,6 @@
       document.getElementById('mainApp').style.display = 'block';
       document.body.style.overflowY = 'auto'; 
       
-      // 💡 強制重置介面，拒絕殭屍狀態
       if(sysId === 'inv') {
         document.getElementById('step2').style.display = 'none';
         document.getElementById('step3').style.display = 'none';
@@ -492,40 +590,31 @@
       }
       
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
-      const titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' };
-      document.getElementById('sysTitle').innerText = titles[sysId];
+      document.getElementById('sysTitle').innerText = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' }[sysId];
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
-    // 💡 強制防護安全鎖：確保相機硬體徹底釋放
+    // 💡 硬核相機關閉鎖
     async function stopScannerSafe(cam) {
       if (cam) {
         try {
-          let state = cam.getState();
-          // 使用絕對常數 2(SCANNING) 與 3(PAUSED) 防呆
-          if (state === 2 || state === 3) {
-            await cam.stop();
-          }
-        } catch(e) { console.warn("Camera stop error:", e); }
+          if (cam.getState() === 2 || cam.getState() === 3) { await cam.stop(); }
+        } catch(e) {}
         try { cam.clear(); } catch(e) {}
       }
     }
 
     async function backToHome() {
+      if(!isStaff) return; // 訪客不能回首頁
       showMiniLoading('正在安全關閉模組...');
       if (document.getElementById('step2').style.display === 'block') {
-        await stopScannerSafe(scanner);
-        scanner = null;
-        // 💡 退回大廳時，一併強制重置盤點為 Step1
-        document.getElementById('step2').style.display = 'none';
-        document.getElementById('step1').style.display = 'block';
+        await stopScannerSafe(scanner); scanner = null;
+        document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block';
       }
       if (queryScanner) {
-        await stopScannerSafe(queryScanner);
-        queryScanner = null;
-        document.getElementById('query-reader-container').style.display = 'none'; 
-        document.getElementById('btnStartQueryCam').style.display = 'block';
+        await stopScannerSafe(queryScanner); queryScanner = null;
+        document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block';
       }
       
       window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; 
@@ -537,11 +626,7 @@
     async function refreshSystem(sysId) {
       showMiniLoading('正在向雲端索取最新資料...');
       try {
-        if(sysId === 'inv') { 
-          const res = await callAPI('getInventoryInitData'); 
-          globalCatalog = res.catalog || {}; 
-          renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); 
-        } 
+        if(sysId === 'inv') { const res = await callAPI('getInventoryInitData'); globalCatalog = res.catalog || {}; renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); } 
         else if (sysId === 'move') { const res = await callAPI('getWorkerInitData'); globalLocTree = res.locTree || []; populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); } 
         else if (sysId === 'mgr') { const res = await callAPI('getWorkerInitData'); populateSelect('mgrEvent', res.events || [], true); if(document.getElementById('mgrEvent').value) loadManagerData(); }
       } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
@@ -617,7 +702,7 @@
       });
     }
 
-    // ==================== 0. 藏品狀態查詢 ====================
+    // ==================== 0. 藏品狀態查詢 (一鍵下一件版) ====================
     function triggerManualQuery() {
       const val = document.getElementById('queryManualInput').value;
       if(!val) return alert("請輸入編號"); execQuery(val);
@@ -625,11 +710,11 @@
     
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
+      
+      // 💡 掃描成功瞬間，秒殺相機，淨空背景
       if(queryScanner) {
-        showMiniLoading('暫停相機中...');
-        await stopScannerSafe(queryScanner);
-        queryScanner = null;
-        hideMiniLoading();
+        await stopScannerSafe(queryScanner); queryScanner = null;
+        document.getElementById('query-reader-container').style.display = 'none';
       }
       
       const res = globalCatalog[cleanId];
@@ -641,7 +726,7 @@
           const freshRes = await callAPI('queryItem', { qrStr: cleanId });
           globalCatalog[cleanId] = freshRes; 
           renderQueryUI(freshRes);
-        } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
+        } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); }
       }
     }
     
@@ -661,22 +746,24 @@
           badge.className = "badge bg-danger position-absolute shadow-sm"; badge.innerHTML = `⚠️ ${res.lastScanStr}`;
       }
       
+      document.getElementById('btnStartQueryCam').style.display = 'none';
       document.getElementById('queryResultBox').style.display = 'block'; playSound('success');
     }
     
     function startQueryScanner() {
-      document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block';
+      document.getElementById('queryResultBox').style.display = 'none'; 
+      document.getElementById('btnStartQueryCam').style.display = 'none'; 
+      document.getElementById('query-reader-container').style.display = 'block';
       if (!queryScanner) queryScanner = new Html5Qrcode("query-reader");
-      // 💡 相機常數防呆
       if (queryScanner.getState() !== 2) {
+        // 💡 降幀省電
         queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg));
       }
     }
     
-    async function stopQueryScanner() {
+    async function stopQueryScannerAndReturn() {
       showMiniLoading('正在安全關閉相機...');
-      await stopScannerSafe(queryScanner);
-      queryScanner = null;
+      await stopScannerSafe(queryScanner); queryScanner = null;
       document.getElementById('query-reader-container').style.display = 'none'; 
       document.getElementById('btnStartQueryCam').style.display = 'block';
       hideMiniLoading();
@@ -699,10 +786,7 @@
         alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
         
         globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
-        if(allPrintItems.length > 0) {
-            allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc });
-            filterPrintList();
-        }
+        if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); }
         
         ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('regJiang').value = '不相關';
@@ -730,10 +814,7 @@
         <div class="print-item p-2 d-flex align-items-center">
           <input class="form-check-input me-2 cb-print" type="checkbox" value="${item.id}" data-name="${item.name}" data-loc="${item.loc}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)">
           <label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}">
-            <div class="fw-bold text-dark d-flex justify-content-between">
-              <span>${item.id}</span>
-              <span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span>
-            </div>
+            <div class="fw-bold text-dark d-flex justify-content-between"><span>${item.id}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span></div>
             <div class="small text-muted text-truncate" style="max-width: 250px;">${item.name}</div>
           </label>
         </div>
@@ -769,46 +850,22 @@
 
     function showPrintPreview() {
       if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！");
-      document.getElementById('printSelectSec').style.display = 'none';
-      document.getElementById('printPreviewSec').style.display = 'block';
-      
+      document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block';
       const container = document.getElementById('printPreviewContainer');
       let html = '';
       printCartMap.forEach((data, id) => {
-        html += `
-          <div class="print-item p-2 d-flex align-items-center justify-content-between">
-            <div class="d-flex flex-column" style="max-width: 80%;">
-              <span class="fw-bold text-dark text-break">${id}</span>
-              <span class="small text-muted text-truncate">${data.name}</span>
-              <span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${data.loc}</span>
-            </div>
-            <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${id}')">❌ 移除</button>
-          </div>
-        `;
+        html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${id}</span><span class="small text-muted text-truncate">${data.name}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${data.loc}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${id}')">❌ 移除</button></div>`;
       });
       container.innerHTML = html;
     }
 
-    function removeFromCart(id) {
-      printCartMap.delete(id);
-      showPrintPreview(); 
-      filterPrintList();  
-      if(printCartMap.size === 0) hidePrintPreview(); 
-    }
-
-    function hidePrintPreview() {
-      document.getElementById('printSelectSec').style.display = 'block';
-      document.getElementById('printPreviewSec').style.display = 'none';
-    }
+    function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
+    function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
 
     function generatePrintPage() {
       if(printCartMap.size === 0) return alert("請至少選擇一筆項目！");
       const groups = {};
-      printCartMap.forEach((data, id) => {
-        const loc = data.loc || '未分類地點';
-        if (!groups[loc]) groups[loc] = [];
-        groups[loc].push({ id: id, name: data.name });
-      });
+      printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
 
       let printHtml = `
         <html><head><title>實體標籤列印作業</title><style>
@@ -847,10 +904,7 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
 
-      try {
-        localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations}));
-      } catch(e) { console.warn("LocalStorage error", e); }
-      
+      try { localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations})); } catch(e) {}
       await executeInventoryStart();
     }
 
@@ -866,6 +920,7 @@
     function clearInventorySession() {
       try { localStorage.removeItem('invSession'); } catch(e) {}
       document.getElementById('continueInvBox').style.display = 'none';
+      document.getElementById('invSettingsArea').style.display = 'block';
     }
 
     async function executeInventoryStart() {
@@ -878,12 +933,7 @@
         hideMiniLoading();
 
         if (!scanner) scanner = new Html5Qrcode("reader");
-        
-        // 💡 絕對常數防呆 (2 = SCANNING)
-        if (scanner.getState() !== 2) { 
-          // 💡 降幀省電 (fps: 10)
-          scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); 
-        }
+        if (scanner.getState() !== 2) { scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); }
       } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); }
     }
 
@@ -913,6 +963,7 @@
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
+    // 💡 智能佇列清道夫
     async function triggerBackgroundSync() {
       if (isSyncing || syncQueue.length === 0) return;
       isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
@@ -924,13 +975,8 @@
           syncQueue.shift(); 
         } catch(e) { 
           let errStr = e.message.toLowerCase();
-          if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) {
-             console.warn(`網路異常，保留佇列稍後重試:`, e); 
-             break; 
-          } else {
-             console.warn(`邏輯異常，捨棄該筆資料以免卡死佇列:`, e); 
-             syncQueue.shift(); 
-          }
+          if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) { break; } 
+          else { syncQueue.shift(); } // 邏輯異常，捨棄以免卡死
         }
       }
       isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
@@ -938,12 +984,8 @@
 
     async function pauseAndSave() {
       showMiniLoading('正在安全關閉相機...');
-      await stopScannerSafe(scanner);
-      scanner = null;
-      // 💡 確保完全退回 step1
-      document.getElementById('step2').style.display = 'none'; 
-      document.getElementById('step3').style.display = 'none'; 
-      document.getElementById('step1').style.display = 'block';
+      await stopScannerSafe(scanner); scanner = null;
+      document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block';
       checkSavedSession(); 
       hideMiniLoading();
     }
@@ -951,10 +993,8 @@
     async function finishInventory() {
       if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return;
       showMiniLoading('正在安全關閉相機...');
-      await stopScannerSafe(scanner);
-      scanner = null;
-      document.getElementById('step2').style.display = 'none'; 
-      document.getElementById('step3').style.display = 'block';
+      await stopScannerSafe(scanner); scanner = null;
+      document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block';
       hideMiniLoading();
     }
 
