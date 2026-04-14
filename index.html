@@ -81,6 +81,21 @@
 
   <div id="toastBox">✅ 最新進度已同步</div>
 
+  <div class="offcanvas offcanvas-end shadow-lg" tabindex="-1" id="helpOffcanvas" style="background-color: #f8f9fa; border-left: none; width: 85vw; max-width: 400px;">
+    <div class="offcanvas-header border-bottom bg-white py-3">
+      <h5 class="offcanvas-title fw-bold text-info" id="helpOffcanvasLabel" style="color: #0dcaf0 !important;">📖 模組操作指南</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body px-4 py-4">
+      <div id="helpContent" style="white-space: pre-wrap; font-size: 1rem; color: #495057; line-height: 1.8;">
+        載入中...
+      </div>
+      <div class="mt-5 pt-4 border-top text-center">
+        <button class="btn btn-outline-secondary w-100 fw-bold" onclick="window.open('https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true', '_blank')">查看完整版操作手冊</button>
+      </div>
+    </div>
+  </div>
+
   <div id="splashScreen">
     <div class="loading-logo">📦</div>
     <h3 class="fw-bold">典藏庫房管理系統</h3>
@@ -135,7 +150,7 @@
 
     <div class="alert alert-info text-center shadow-sm mx-auto mt-4 mb-4" style="max-width: 800px; cursor: pointer; border: 1px solid #b6effb;" onclick="window.open('https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true', '_blank')">
       <h6 class="fw-bold mb-1 text-dark">📖 不知道怎麼操作嗎？</h6>
-      <span class="small text-dark">點擊此處查看《系統操作手冊》</span>
+      <span class="small text-dark">點擊此處查看《完整系統操作手冊》</span>
     </div>
   </div>
 
@@ -146,7 +161,7 @@
         
         <span class="navbar-brand mb-0 h1 fs-6 text-truncate text-center flex-grow-1 px-2" id="sysTitle" onclick="onTitleClick()">系統載入中</span>
         
-        <a href="https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true" target="_blank" id="btnNavHelp" class="btn btn-sm btn-outline-info text-light d-flex align-items-center" style="border-color: #0dcaf0;">📖 <span class="d-none d-sm-inline ms-1">說明</span></a>
+        <button id="btnNavHelp" class="btn btn-sm btn-outline-info text-light d-flex align-items-center" style="border-color: #0dcaf0;" onclick="openHelpDrawer()">📖 <span class="d-none d-sm-inline ms-1">說明</span></button>
       </div>
     </nav>
 
@@ -173,7 +188,6 @@
             
             <div id="queryResultBox" class="card shadow-sm border-0 mb-4" style="display:none; background-color: #fffdf5; position: relative; border-radius: 12px;">
               <span id="qResBadge" class="badge position-absolute shadow-sm" style="top: 15px; right: 15px; font-size: 0.9rem;"></span>
-              
               <div class="card-body pt-4">
                 <h6 class="text-muted small mb-1">目前存放地點</h6>
                 <h3 class="fw-bold text-dark mb-4" id="qResLoc">--</h3>
@@ -415,6 +429,7 @@
     let allPrintItems = []; 
     let printCartMap = new Map(); 
     let globalCatalog = {}; 
+    let globalManuals = {}; // 💡 儲存從後端抓下來的各模組說明書內容
     
     let isStaff = localStorage.getItem('staffToken') === 'true';
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
@@ -449,7 +464,6 @@
       const urlParams = new URLSearchParams(window.location.search);
       const directQueryId = urlParams.get('id');
 
-      // 💡 訪客絕對隔離防線：徹底隱藏首頁與說明按鈕
       if(!isStaff) {
           let btnHome = document.getElementById('btnNavHome');
           if(btnHome) { btnHome.classList.add('d-none'); btnHome.classList.remove('d-flex'); }
@@ -477,6 +491,7 @@
         setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
         
         globalCatalog = invData.catalog || {}; 
+        globalManuals = invData.manuals || {}; // 💡 接收從試算表抓下來的說明書資料
         
         baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
@@ -508,6 +523,23 @@
         document.getElementById('splashText').innerText = "載入失敗，請重新整理"; document.getElementById('splashText').classList.add('text-danger');
       }
     };
+
+    // 💡 原生抽屜說明書觸發器
+    function openHelpDrawer() {
+        let activeTab = document.querySelector('.nav-link.active');
+        if(!activeTab) return;
+        let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
+        
+        let content = globalManuals[moduleId];
+        if (!content) { content = "管理員尚未同步此模組的操作說明。\n\n請點擊下方按鈕查看完整版《系統操作手冊》。"; }
+        
+        let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
+        document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
+        document.getElementById('helpContent').innerText = content;
+        
+        var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas'));
+        bsOffcanvas.show();
+    }
 
     function onTitleClick() {
         titleClickCount++;
