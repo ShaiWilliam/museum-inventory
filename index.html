@@ -24,7 +24,6 @@
     
     #homeMenu { padding: max(60px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     
-    /* 跑馬燈起點綁定螢幕寬緣，告別等待 */
     .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
     .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
     @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
@@ -73,7 +72,6 @@
     .print-item { border-bottom: 1px solid #e9ecef; }
     .print-item:last-child { border-bottom: none; }
     
-    /* iOS 安全防撞設計：針對 Modal 內部推移，避開動態島 */
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
   </style>
 </head>
@@ -466,7 +464,6 @@
       }
     };
 
-    // 檢查是否有未完成的盤點
     function checkSavedSession() {
       if(localStorage.getItem('invSession')) {
         document.getElementById('continueInvBox').style.display = 'block';
@@ -489,28 +486,35 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
-    // 💡 相機安全關閉邏輯
+    // 💡 強制防護安全鎖：確保相機硬體徹底釋放
     async function stopScannerSafe(cam) {
-      if (cam && cam.getState() === Html5QrcodeScannerState.SCANNING) {
-        try { await cam.stop(); } catch(e) { console.warn("Camera stop error:", e); }
+      if (cam) {
+        try {
+          if (cam.getState() === 2 || cam.getState() === 3) {
+            await cam.stop();
+          }
+        } catch(e) { console.warn("Camera stop error:", e); }
+        try { cam.clear(); } catch(e) {}
       }
-      if (cam) cam.clear();
     }
 
     async function backToHome() {
-      // 若盤點中，必須暫停並安全關閉相機
-      if (document.getElementById('step2').style.display === 'block') { await pauseAndSave(); }
-      // 若查詢中，安全關閉相機
+      showMiniLoading('正在安全關閉模組...');
+      if (document.getElementById('step2').style.display === 'block') {
+        await stopScannerSafe(scanner);
+        scanner = null;
+      }
       if (queryScanner) {
         await stopScannerSafe(queryScanner);
         queryScanner = null;
-        document.getElementById('query-reader-container').style.display = 'none';
+        document.getElementById('query-reader-container').style.display = 'none'; 
         document.getElementById('btnStartQueryCam').style.display = 'block';
       }
       
       window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; 
       document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block';
       window.history.replaceState({}, document.title, window.location.pathname);
+      hideMiniLoading();
     }
     
     async function refreshSystem(sysId) {
@@ -605,8 +609,10 @@
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) {
+        showMiniLoading('暫停相機中...');
         await stopScannerSafe(queryScanner);
         queryScanner = null;
+        hideMiniLoading();
       }
       
       const res = globalCatalog[cleanId];
@@ -648,9 +654,12 @@
     }
     
     async function stopQueryScanner() {
+      showMiniLoading('正在安全關閉相機...');
       await stopScannerSafe(queryScanner);
       queryScanner = null;
-      document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block';
+      document.getElementById('query-reader-container').style.display = 'none'; 
+      document.getElementById('btnStartQueryCam').style.display = 'block';
+      hideMiniLoading();
     }
 
     // ==================== 1. 建檔與列印中心 ====================
@@ -669,10 +678,7 @@
         await callAPI('registerItem', p);
         alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
         
-        // 💡 將新資料同步寫入全域圖鑑，實現 0 延遲查詢
         globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
-        
-        // 💡 即時將新資料推入列印清單頂端 (若清單已載入)
         if(allPrintItems.length > 0) {
             allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc });
             filterPrintList();
@@ -821,7 +827,6 @@
       sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
       if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
 
-      // 💡 將盤點設定寫入本機記憶體
       localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations}));
       await executeInventoryStart();
     }
@@ -878,43 +883,53 @@
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
+    // 💡 智能佇列清道夫：區分邏輯錯誤與網路中斷
     async function triggerBackgroundSync() {
       if (isSyncing || syncQueue.length === 0) return;
       isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
+      
       while (syncQueue.length > 0) {
         let currentMsg = syncQueue[0];
         try { 
           await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
-          // 💡 防掉包機制：只有確認 API 成功，才把該筆資料移出隊列
-          syncQueue.shift(); 
+          syncQueue.shift(); // 傳輸成功，踢除
         } catch(e) { 
-          console.warn(`同步失敗，將保留於隊列中稍後重試:`, e); 
-          break; // 若網路中斷，跳出迴圈保留隊列
+          let errStr = e.message.toLowerCase();
+          // 若是網路或 fetch 失敗，保留佇列等下一次；否則為資料邏輯錯誤，強行踢除避免永久卡死
+          if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) {
+             console.warn(`網路異常，保留佇列稍後重試:`, e); 
+             break; 
+          } else {
+             console.warn(`邏輯異常，捨棄該筆資料以免卡死佇列:`, e); 
+             syncQueue.shift(); 
+          }
         }
       }
       isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
     }
 
-    // 💡 暫停邏輯與相機安全關閉
     async function pauseAndSave() {
+      showMiniLoading('正在安全關閉相機...');
       await stopScannerSafe(scanner);
       scanner = null;
       document.getElementById('step2').style.display = 'none'; 
       document.getElementById('step1').style.display = 'block';
-      checkSavedSession(); // 確保重新回到 step1 時，會顯示繼續按鈕
+      checkSavedSession(); 
+      hideMiniLoading();
     }
 
-    // 💡 結算邏輯與相機安全關閉
     async function finishInventory() {
       if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return;
+      showMiniLoading('正在安全關閉相機...');
       await stopScannerSafe(scanner);
       scanner = null;
       document.getElementById('step2').style.display = 'none'; 
       document.getElementById('step3').style.display = 'block';
+      hideMiniLoading();
     }
 
     function clearAndBackToHome() {
-      clearInventorySession(); // 結案匯出後，徹底清除本機記憶
+      clearInventorySession(); 
       document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block';
       backToHome();
     }
