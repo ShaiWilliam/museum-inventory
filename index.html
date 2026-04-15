@@ -11,18 +11,19 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    /* 💡 隱形美化滾動條 */
+    /* 💡 隱形美化滾動條，強制穿透 html 與 body */
+    html::-webkit-scrollbar, body::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.4); }
 
-    html, body { background-color: #212529; min-height: 100dvh; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; transition: background-color 0.5s ease; }
+    html, body { background-color: #212529; min-height: 100dvh; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; transition: background-color 0.5s ease; }
     
-    /* 💡 大門密碼鎖畫面 */
     #authScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; padding: 20px;}
     
     #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
@@ -143,7 +144,7 @@
       <div class="marquee-content" id="lobbyMarquee">
         <span class="mx-3">🟢 系統狀態：連線正常</span>
         <span class="mx-3" id="mqBaseline">📅 本期盤點基準日：載入中...</span>
-        <span class="mx-3">💡 提示：列印標籤請確保印表機比例設定為「預設 (100%)」</span>
+        <span class="mx-3">💡 提示：列印標籤請使用 Chrome 瀏覽器並設定比例為 100%</span>
         <span class="mx-3">✨ 歡迎使用典藏庫房管理系統</span>
       </div>
     </div>
@@ -206,36 +207,24 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="fw-bold text-warning mb-0" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
             </div>
-            
             <div class="input-group mb-3 shadow-sm" id="queryInputGrp">
               <input type="text" id="queryManualInput" class="form-control border-warning" placeholder="手動輸入藏品編號 (選填)">
               <button class="btn btn-warning fw-bold text-dark" type="button" onclick="triggerManualQuery()">查詢</button>
             </div>
-            
             <div id="queryResultBox" class="card shadow-sm border-0 mb-4" style="display:none; background-color: #fffdf5; position: relative; border-radius: 12px;">
               <span id="qResBadge" class="badge position-absolute shadow-sm" style="top: 15px; right: 15px; font-size: 0.9rem;"></span>
               <div class="card-body pt-4">
-                <h6 class="text-muted small mb-1">目前存放地點</h6>
-                <h3 class="fw-bold text-dark mb-4" id="qResLoc">--</h3>
-                <h6 class="text-muted small mb-1">藏品名稱</h6>
-                <p class="fw-bold mb-3 text-primary fs-5" id="qResName">--</p>
-                <h6 class="text-muted small mb-1">藏品編號 (Primary ID)</h6>
-                <p class="fw-bold mb-3 fs-5 text-dark" id="qResId" style="font-family: monospace; letter-spacing: 1px;">--</p>
-                
+                <h6 class="text-muted small mb-1">目前存放地點</h6><h3 class="fw-bold text-dark mb-4" id="qResLoc">--</h3>
+                <h6 class="text-muted small mb-1">藏品名稱</h6><p class="fw-bold mb-3 text-primary fs-5" id="qResName">--</p>
+                <h6 class="text-muted small mb-1">藏品編號 (Primary ID)</h6><p class="fw-bold mb-3 fs-5 text-dark" id="qResId" style="font-family: monospace; letter-spacing: 1px;">--</p>
                 <div class="mt-3 pt-3 border-top" style="border-color: #e0d9b4 !important;" id="qResAdvancedArea">
-                  <h6 class="text-muted small mb-1">財產編號 <span class="badge bg-secondary text-light ms-1">查核重點</span></h6>
-                  <p class="fw-bold mb-3 text-secondary" id="qResPropNum">--</p>
-                  <div class="row g-2 mb-2">
-                    <div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div>
-                    <div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div>
-                  </div>
+                  <h6 class="text-muted small mb-1">財產編號 <span class="badge bg-secondary text-light ms-1">查核重點</span></h6><p class="fw-bold mb-3 text-secondary" id="qResPropNum">--</p>
+                  <div class="row g-2 mb-2"><div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div><div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div></div>
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
-
                 <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
               </div>
             </div>
-            
             <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動掃描器</button>
             <div id="query-reader-container" style="display:none;">
               <div id="query-reader"></div>
@@ -256,10 +245,7 @@
                 <div class="mb-3"><label class="form-label fw-bold text-dark">藏品名稱 <span class="text-danger">*</span></label><input type="text" id="regName" class="form-control" placeholder="輸入名稱"></div>
                 <div class="mb-3"><label class="form-label fw-bold text-dark">初始存放地點 <span class="text-danger">*</span></label><input type="text" id="regLocDisplay" class="form-control fake-input-btn" readonly placeholder="點此開啟地點選單..." onclick="triggerRegLoc()"><input type="hidden" id="regLoc"></div>
                 <div class="mb-4"><label class="form-label fw-bold text-dark">財產編號</label><input type="text" id="regPropNum" class="form-control bg-light" placeholder="例如：財50_40..."></div>
-                <div class="row mb-3 g-2">
-                  <div class="col-6"><label class="form-label fw-bold text-dark">入藏等級</label><input type="text" id="regAccession" class="form-control" placeholder="例如：館藏"></div>
-                  <div class="col-6"><label class="form-label fw-bold text-dark">蔣元素</label><select id="regJiang" class="form-select"><option value="不相關">不相關</option><option value="相關">相關</option><option value="待確認">待確認</option></select></div>
-                </div>
+                <div class="row mb-3 g-2"><div class="col-6"><label class="form-label fw-bold text-dark">入藏等級</label><input type="text" id="regAccession" class="form-control" placeholder="例如：館藏"></div><div class="col-6"><label class="form-label fw-bold text-dark">蔣元素</label><select id="regJiang" class="form-select"><option value="不相關">不相關</option><option value="相關">相關</option><option value="待確認">待確認</option></select></div></div>
                 <div class="mb-4"><label class="form-label fw-bold text-dark">備註說明</label><textarea id="regDesc" class="form-control" rows="2" placeholder="選填"></textarea></div>
                 <div class="alert alert-info py-2 small">💡 提示：送出後，系統將自動於資料庫建檔，並立刻同步至查詢與列印模組中。</div>
                 <button class="btn btn-info w-100 fw-bold py-3 text-white fs-5 shadow-sm" onclick="submitRegistration()">✅ 確認登錄建檔</button>
@@ -287,7 +273,7 @@
                   <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="hidePrintPreview()">🔙 繼續選擇</button>
                 </div>
                 <div id="printPreviewContainer" class="mb-4 shadow-sm p-2" style="max-height: 45vh; overflow-y: auto; background: #fff; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow" onclick="generatePrintPage()">🖨️ 確認產生 A4 畫面</button>
+                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow" onclick="generatePrintPage()">🖨️ 確認產生本機高品質 QR Code</button>
               </div>
             </div>
           </div>
@@ -302,13 +288,11 @@
                 <button class="btn btn-sm btn-outline-secondary" onclick="refreshSystem('inv')">🔄 刷新</button>
               </div>
             </div>
-            
             <div id="continueInvBox" style="display:none;" class="mb-4 p-3 bg-light border-warning border rounded shadow-sm">
               <h6 class="text-dark fw-bold mb-2">⚠️ 發現未完成的盤點作業</h6>
               <button class="btn btn-warning w-100 fw-bold shadow-sm mb-2" onclick="resumeInventorySession()">▶️ 繼續上次掃描進度</button>
               <button class="btn btn-outline-secondary w-100 btn-sm" onclick="clearInventorySession()">放棄進度，重新設定地點</button>
             </div>
-
             <div id="invSettingsArea">
               <div class="alert alert-success py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入基準日中...</div>
               <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
@@ -474,28 +458,22 @@
     // ==========================================
 
     let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
-    let audioCtx;
-    let scanner = null, queryScanner = null;
-    let lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
+    let audioCtx, scanner = null, queryScanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
     let localItemCache = {}, syncQueue = [], isSyncing = false;   
     let allPrintItems = [], printCartMap = new Map(), globalCatalog = {}; 
     let globalManuals = {}; 
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
     localStorage.setItem('myUid', myUserId);
     
-    // 💡 工具函式
     function setProgress(pct, text) { document.getElementById('splashProgress').style.width = pct + '%'; if(text) document.getElementById('splashText').innerText = text; }
     function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
     function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
     function showToast(msg) { const tb = document.getElementById('toastBox'); tb.innerText = msg; tb.style.display = 'block'; setTimeout(()=> tb.style.opacity = '1', 10); setTimeout(() => { tb.style.opacity = '0'; setTimeout(()=> tb.style.display = 'none', 300); }, 2500); }
 
-    // 💡 智慧排版引擎
     function formatHelpText(raw) {
-        if (!raw) return "";
-        let lines = raw.split('\n'); let html = '';
+        if (!raw) return ""; let lines = raw.split('\n'); let html = '';
         lines.forEach(line => {
-            let text = line.trim();
-            if(!text) { html += '<div class="mb-2"></div>'; return; }
+            let text = line.trim(); if(!text) { html += '<div class="mb-2"></div>'; return; }
             text = text.replace(/([^：\n]{2,20}：)/g, '<strong class="text-primary">$1</strong>');
             if (/^(\d+\.|[•\-*])\s+/.test(text)) {
                 text = text.replace(/^(\d+\.|[•\-*])\s+(.*)$/, '<div class="d-flex mb-2"><span class="me-2 fw-bold text-secondary">$1</span><div>$2</div></div>');
@@ -515,83 +493,54 @@
       } catch (err) { throw new Error(err.message); }
     }
 
-    // ==========================================
-    // 💡 系統啟動與大門守衛機制 (Front-Door Auth)
-    // ==========================================
     window.onload = function() {
       const urlParams = new URLSearchParams(window.location.search);
       const directQueryId = urlParams.get('id');
 
       if(directQueryId) {
-          // 💡 掃描進入：訪客模式，繞過大門，直接進入極簡卡片
           document.getElementById('btnNavHome').classList.add('d-none'); document.getElementById('btnNavHome').classList.remove('d-flex');
           document.getElementById('btnNavHelp').classList.add('d-none'); document.getElementById('btnNavHelp').classList.remove('d-flex');
           document.getElementById('queryHeaderTitle').innerText = "典藏庫房藏品資訊";
-          document.getElementById('qResAdvancedArea').style.display = 'none'; 
-          document.getElementById('queryInputGrp').style.display = 'none';
-          document.getElementById('btnStartQueryCam').style.display = 'none';
-          document.getElementById('authScreen').style.display = 'none';
+          document.getElementById('qResAdvancedArea').style.display = 'none'; document.getElementById('queryInputGrp').style.display = 'none';
+          document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('authScreen').style.display = 'none';
           startAppLoading(directQueryId);
       } else {
-          // 💡 一般進入：檢查七日憑證
           let tokenExp = localStorage.getItem('tokenExpiry');
           if(tokenExp && parseInt(tokenExp) > Date.now()) {
-              // 憑證有效
-              document.getElementById('authScreen').style.display = 'none';
-              currentManager = localStorage.getItem('staffName') || "管理員";
-              startAppLoading(null);
+              document.getElementById('authScreen').style.display = 'none'; currentManager = localStorage.getItem('staffName') || "管理員"; startAppLoading(null);
           } else {
-              // 憑證無效或過期：擋在大門外
-              document.getElementById('splashScreen').style.display = 'none';
-              document.getElementById('authScreen').style.display = 'flex';
+              document.getElementById('splashScreen').style.display = 'none'; document.getElementById('authScreen').style.display = 'flex';
               localStorage.removeItem('staffToken'); localStorage.removeItem('staffName'); localStorage.removeItem('tokenExpiry');
           }
       }
     };
 
-    // 💡 大門密碼登入
     async function loginAtFrontDoor() {
-        const pwd = document.getElementById('frontDoorPwd').value;
-        if(!pwd) return alert("請輸入密碼！");
-        
+        const pwd = document.getElementById('frontDoorPwd').value; if(!pwd) return alert("請輸入密碼！");
         let btn = document.querySelector('#authScreen button'); btn.innerText = "驗證中..."; btn.disabled = true;
         try {
-            const res = await callAPI('verifyManager', { pwd: pwd });
-            currentManager = res.managerName;
-            // 寫入 7 天效期憑證 (7 * 24 * 60 * 60 * 1000)
-            localStorage.setItem('staffToken', 'true');
-            localStorage.setItem('staffName', currentManager);
-            localStorage.setItem('tokenExpiry', Date.now() + 604800000); 
-            
+            const res = await callAPI('verifyManager', { pwd: pwd }); currentManager = res.managerName;
+            localStorage.setItem('staffToken', 'true'); localStorage.setItem('staffName', currentManager); localStorage.setItem('tokenExpiry', Date.now() + 604800000); 
             document.getElementById('authScreen').style.opacity = '0';
-            setTimeout(() => { 
-                document.getElementById('authScreen').style.display = 'none'; 
-                document.getElementById('splashScreen').style.display = 'flex';
-                startAppLoading(null);
-            }, 500);
+            setTimeout(() => { document.getElementById('authScreen').style.display = 'none'; document.getElementById('splashScreen').style.display = 'flex'; startAppLoading(null); }, 500);
         } catch(e) { alert("密碼錯誤：" + e.message); btn.innerText = "進入系統"; btn.disabled = false; }
     }
 
     function logoutSystem() {
         if(!confirm("確定要登出系統嗎？")) return;
         localStorage.removeItem('staffToken'); localStorage.removeItem('staffName'); localStorage.removeItem('tokenExpiry');
-        location.href = window.location.pathname; // 重新載入清除參數
+        location.href = window.location.pathname;
     }
 
     function updateProfileBanner() {
-        let name = localStorage.getItem('staffName') || "管理員";
-        let exp = parseInt(localStorage.getItem('tokenExpiry')) || 0;
-        let daysLeft = Math.ceil((exp - Date.now()) / (1000 * 60 * 60 * 24));
-        document.getElementById('welcomeName').innerText = `👋 歡迎歸隊，${name}！`;
-        document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
+        let name = localStorage.getItem('staffName') || "管理員", exp = parseInt(localStorage.getItem('tokenExpiry')) || 0, daysLeft = Math.ceil((exp - Date.now()) / (1000 * 60 * 60 * 24));
+        document.getElementById('welcomeName').innerText = `👋 歡迎歸隊，${name}！`; document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
     }
 
-    // 💡 系統資料預載核心
     async function startAppLoading(directQueryId) {
       let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
       const loadingMessages = ["正在建立安全連線...", "載入全庫房數位圖鑑...", "同步歷史異動紀錄...", "解析空間樹狀圖...", "準備系統資源中..."];
-      let msgIndex = 0;
-      const loadingInterval = setInterval(() => { fakeProgress += (85 - fakeProgress) * 0.1; msgIndex = (msgIndex + 1) % loadingMessages.length; setProgress(fakeProgress, loadingMessages[msgIndex]); }, 1000); 
+      let msgIndex = 0; const loadingInterval = setInterval(() => { fakeProgress += (85 - fakeProgress) * 0.1; msgIndex = (msgIndex + 1) % loadingMessages.length; setProgress(fakeProgress, loadingMessages[msgIndex]); }, 1000); 
 
       try {
         const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
@@ -601,68 +550,36 @@
         baselineTime = invData.baselineTime || 0; let d = new Date(baselineTime); if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`; document.getElementById('mqBaseline').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         
-        globalLocTree = workData.locTree || []; // 取得全新地點架構
-        renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true);
-        renderLocationsTable(globalLocTree); // 渲染後台管理列表
-        
-        populateSelect('mvEvent', workData.events || [], true);
-        populateSelect('mgrEvent', workData.events || [], true);
-        populateSelect('mvStaffInternal', workData.staffInternal || []);
-        
+        globalLocTree = workData.locTree || []; renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); renderLocationsTable(globalLocTree); 
+        populateSelect('mvEvent', workData.events || [], true); populateSelect('mgrEvent', workData.events || [], true); populateSelect('mvStaffInternal', workData.staffInternal || []);
         setProgress(100, '🚀 系統啟動！');
         
         setTimeout(() => {
-          document.getElementById('splashScreen').style.opacity = '0';
-          document.body.style.backgroundColor = '#f1f3f5';
+          document.getElementById('splashScreen').style.opacity = '0'; document.body.style.backgroundColor = '#f1f3f5';
           setTimeout(() => {
             document.getElementById('splashScreen').style.display = 'none';
-            if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } 
-            else { 
-                updateProfileBanner();
-                document.getElementById('homeMenu').style.display = 'block'; 
-            }
+            if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } else { updateProfileBanner(); document.getElementById('homeMenu').style.display = 'block'; }
           }, 500);
         }, 500);
-      } catch (err) { 
-        clearInterval(loadingInterval); alert("⚠️ 系統載入異常！\n錯誤細節：" + err.message); 
-        document.getElementById('splashText').innerText = "載入失敗，請重新整理"; document.getElementById('splashText').classList.add('text-danger');
-      }
+      } catch (err) { clearInterval(loadingInterval); alert("⚠️ 系統載入異常！\n錯誤細節：" + err.message); document.getElementById('splashText').innerText = "載入失敗，請重新整理"; document.getElementById('splashText').classList.add('text-danger'); }
     }
 
-    // ==========================================
-    // 💡 原生抽屜說明書觸發器
-    // ==========================================
     function openHelpDrawer() {
-        let activeTab = document.querySelector('.nav-link.active');
-        if(!activeTab) return;
+        let activeTab = document.querySelector('.nav-link.active'); if(!activeTab) return;
         let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
-        
         let content = globalManuals[moduleId];
-        if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } 
-        else { document.getElementById('helpContent').innerHTML = formatHelpText(content); }
-        
+        if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } else { document.getElementById('helpContent').innerHTML = formatHelpText(content); }
         let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
         document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
         var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas')); bsOffcanvas.show();
     }
 
-    // 心跳偵測與背景同步
     setInterval(async () => {
         if(document.getElementById('step2').style.display === 'block' || document.getElementById('step1').style.display === 'block' || document.getElementById('mvPhase1').offsetParent !== null) {
-            try {
-                let res = await callAPI('heartbeat', {user: myUserId});
-                document.getElementById('onlineUsersInv').innerText = `👥 線上：${res.count} 人`;
-                document.getElementById('onlineUsersMove').innerText = `👥 線上：${res.count} 人`;
-            } catch(e){}
+            try { let res = await callAPI('heartbeat', {user: myUserId}); document.getElementById('onlineUsersInv').innerText = `👥 線上：${res.count} 人`; document.getElementById('onlineUsersMove').innerText = `👥 線上：${res.count} 人`; } catch(e){}
         }
         if(document.getElementById('step2').style.display === 'block') {
-            try {
-                let res = await callAPI('startInventory', sysState);
-                if(res.total !== sysState.total || res.scanned !== sysState.scanned) {
-                    sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; 
-                    updateProgressUI(); showToast('✅ 最新盤點進度已同步');
-                }
-            } catch(e){}
+            try { let res = await callAPI('startInventory', sysState); if(res.total !== sysState.total || res.scanned !== sysState.scanned) { sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI(); showToast('✅ 最新盤點進度已同步'); } } catch(e){}
         }
     }, 60000);
 
@@ -674,10 +591,7 @@
     });
 
     function checkSavedSession() {
-      try {
-        if(localStorage.getItem('invSession')) { document.getElementById('continueInvBox').style.display = 'block'; document.getElementById('invSettingsArea').style.display = 'none'; } 
-        else { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
-      } catch(e) { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
+      try { if(localStorage.getItem('invSession')) { document.getElementById('continueInvBox').style.display = 'block'; document.getElementById('invSettingsArea').style.display = 'none'; } else { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; } } catch(e) { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
     }
 
     function enterSystem(sysId) {
@@ -695,11 +609,7 @@
       showMiniLoading('正在安全關閉模組...');
       if (document.getElementById('step2').style.display === 'block') { await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; }
       if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; }
-      
-      window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; 
-      document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block';
-      window.history.replaceState({}, document.title, window.location.pathname);
-      hideMiniLoading();
+      window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block'; window.history.replaceState({}, document.title, window.location.pathname); hideMiniLoading();
     }
     
     async function refreshSystem(sysId) {
@@ -717,21 +627,14 @@
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
       treeData.forEach((mainNode, mIdx) => {
-        let totalLeaves = mainNode.subs.reduce((sum, subNode) => sum + subNode.details.length, 0);
-        let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
+        let totalLeaves = mainNode.subs.reduce((sum, subNode) => sum + subNode.details.length, 0); let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
         html += `<div class="accordion-item main-item"><h2 class="accordion-header"><button class="accordion-button collapsed d-flex justify-content-between py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}"><div><strong class="fs-5">${mainNode.main}</strong> ${badgeHtml}</div></button></h2><div id="${prefix}Col${mIdx}" class="accordion-collapse collapse"><div class="accordion-body p-2 bg-light">`;
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-          if (subNode.details.length === 1) {
-             let det = subNode.details[0]; let displayLabel = det.label === "(本區)" ? subNode.sub : det.label;
-             html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + 
-                     (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${displayLabel}</label>` : `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${det.val}')">📍 ${displayLabel}</button>`) + `</div></div>`;
-          } else {
+          if (subNode.details.length === 1) { let det = subNode.details[0]; let displayLabel = det.label === "(本區)" ? subNode.sub : det.label; html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${displayLabel}</label>` : `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${det.val}')">📍 ${displayLabel}</button>`) + `</div></div>`; } 
+          else {
              html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
-             subNode.details.forEach((det, dIdx) => {
-               let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white';
-               html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`;
-             });
+             subNode.details.forEach((det, dIdx) => { let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white'; html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`; });
              html += `</div></div></div>`;
           }
         });
@@ -750,12 +653,10 @@
       document.querySelectorAll(`#${container} .main-item`).forEach(main => {
         let mVis = false;
         main.querySelectorAll('.sub-group').forEach(sub => {
-          let sVis = false;
-          sub.querySelectorAll('.leaf-item').forEach(leaf => { const txt = leaf.innerText.toLowerCase(); if (txt.includes(term)) { leaf.style.display = ''; sVis = true; mVis = true; } else { leaf.style.display = 'none'; } });
+          let sVis = false; sub.querySelectorAll('.leaf-item').forEach(leaf => { const txt = leaf.innerText.toLowerCase(); if (txt.includes(term)) { leaf.style.display = ''; sVis = true; mVis = true; } else { leaf.style.display = 'none'; } });
           sub.style.display = sVis ? '' : 'none'; const coll = sub.querySelector('.collapse'); if(coll && term && sVis) coll.classList.add('show');
         });
-        const mColl = main.querySelector('.accordion-collapse'); if(mColl && term && mVis) mColl.classList.add('show');
-        main.style.display = mVis ? '' : 'none';
+        const mColl = main.querySelector('.accordion-collapse'); if(mColl && term && mVis) mColl.classList.add('show'); main.style.display = mVis ? '' : 'none';
       });
     }
 
@@ -790,8 +691,7 @@
 
     async function submitRegistration() {
       const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value };
-      if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！");
-      showMiniLoading('寫入資料庫建檔中...');
+      if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...');
       try {
         await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
         globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
@@ -801,8 +701,7 @@
     }
 
     async function loadPrintList() {
-      if(allPrintItems && allPrintItems.length > 0) return; 
-      showMiniLoading('取得資料庫清單...');
+      if(allPrintItems && allPrintItems.length > 0) return; showMiniLoading('取得資料庫清單...');
       try { allPrintItems = await callAPI('getPrintList'); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${l}">${l}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); } catch(e) { alert("無法取得清單: " + e.message); } finally { hideMiniLoading(); }
     }
 
@@ -830,8 +729,7 @@
 
     function showPrintPreview() {
       if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！");
-      document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block';
-      let html = '';
+      document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block'; let html = '';
       printCartMap.forEach((data, id) => { html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${id}</span><span class="small text-muted text-truncate">${data.name}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${data.loc}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${id}')">❌ 移除</button></div>`; });
       document.getElementById('printPreviewContainer').innerHTML = html;
     }
@@ -839,17 +737,31 @@
     function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
     function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
 
-    function generatePrintPage() {
+    // 💡 優化核心：完全本機的 QR Code 生成引擎，零延遲不破圖
+    async function generatePrintPage() {
       if(printCartMap.size === 0) return alert("請至少選擇一筆項目！");
+      
+      showMiniLoading("生成本機高品質 QR Code 中...");
       const groups = {};
       printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
 
-      let printHtml = `<html><head><title>實體標籤列印作業</title><style>body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:0;background:#fff}@page{margin:1cm;size:A4 portrait}.no-print{text-align:center;padding:15px;background:#ffc107;font-weight:bold;margin-bottom:20px;border-bottom:2px solid #000;font-size:11pt}.grid-container{display:flex;flex-wrap:wrap;align-content:flex-start;padding:0.5cm}.label-box{width:3.2cm;height:4.2cm;border:1px dashed #999;box-sizing:border-box;margin:-1px 0 0 -1px;padding:0.1cm;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden}.title-label{background-color:#f8f9fa;border:2px solid #198754;z-index:1}.qr-img{width:3cm;height:3cm;object-fit:contain}.id-text{font-size:8pt;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#000;line-height:1.1}.name-text{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#555;line-height:1.1}@media print{body{padding:0}.no-print{display:none !important}.grid-container{padding:0}.title-label{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="no-print">⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br><small style="font-weight:normal; margin-top:5px; display:block;">(請等待下方所有 QR Code 圖片載入完成後，再按 Ctrl+P 或 Cmd+P 進行列印)</small></div><div class="grid-container">`;
-      Object.keys(groups).sort().forEach(loc => {
+      let printHtml = `<html><head><title>實體標籤列印作業</title><style>body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:0;background:#fff}@page{margin:1cm;size:A4 portrait}.no-print{text-align:center;padding:15px;background:#ffc107;font-weight:bold;margin-bottom:20px;border-bottom:2px solid #000;font-size:11pt}.grid-container{display:flex;flex-wrap:wrap;align-content:flex-start;padding:0.5cm}.label-box{width:3.2cm;height:4.2cm;border:1px dashed #999;box-sizing:border-box;margin:-1px 0 0 -1px;padding:0.1cm;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden}.title-label{background-color:#f8f9fa;border:2px solid #198754;z-index:1}.qr-img{width:3cm;height:3cm;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges}.id-text{font-size:8pt;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#000;line-height:1.1}.name-text{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#555;line-height:1.1}@media print{body{padding:0}.no-print{display:none !important}.grid-container{padding:0}.title-label{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="no-print">⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br><small style="font-weight:normal; margin-top:5px; display:block;">(請直接按 Ctrl+P 或 Cmd+P 進行列印)</small></div><div class="grid-container">`;
+      
+      // 依序由本機算圖產生 Base64
+      for(let loc of Object.keys(groups).sort()) {
          printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
-         groups[loc].forEach(item => { const urlStr = encodeURIComponent(`https://shaiwilliam.github.io/museum-inventory/?id=${item.id}`); const imgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${urlStr}`; printHtml += `<div class="label-box"><img src="${imgSrc}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`; });
-      });
+         for(let item of groups[loc]) {
+           const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`;
+           try {
+             // 呼叫 qrcode.js 在記憶體中算圖
+             const base64Img = await QRCode.toDataURL(urlStr, { margin: 1, width: 150, errorCorrectionLevel: 'M' });
+             printHtml += `<div class="label-box"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
+           } catch(e) { console.error("QR Code Error: " + e); }
+         }
+      }
+      
       printHtml += `</div></body></html>`;
+      hideMiniLoading();
       const printWindow = window.open('', '_blank'); printWindow.document.write(printHtml); printWindow.document.close();
     }
 
@@ -925,9 +837,6 @@
       try { await callAPI('submitMovement', { rowIndices: selectedItems, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInt }); alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); document.getElementById('mvPhase3').style.display = 'none'; loadWorkerItems(); } catch(e) { alert("送出失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // ==========================================
-    // 💡 管理員後台 (包含全新前端地點管理 API)
-    // ==========================================
     async function updateBaseline() {
       const timeVal = document.getElementById('newBaseline').value; if(!timeVal) return alert('請選擇日期時間'); if(!confirm("確定要更新基準日嗎？")) return;
       showMiniLoading('更新中...'); try { await callAPI('updateBaseline', { timeString: timeVal }); alert('✅ 更新成功！'); location.reload(); } catch (e) { alert("更新失敗：" + e.message); hideMiniLoading(); }
@@ -944,45 +853,24 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
-    // 💡 空間架構管理 UI 渲染與互動
     function renderLocationsTable(tree) {
        let html = '';
-       tree.forEach(m => {
-         m.subs.forEach(s => {
-           s.details.forEach(d => {
-             html += `<tr><td>${m.main}</td><td>${s.sub}</td><td><b>${d.label}</b></td><td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button></td></tr>`;
-           });
-         });
-       });
+       tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { html += `<tr><td>${m.main}</td><td>${s.sub}</td><td><b>${d.label}</b></td><td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button></td></tr>`; }); }); });
        document.querySelector('#tableLocations tbody').innerHTML = html;
     }
 
     async function addNewLocation() {
-        const m = document.getElementById('locAddMain').value;
-        const s = document.getElementById('locAddSub').value;
-        const d = document.getElementById('locAddDetail').value;
+        const m = document.getElementById('locAddMain').value; const s = document.getElementById('locAddSub').value; const d = document.getElementById('locAddDetail').value;
         if(!d) return alert("「詳細地點」為必填欄位！");
-        
         showMiniLoading('寫入新地點中...');
-        try {
-            const newTree = await callAPI('addLocation', { main: m, sub: s, detail: d });
-            globalLocTree = newTree; // 更新全域樹狀圖
-            renderLocationsTable(globalLocTree);
-            document.getElementById('locAddMain').value = ''; document.getElementById('locAddSub').value = ''; document.getElementById('locAddDetail').value = '';
-            alert("✅ 新地點已建立！");
-        } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
+        try { const newTree = await callAPI('addLocation', { main: m, sub: s, detail: d }); globalLocTree = newTree; renderLocationsTable(globalLocTree); document.getElementById('locAddMain').value = ''; document.getElementById('locAddSub').value = ''; document.getElementById('locAddDetail').value = ''; alert("✅ 新地點已建立！"); } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
     async function deleteLoc(rowIndex) {
         if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return;
         showMiniLoading('刪除地點中...');
-        try {
-            const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex });
-            globalLocTree = newTree; // 更新全域樹狀圖
-            renderLocationsTable(globalLocTree);
-        } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); }
+        try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree; renderLocationsTable(globalLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); }
     }
-
   </script>
 </body>
 </html>
