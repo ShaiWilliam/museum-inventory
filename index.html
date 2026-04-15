@@ -87,11 +87,11 @@
       <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body px-4 py-4">
-      <div id="helpContent" style="white-space: pre-wrap; font-size: 1rem; color: #495057; line-height: 1.8;">
+      <div id="helpContent" style="font-size: 0.95rem; color: #495057; line-height: 1.8;">
         載入中...
       </div>
       <div class="mt-5 pt-4 border-top text-center">
-        <button class="btn btn-outline-secondary w-100 fw-bold" onclick="window.open('https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true', '_blank')">查看完整版操作手冊</button>
+        <button class="btn btn-outline-secondary w-100 fw-bold" onclick="window.open('https://docs.google.com/document/d/1i2kzCS8AnIXn5-t9DgtwdIN-0eiiO2qexdoeibJu52M/edit?usp=sharing', '_blank')">查看完整版操作手冊</button>
       </div>
     </div>
   </div>
@@ -148,7 +148,7 @@
       </div>
     </div>
 
-    <div class="alert alert-info text-center shadow-sm mx-auto mt-4 mb-4" style="max-width: 800px; cursor: pointer; border: 1px solid #b6effb;" onclick="window.open('https://docs.google.com/document/d/1e9QS1SmZBqXHwgT05va0d0DTwsgelZez/edit?usp=sharing&ouid=109751038029572955989&rtpof=true&sd=true', '_blank')">
+    <div class="alert alert-info text-center shadow-sm mx-auto mt-4 mb-4" style="max-width: 800px; cursor: pointer; border: 1px solid #b6effb;" onclick="window.open('https://docs.google.com/document/d/1i2kzCS8AnIXn5-t9DgtwdIN-0eiiO2qexdoeibJu52M/edit?usp=sharing', '_blank')">
       <h6 class="fw-bold mb-1 text-dark">📖 不知道怎麼操作嗎？</h6>
       <span class="small text-dark">點擊此處查看《完整系統操作手冊》</span>
     </div>
@@ -429,7 +429,7 @@
     let allPrintItems = []; 
     let printCartMap = new Map(); 
     let globalCatalog = {}; 
-    let globalManuals = {}; // 💡 儲存從後端抓下來的各模組說明書內容
+    let globalManuals = {}; 
     
     let isStaff = localStorage.getItem('staffToken') === 'true';
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
@@ -448,6 +448,29 @@
         tb.innerText = msg; tb.style.display = 'block'; 
         setTimeout(()=> tb.style.opacity = '1', 10);
         setTimeout(() => { tb.style.opacity = '0'; setTimeout(()=> tb.style.display = 'none', 300); }, 2500);
+    }
+
+    // 💡 前端智慧排版引擎：將純文字轉換為精美 HTML
+    function formatHelpText(raw) {
+        if (!raw) return "";
+        let lines = raw.split('\n');
+        let html = '';
+        lines.forEach(line => {
+            let text = line.trim();
+            if(!text) { html += '<div class="mb-2"></div>'; return; }
+            
+            // 將「：」結尾的重點詞彙標上藍色粗體
+            text = text.replace(/([^：\n]{2,20}：)/g, '<strong class="text-primary">$1</strong>');
+            
+            // 處理條列式與縮排 (1. 2. 3. 或 - 或 •)
+            if (/^(\d+\.|[•\-*])\s+/.test(text)) {
+                text = text.replace(/^(\d+\.|[•\-*])\s+(.*)$/, '<div class="d-flex mb-2"><span class="me-2 fw-bold text-secondary">$1</span><div>$2</div></div>');
+                html += text;
+            } else {
+                html += '<div class="mb-2">' + text + '</div>';
+            }
+        });
+        return html;
     }
 
     async function callAPI(action, payload = {}) {
@@ -491,7 +514,7 @@
         setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
         
         globalCatalog = invData.catalog || {}; 
-        globalManuals = invData.manuals || {}; // 💡 接收從試算表抓下來的說明書資料
+        globalManuals = invData.manuals || {}; 
         
         baselineTime = invData.baselineTime || 0;
         let d = new Date(baselineTime);
@@ -524,18 +547,21 @@
       }
     };
 
-    // 💡 原生抽屜說明書觸發器
     function openHelpDrawer() {
         let activeTab = document.querySelector('.nav-link.active');
         if(!activeTab) return;
         let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
         
         let content = globalManuals[moduleId];
-        if (!content) { content = "管理員尚未同步此模組的操作說明。\n\n請點擊下方按鈕查看完整版《系統操作手冊》。"; }
+        if (!content) { 
+            document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; 
+        } else {
+            // 💡 套用智慧排版引擎
+            document.getElementById('helpContent').innerHTML = formatHelpText(content);
+        }
         
         let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
         document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
-        document.getElementById('helpContent').innerText = content;
         
         var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas'));
         bsOffcanvas.show();
