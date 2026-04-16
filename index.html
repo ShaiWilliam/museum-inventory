@@ -11,11 +11,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    /* 💡 隱形美化滾動條，強制穿透 html 與 body */
     html::-webkit-scrollbar, body::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -207,10 +206,12 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="fw-bold text-warning mb-0" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
             </div>
+            
             <div class="input-group mb-3 shadow-sm" id="queryInputGrp">
               <input type="text" id="queryManualInput" class="form-control border-warning" placeholder="手動輸入藏品編號 (選填)">
               <button class="btn btn-warning fw-bold text-dark" type="button" onclick="triggerManualQuery()">查詢</button>
             </div>
+            
             <div id="queryResultBox" class="card shadow-sm border-0 mb-4" style="display:none; background-color: #fffdf5; position: relative; border-radius: 12px;">
               <span id="qResBadge" class="badge position-absolute shadow-sm" style="top: 15px; right: 15px; font-size: 0.9rem;"></span>
               <div class="card-body pt-4">
@@ -737,32 +738,46 @@
     function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
     function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
 
-    // 💡 優化核心：完全本機的 QR Code 生成引擎，零延遲不破圖
-    async function generatePrintPage() {
+    // 💡 終極修復：100% 同步極速算圖，完美閃過手機防護機制
+    function generatePrintPage() {
       if(printCartMap.size === 0) return alert("請至少選擇一筆項目！");
       
       showMiniLoading("生成本機高品質 QR Code 中...");
-      const groups = {};
-      printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
+      
+      // 使用 setTimeout 讓 Loading UI 能夠先渲染出來
+      setTimeout(() => {
+          try {
+              const groups = {};
+              printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
 
-      let printHtml = `<html><head><title>實體標籤列印作業</title><style>body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:0;background:#fff}@page{margin:1cm;size:A4 portrait}.no-print{text-align:center;padding:15px;background:#ffc107;font-weight:bold;margin-bottom:20px;border-bottom:2px solid #000;font-size:11pt}.grid-container{display:flex;flex-wrap:wrap;align-content:flex-start;padding:0.5cm}.label-box{width:3.2cm;height:4.2cm;border:1px dashed #999;box-sizing:border-box;margin:-1px 0 0 -1px;padding:0.1cm;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden}.title-label{background-color:#f8f9fa;border:2px solid #198754;z-index:1}.qr-img{width:3cm;height:3cm;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges}.id-text{font-size:8pt;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#000;line-height:1.1}.name-text{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#555;line-height:1.1}@media print{body{padding:0}.no-print{display:none !important}.grid-container{padding:0}.title-label{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="no-print">⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br><small style="font-weight:normal; margin-top:5px; display:block;">(請直接按 Ctrl+P 或 Cmd+P 進行列印)</small></div><div class="grid-container">`;
-      
-      // 依序由本機算圖產生 Base64
-      for(let loc of Object.keys(groups).sort()) {
-         printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
-         for(let item of groups[loc]) {
-           const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`;
-           try {
-             // 呼叫 qrcode.js 在記憶體中算圖
-             const base64Img = await QRCode.toDataURL(urlStr, { margin: 1, width: 150, errorCorrectionLevel: 'M' });
-             printHtml += `<div class="label-box"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
-           } catch(e) { console.error("QR Code Error: " + e); }
-         }
-      }
-      
-      printHtml += `</div></body></html>`;
-      hideMiniLoading();
-      const printWindow = window.open('', '_blank'); printWindow.document.write(printHtml); printWindow.document.close();
+              let printHtml = `<html><head><title>實體標籤列印作業</title><style>body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:0;background:#fff}@page{margin:1cm;size:A4 portrait}.no-print{text-align:center;padding:15px;background:#ffc107;font-weight:bold;margin-bottom:20px;border-bottom:2px solid #000;font-size:11pt}.grid-container{display:flex;flex-wrap:wrap;align-content:flex-start;padding:0.5cm}.label-box{width:3.2cm;height:4.2cm;border:1px dashed #999;box-sizing:border-box;margin:-1px 0 0 -1px;padding:0.1cm;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden}.title-label{background-color:#f8f9fa;border:2px solid #198754;z-index:1}.qr-img{width:3cm;height:3cm;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges}.id-text{font-size:8pt;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#000;line-height:1.1}.name-text{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#555;line-height:1.1}@media print{body{padding:0}.no-print{display:none !important}.grid-container{padding:0}.title-label{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="no-print">⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br><small style="font-weight:normal; margin-top:5px; display:block;">(請直接按 Ctrl+P 或 Cmd+P 進行列印)</small></div><div class="grid-container">`;
+              
+              // 💡 呼叫 QRious 同步極速算圖
+              for(let loc of Object.keys(groups).sort()) {
+                 printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
+                 for(let item of groups[loc]) {
+                   const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`;
+                   const qr = new QRious({ value: urlStr, size: 150, level: 'M' });
+                   const base64Img = qr.toDataURL('image/png');
+                   printHtml += `<div class="label-box"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
+                 }
+              }
+              
+              printHtml += `</div></body></html>`;
+              hideMiniLoading();
+              
+              const printWindow = window.open('', '_blank'); 
+              if (printWindow) {
+                  printWindow.document.write(printHtml); 
+                  printWindow.document.close();
+              } else {
+                  alert("⚠️ 預覽視窗被瀏覽器阻擋了！\n請在瀏覽器設定中「允許本網站顯示彈出式視窗」再試一次。");
+              }
+          } catch(e) {
+              hideMiniLoading();
+              alert("產生列印畫面時發生錯誤：" + e.message);
+          }
+      }, 50); // 微小延遲，確保 Loading UI 順利渲染
     }
 
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
