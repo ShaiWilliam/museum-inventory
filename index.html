@@ -15,6 +15,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
+    /* 💡 隱形美化滾動條 */
     html::-webkit-scrollbar, body::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -84,11 +85,49 @@
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
 
     #toastBox { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(25, 135, 84, 0.95); color: white; padding: 10px 20px; border-radius: 30px; z-index: 10000; display: none; opacity: 0; transition: opacity 0.3s; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(5px); }
+
+    /* ==========================================
+       💡 全新：原生列印預覽覆蓋層 (In-App Overlay) 樣式
+       ========================================== */
+    #printOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
+    #printOverlayTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    #printOverlayContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+    
+    /* 螢幕預覽時的 A4 紙張感 */
+    .preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
+    .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; }
+    .label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; }
+    .title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; }
+    .qr-img { width: 3cm; height: 3cm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
+    .name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
+
+    /* 💡 列印模式：完全隱藏系統，只秀出 A4 內容 */
+    @media print {
+        body * { visibility: hidden; }
+        #printOverlay, #printOverlay * { visibility: visible; }
+        #printOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
+        #printOverlayTopBar { display: none !important; }
+        #printOverlayContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
+        .preview-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
+        .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @page { margin: 1cm; size: A4 portrait; }
+    }
   </style>
 </head>
 <body>
 
   <div id="toastBox">✅ 最新進度已同步</div>
+
+  <div id="printOverlay">
+    <div id="printOverlayTopBar">
+      <button class="btn btn-outline-secondary fw-bold" onclick="closePrintOverlay()">🔙 返回系統</button>
+      <h6 class="mb-0 fw-bold text-dark d-none d-sm-block">實體標籤列印預覽</h6>
+      <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
+    </div>
+    <div id="printOverlayContent">
+      </div>
+  </div>
 
   <div id="authScreen">
     <div class="vault-card p-4 rounded-4 shadow-lg text-center" style="max-width: 400px; width: 100%;">
@@ -143,7 +182,7 @@
       <div class="marquee-content" id="lobbyMarquee">
         <span class="mx-3">🟢 系統狀態：連線正常</span>
         <span class="mx-3" id="mqBaseline">📅 本期盤點基準日：載入中...</span>
-        <span class="mx-3">💡 提示：列印標籤請使用 Chrome 瀏覽器並設定比例為 100%</span>
+        <span class="mx-3">💡 提示：列印標籤請確保印表機比例設定為「預設 (100%)」</span>
         <span class="mx-3">✨ 歡迎使用典藏庫房管理系統</span>
       </div>
     </div>
@@ -274,7 +313,7 @@
                   <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="hidePrintPreview()">🔙 繼續選擇</button>
                 </div>
                 <div id="printPreviewContainer" class="mb-4 shadow-sm p-2" style="max-height: 45vh; overflow-y: auto; background: #fff; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow" onclick="generatePrintPage()">🖨️ 確認產生本機高品質 QR Code</button>
+                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow" onclick="generatePrintPage()">🖨️ 產生列印排版</button>
               </div>
             </div>
           </div>
@@ -738,21 +777,19 @@
     function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
     function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
 
-    // 💡 終極修復：100% 同步極速算圖，完美閃過手機防護機制
+    // 💡 終極優化：原生列印預覽覆蓋層 (In-App Overlay) 生成邏輯
     function generatePrintPage() {
       if(printCartMap.size === 0) return alert("請至少選擇一筆項目！");
       
       showMiniLoading("生成本機高品質 QR Code 中...");
       
-      // 使用 setTimeout 讓 Loading UI 能夠先渲染出來
       setTimeout(() => {
           try {
               const groups = {};
               printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
 
-              let printHtml = `<html><head><title>實體標籤列印作業</title><style>body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:0;background:#fff}@page{margin:1cm;size:A4 portrait}.no-print{text-align:center;padding:15px;background:#ffc107;font-weight:bold;margin-bottom:20px;border-bottom:2px solid #000;font-size:11pt}.grid-container{display:flex;flex-wrap:wrap;align-content:flex-start;padding:0.5cm}.label-box{width:3.2cm;height:4.2cm;border:1px dashed #999;box-sizing:border-box;margin:-1px 0 0 -1px;padding:0.1cm;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden}.title-label{background-color:#f8f9fa;border:2px solid #198754;z-index:1}.qr-img{width:3cm;height:3cm;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges}.id-text{font-size:8pt;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#000;line-height:1.1}.name-text{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#555;line-height:1.1}@media print{body{padding:0}.no-print{display:none !important}.grid-container{padding:0}.title-label{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="no-print">⚠️ 【列印前必看防呆設定】<br>為了確保貼紙能精準裁切為 3×3 公分，請在列印設定中將「縮放 (Scale)」改為「預設」或「100%」！絕對不可勾選縮放！<br><small style="font-weight:normal; margin-top:5px; display:block;">(請直接按 Ctrl+P 或 Cmd+P 進行列印)</small></div><div class="grid-container">`;
+              let printHtml = `<div class="preview-paper"><div class="grid-container">`;
               
-              // 💡 呼叫 QRious 同步極速算圖
               for(let loc of Object.keys(groups).sort()) {
                  printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
                  for(let item of groups[loc]) {
@@ -763,21 +800,24 @@
                  }
               }
               
-              printHtml += `</div></body></html>`;
+              printHtml += `</div></div>`;
+              
+              // 將算好的畫面塞入覆蓋層並顯示
+              document.getElementById('printOverlayContent').innerHTML = printHtml;
+              document.getElementById('printOverlay').style.display = 'flex';
               hideMiniLoading();
               
-              const printWindow = window.open('', '_blank'); 
-              if (printWindow) {
-                  printWindow.document.write(printHtml); 
-                  printWindow.document.close();
-              } else {
-                  alert("⚠️ 預覽視窗被瀏覽器阻擋了！\n請在瀏覽器設定中「允許本網站顯示彈出式視窗」再試一次。");
-              }
           } catch(e) {
               hideMiniLoading();
               alert("產生列印畫面時發生錯誤：" + e.message);
           }
-      }, 50); // 微小延遲，確保 Loading UI 順利渲染
+      }, 50); 
+    }
+
+    // 💡 關閉列印預覽覆蓋層
+    function closePrintOverlay() {
+        document.getElementById('printOverlay').style.display = 'none';
+        document.getElementById('printOverlayContent').innerHTML = ''; // 清空記憶體
     }
 
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
