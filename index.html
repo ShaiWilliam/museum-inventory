@@ -1,980 +1,415 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>典藏庫房管理系統</title>
-  
-  <link rel="icon" href="./icon.png">
-  <link rel="apple-touch-icon" href="./icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+// ==========================================
+// 博物館系統後端 API (企業級架構：極速快取、心跳防護與說明書同步版)
+// ==========================================
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  
-  <style>
-    html::-webkit-scrollbar, body::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.4); }
+const DOC_ID = "1i2kzCS8AnIXn5-t9DgtwdIN-0eiiO2qexdoeibJu52M"; 
 
-    html, body { background-color: #212529; min-height: 100dvh; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; transition: background-color 0.5s ease; }
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('🛠️ 系統管理')
+    .addItem('🔄 從 Google Docs 同步說明書', 'syncManualFromDocs')
+    .addToUi();
+}
+
+function syncManualFromDocs() {
+  try {
+    var doc = DocumentApp.openById(DOC_ID);
+    var body = doc.getBody();
+    var paragraphs = body.getParagraphs();
+    var manualData = {};
+    var currentModule = "";
     
-    #authScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; padding: 20px;}
-    
-    #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
-    .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite; }
-    @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
-    .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
-    .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
-    
-    #homeMenu { padding: max(20px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    
-    .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
-    .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
-    @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
+    var moduleKeywords = { "藏品狀態查詢": "query", "建檔與列印": "register", "文物盤點系統": "inv", "文物異動搬運": "move", "管理員後台": "mgr" };
 
-    .home-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding-bottom: 20px; }
-    @media (min-width: 768px) { .home-grid { grid-template-columns: repeat(2, 1fr); } .home-grid .home-card:last-child { grid-column: 1 / -1; } }
+    for (var i = 0; i < paragraphs.length; i++) {
+      var p = paragraphs[i];
+      var text = p.getText().trim();
+      if (!text) continue;
 
-    .home-card { background: white; border-radius: 15px; padding: 22px 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .home-card:active { transform: scale(0.97); }
-    .home-card.c-query { border-bottom-color: #ffc107; }
-    .home-card.c-reg { border-bottom-color: #0dcaf0; }
-    .home-card.c-inv { border-bottom-color: #198754; }
-    .home-card.c-move { border-bottom-color: #0d6efd; }
-    .home-card.c-mgr { border-bottom-color: #dc3545; }
-    .home-icon { font-size: 2.2rem; margin-bottom: 8px; }
-    
-    #mainApp { display: none; padding-bottom: 60px; animation: fadeIn 0.3s; }
-    .navbar { padding-top: max(15px, env(safe-area-inset-top)) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-    .nav-tabs { display: none; }
-    .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
-    .step-card.active { display: block; }
-    .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
-    .stat-num { font-size: 1.5rem; font-weight: bold; }
-    
-    .vault-card { background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); }
-    .letter-spacing-2 { letter-spacing: 2px; }
-    
-    #reader-container, #query-reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
-    #reader, #query-reader { width: 100% !important; border: none !important; }
-    
-    #resultOverlay { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 100; display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); border-radius: 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); border: 2px solid #198754; animation: slideIn 0.3s; }
-    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    
-    .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
-    .sub-group { border-left: 3px solid #198754; background: #fafafa; }
-    .single-item-btn { background-color: #e8f5e9; border: 1px solid #198754 !important; color: #157347; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .bg-zebra-even { background-color: #f0f4f8 !important; border-color: #dbe0e5 !important; }
-    .btn-check:checked + .btn-outline-success { background-color: #198754 !important; color: white !important; border-color: #198754 !important; }
-    
-    .fake-input-btn { cursor: pointer; text-align: left; background-color: #f8f9fa; }
-    .fade-in-section { animation: fadeIn 0.4s ease-out; }
-    
-    #miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
-
-    #printListContainer { max-height: 40vh; overflow-y: auto; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; }
-    .print-item { border-bottom: 1px solid #e9ecef; }
-    .print-item:last-child { border-bottom: none; }
-    
-    .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
-
-    #toastBox { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(25, 135, 84, 0.95); color: white; padding: 10px 20px; border-radius: 30px; z-index: 10000; display: none; opacity: 0; transition: opacity 0.3s; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(5px); }
-
-    #printOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
-    #printOverlayTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-    #printOverlayContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
-    
-    .preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
-    .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; }
-    .label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; }
-    .title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; }
-    .qr-img { width: 3cm; height: 3cm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
-    .id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
-    .name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
-
-    @media print {
-        body * { visibility: hidden; }
-        #printOverlay, #printOverlay * { visibility: visible; }
-        #printOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
-        #printOverlayTopBar { display: none !important; }
-        #printOverlayContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
-        .preview-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
-        .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        @page { margin: 1cm; size: A4 portrait; }
-    }
-  </style>
-</head>
-<body>
-
-  <div id="toastBox">✅ 最新進度已同步</div>
-
-  <div id="printOverlay">
-    <div id="printOverlayTopBar">
-      <button class="btn btn-outline-secondary fw-bold" onclick="closePrintOverlay()">🔙 返回系統</button>
-      <h6 class="mb-0 fw-bold text-dark d-none d-sm-block">實體標籤列印預覽</h6>
-      <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
-    </div>
-    <div id="printOverlayContent"></div>
-  </div>
-
-  <div id="authScreen">
-    <div class="vault-card p-4 rounded-4 shadow-lg text-center" style="max-width: 400px; width: 100%;">
-      <span style="font-size: 3.5rem;">🔐</span>
-      <h4 class="fw-bold text-dark mt-2 mb-1">典藏庫房管理系統</h4>
-      <p class="text-muted small mb-4">請輸入員工通行密碼登入</p>
-      <div class="form-floating mb-4">
-        <input type="password" class="form-control fw-bold fs-4 text-center letter-spacing-2" id="frontDoorPwd" placeholder="請輸入密碼" inputmode="numeric" pattern="[0-9]*">
-        <label for="frontDoorPwd" class="text-muted">管理員密碼 (僅限數字)</label>
-      </div>
-      <button class="btn btn-dark w-100 fw-bold py-3 fs-5 rounded-pill shadow-sm" onclick="loginAtFrontDoor()">進入系統</button>
-    </div>
-  </div>
-
-  <div class="offcanvas offcanvas-end shadow-lg" tabindex="-1" id="helpOffcanvas" style="background-color: #f8f9fa; border-left: none; width: 85vw; max-width: 400px;">
-    <div class="offcanvas-header border-bottom bg-white py-3">
-      <h5 class="offcanvas-title fw-bold text-info" id="helpOffcanvasLabel" style="color: #0dcaf0 !important;">📖 模組操作指南</h5>
-      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body px-4 py-4">
-      <div id="helpContent" style="font-size: 0.95rem; color: #495057; line-height: 1.8;">載入中...</div>
-      <div class="mt-5 pt-4 border-top text-center">
-        <button class="btn btn-outline-secondary w-100 fw-bold" onclick="window.open('https://docs.google.com/document/d/1i2kzCS8AnIXn5-t9DgtwdIN-0eiiO2qexdoeibJu52M/edit?usp=sharing', '_blank')">查看完整版操作手冊</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="splashScreen">
-    <div class="loading-logo">📦</div>
-    <h3 class="fw-bold">典藏庫房管理系統</h3>
-    <p class="text-secondary mb-0 mt-2" id="splashText">準備連線中...</p>
-    <div class="progress-box"><div class="progress-fill" id="splashProgress"></div></div>
-  </div>
-
-  <div id="miniLoading">
-    <div class="spinner-border spinner-border-sm" role="status"></div>
-    <span id="miniLoadingText">處理中...</span>
-  </div>
-
-  <div id="homeMenu">
-    <div id="profileBanner" class="bg-white rounded-3 shadow p-3 mb-4 mx-auto d-flex justify-content-between align-items-center border-start border-4 border-primary">
-      <div>
-        <h5 class="fw-bold mb-1 text-dark" id="welcomeName">👋 歡迎歸隊，管理員！</h5>
-        <small class="text-muted" id="tokenCountdown">🔐 授權憑證有效期限剩餘：-- 天</small>
-      </div>
-      <button class="btn btn-sm btn-outline-danger px-3 fw-bold" onclick="logoutSystem()">登出</button>
-    </div>
-
-    <h5 class="fw-bold mb-3 text-dark text-center">請選擇系統模組</h5>
-    
-    <div class="marquee-container mb-4 shadow-sm mx-auto" style="max-width: 800px; background: white;">
-      <div class="marquee-content" id="lobbyMarquee">
-        <span class="mx-3">🟢 系統狀態：連線正常</span>
-        <span class="mx-3" id="mqBaseline">📅 本期盤點基準日：載入中...</span>
-        <span class="mx-3">💡 提示：列印標籤請使用 Chrome 瀏覽器並設定比例為 100%</span>
-        <span class="mx-3">✨ 歡迎使用典藏庫房管理系統</span>
-      </div>
-    </div>
-
-    <div class="home-grid">
-      <div class="home-card c-query" onclick="enterSystem('query')">
-        <div class="home-icon">🔍</div>
-        <h5 class="fw-bold text-warning mb-1" style="color: #d39e00 !important;">藏品狀態查詢</h5>
-        <p class="text-muted small mb-0">掃描取得最新地點與財產編號</p>
-      </div>
-      <div class="home-card c-reg" onclick="enterSystem('register')">
-        <div class="home-icon">📝</div>
-        <h5 class="fw-bold text-info mb-1" style="color: #087990 !important;">建檔與列印中心</h5>
-        <p class="text-muted small mb-0">新進登錄、標籤排版列印</p>
-      </div>
-      <div class="home-card c-inv" onclick="enterSystem('inv')">
-        <div class="home-icon">📱</div>
-        <h5 class="fw-bold text-success mb-1">文物盤點系統</h5>
-        <p class="text-muted small mb-0">全區/指定區域極速掃描</p>
-      </div>
-      <div class="home-card c-move" onclick="enterSystem('move')">
-        <div class="home-icon">🚚</div>
-        <h5 class="fw-bold text-primary mb-1">文物異動搬運</h5>
-        <p class="text-muted small mb-0">專案提報、地點轉換與裝箱</p>
-      </div>
-      <div class="home-card c-mgr" onclick="enterSystem('mgr')">
-        <div class="home-icon">⚙️</div>
-        <h5 class="fw-bold text-danger mb-1">管理員後台</h5>
-        <p class="text-muted small mb-0">空間架構、異動審核與結案</p>
-      </div>
-    </div>
-
-    <div class="alert alert-info text-center shadow-sm mx-auto mt-4 mb-4" style="max-width: 800px; cursor: pointer; border: 1px solid #b6effb;" onclick="window.open('https://docs.google.com/document/d/1i2kzCS8AnIXn5-t9DgtwdIN-0eiiO2qexdoeibJu52M/edit?usp=sharing', '_blank')">
-      <h6 class="fw-bold mb-1 text-dark">📖 不知道怎麼操作嗎？</h6>
-      <span class="small text-dark">點擊此處查看《完整系統操作手冊》</span>
-    </div>
-  </div>
-
-  <div id="mainApp">
-    <nav class="navbar navbar-dark bg-dark mb-2 sticky-top">
-      <div class="container-fluid d-flex justify-content-between align-items-center">
-        <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="btnNavHome" onclick="backToHome()"><span>🏠</span> 首頁</button>
-        <span class="navbar-brand mb-0 h1 fs-6 text-truncate text-center flex-grow-1 px-2" id="sysTitle">系統載入中</span>
-        <button id="btnNavHelp" class="btn btn-sm btn-outline-info text-light d-flex align-items-center" style="border-color: #0dcaf0;" onclick="openHelpDrawer()">📖 <span class="d-none d-sm-inline ms-1">說明</span></button>
-      </div>
-    </nav>
-
-    <div class="container px-2">
-      <ul class="nav nav-tabs nav-fill mb-2 d-none" id="systemTabs">
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query">查詢</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#register">建檔</button></li>
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">盤點</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異動</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理</button></li>
-      </ul>
-
-      <div class="tab-content mt-3">
-        <div class="tab-pane fade" id="query">
-          <div class="step-card active">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="fw-bold text-warning mb-0" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
-            </div>
-            
-            <div class="input-group mb-3 shadow-sm" id="queryInputGrp">
-              <input type="text" id="queryManualInput" class="form-control border-warning" placeholder="手動輸入藏品編號 (選填)">
-              <button class="btn btn-warning fw-bold text-dark" type="button" onclick="triggerManualQuery()">查詢</button>
-            </div>
-            
-            <div id="queryResultBox" class="card shadow-sm border-0 mb-4" style="display:none; background-color: #fffdf5; position: relative; border-radius: 12px;">
-              <span id="qResBadge" class="badge position-absolute shadow-sm" style="top: 15px; right: 15px; font-size: 0.9rem;"></span>
-              <div class="card-body pt-4">
-                <h6 class="text-muted small mb-1">目前存放地點</h6><h3 class="fw-bold text-dark mb-4" id="qResLoc">--</h3>
-                <h6 class="text-muted small mb-1">藏品名稱</h6><p class="fw-bold mb-3 text-primary fs-5" id="qResName">--</p>
-                <h6 class="text-muted small mb-1">藏品編號 (Primary ID)</h6><p class="fw-bold mb-3 fs-5 text-dark" id="qResId" style="font-family: monospace; letter-spacing: 1px;">--</p>
-                <div class="mt-3 pt-3 border-top" style="border-color: #e0d9b4 !important;" id="qResAdvancedArea">
-                  <h6 class="text-muted small mb-1">財產編號 <span class="badge bg-secondary text-light ms-1">查核重點</span></h6><p class="fw-bold mb-3 text-secondary" id="qResPropNum">--</p>
-                  <div class="row g-2 mb-2"><div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div><div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div></div>
-                  <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
-                </div>
-                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
-              </div>
-            </div>
-            <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動掃描器</button>
-            <div id="query-reader-container" style="display:none;">
-              <div id="query-reader"></div>
-              <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="register">
-          <ul class="nav nav-pills nav-fill mb-3" id="regPills">
-            <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regFormSec">📝 新增登錄</button></li>
-            <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regPrintTab" onclick="loadPrintList()">🖨️ 標籤列印</button></li>
-          </ul>
-          <div class="tab-content">
-            <div class="tab-pane fade show active" id="regFormSec">
-              <div class="step-card active border-info border-top border-4">
-                <div class="mb-3"><label class="form-label fw-bold text-dark">藏品編號 (Primary ID) <span class="text-danger">*</span></label><input type="text" id="regId" class="form-control border-info" placeholder="例如：K1/1/PP11100100"></div>
-                <div class="mb-3"><label class="form-label fw-bold text-dark">藏品名稱 <span class="text-danger">*</span></label><input type="text" id="regName" class="form-control" placeholder="輸入名稱"></div>
-                <div class="mb-3"><label class="form-label fw-bold text-dark">初始存放地點 <span class="text-danger">*</span></label><input type="text" id="regLocDisplay" class="form-control fake-input-btn" readonly placeholder="點此開啟地點選單..." onclick="triggerRegLoc()"><input type="hidden" id="regLoc"></div>
-                <div class="mb-4"><label class="form-label fw-bold text-dark">財產編號</label><input type="text" id="regPropNum" class="form-control bg-light" placeholder="例如：財50_40..."></div>
-                <div class="row mb-3 g-2"><div class="col-6"><label class="form-label fw-bold text-dark">入藏等級</label><input type="text" id="regAccession" class="form-control" placeholder="例如：館藏"></div><div class="col-6"><label class="form-label fw-bold text-dark">蔣元素</label><select id="regJiang" class="form-select"><option value="不相關">不相關</option><option value="相關">相關</option><option value="待確認">待確認</option></select></div></div>
-                <div class="mb-4"><label class="form-label fw-bold text-dark">備註說明</label><textarea id="regDesc" class="form-control" rows="2" placeholder="選填"></textarea></div>
-                <div class="alert alert-info py-2 small">💡 提示：送出後，系統將自動於資料庫建檔，並立刻同步至查詢與列印模組中。</div>
-                <button class="btn btn-info w-100 fw-bold py-3 text-white fs-5 shadow-sm" onclick="submitRegistration()">✅ 確認登錄建檔</button>
-              </div>
-            </div>
-
-            <div class="tab-pane fade" id="regPrintTab">
-              <div id="printSelectSec" class="step-card active border-secondary border-top border-4 fade-in-section">
-                <h6 class="fw-bold mb-3">請勾選欲列印標籤的文物</h6>
-                <div class="row g-2 mb-3">
-                  <div class="col-12 col-md-6"><input type="search" id="printSearch" class="form-control border-secondary" placeholder="🔍 搜尋編號或名稱..." onkeyup="filterPrintList()" onsearch="filterPrintList()"></div>
-                  <div class="col-12 col-md-6"><select id="printLocFilter" class="form-select border-secondary" onchange="filterPrintList()"><option value="">所有地點</option></select></div>
-                </div>
-                <div class="d-flex justify-content-between mb-2 flex-wrap gap-2">
-                  <div><button class="btn btn-sm btn-outline-secondary me-1" onclick="togglePrintAll(true)">☑️ 全選目前結果</button><button class="btn btn-sm btn-outline-secondary" onclick="togglePrintAll(false)">☐ 清除</button></div>
-                  <button class="btn btn-sm btn-outline-primary fw-bold" onclick="selectTop10Print()">+ 選取最新 10 筆</button>
-                </div>
-                <div id="printListContainer" class="mb-4 p-2 shadow-sm"></div>
-                <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow" id="btnGoPreview" onclick="showPrintPreview()">🏷️ 檢視已選標籤 (共 0 件)</button>
-              </div>
-
-              <div id="printPreviewSec" class="step-card active border-secondary border-top border-4 fade-in-section" style="display: none;">
-                <div class="d-flex justify-content-between mb-3 align-items-center border-bottom pb-2">
-                  <h6 class="fw-bold mb-0 text-dark">已選列印清單確認</h6>
-                  <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="hidePrintPreview()">🔙 繼續選擇</button>
-                </div>
-                <div id="printPreviewContainer" class="mb-4 shadow-sm p-2" style="max-height: 45vh; overflow-y: auto; background: #fff; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow" onclick="generatePrintPage()">🖨️ 產生本機高品質 QR Code</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="inv">
-          <div id="step1" class="step-card active">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0 fw-bold text-success">盤點設定</h5>
-              <div>
-                <span class="badge bg-light text-dark border me-2" id="onlineUsersInv">👥 線上：1 人</span>
-                <button class="btn btn-sm btn-outline-secondary" onclick="refreshSystem('inv')">🔄 刷新</button>
-              </div>
-            </div>
-            <div id="continueInvBox" style="display:none;" class="mb-4 p-3 bg-light border-warning border rounded shadow-sm">
-              <h6 class="text-dark fw-bold mb-2">⚠️ 發現未完成的盤點作業</h6>
-              <button class="btn btn-warning w-100 fw-bold shadow-sm mb-2" onclick="resumeInventorySession()">▶️ 繼續上次掃描進度</button>
-              <button class="btn btn-outline-secondary w-100 btn-sm" onclick="clearInventorySession()">放棄進度，重新設定地點</button>
-            </div>
-            <div id="invSettingsArea">
-              <div class="alert alert-success py-2 fw-bold" id="baselineInfo" style="font-size: 0.85rem;">載入基準日中...</div>
-              <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="modeAll" value="all" checked onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modeAll">全部盤點 (整座庫房)</label></div>
-              <div class="form-check mb-4"><input class="form-check-input" type="radio" name="mode" id="modePartial" value="partial" onchange="toggleLocBox()"><label class="form-check-label fw-bold" for="modePartial">部分盤點 (指定地點)</label></div>
-              <div id="locBox" style="display:none;" class="mb-4 bg-white p-3 border rounded shadow-sm"><input type="search" id="invLocSearch" class="form-control mb-3" placeholder="🔍 搜尋地點..." onkeyup="filterInvTree()" onsearch="filterInvTree()"><div id="locCheckboxes">載入地點中...</div></div>
-              <button class="btn btn-success w-100 fw-bold fs-5 py-3 shadow" onclick="startInventorySession()">🚀 進入掃描畫面</button>
-            </div>
-          </div>
-
-          <div id="step2" class="step-card p-2">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0 fw-bold">團隊同步進度</h6>
-              <div>
-                <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm me-1" onclick="pauseAndSave()">⏸️ 暫停</button>
-                <button class="btn btn-danger btn-sm fw-bold shadow-sm" onclick="finishInventory()">📊 結算</button>
-              </div>
-            </div>
-            <div class="row g-2 mb-2">
-              <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-primary" id="valTotal" style="font-size: 1.2rem;">...</div><small>總件</small></div></div>
-              <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-success" id="valScanned" style="font-size: 1.2rem;">0</div><small>已盤</small></div></div>
-              <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-danger" id="valUnscanned" style="font-size: 1.2rem;">...</div><small>未盤</small></div></div>
-            </div>
-            <div class="progress mb-3" style="height: 12px;"><div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div></div>
-            <div id="syncStatus" class="text-center text-muted small mb-2" style="display: none;">☁️ 雲端背景同步中...</div>
-            <div id="reader-container">
-              <div id="resultOverlay">
-                <div class="d-flex align-items-center">
-                  <div class="flex-grow-1">
-                    <div id="resStatus" class="fw-bold mb-1" style="font-size: 1.1rem;"></div>
-                    <div id="resName" class="text-primary fw-bold" style="font-size: 0.9rem;"></div>
-                    <div id="resDesc" class="text-muted" style="font-size: 0.75rem;"></div>
-                  </div>
-                </div>
-              </div>
-              <div id="reader"></div>
-            </div>
-          </div>
-
-          <div id="step3" class="step-card">
-            <h5 class="mb-4 text-center text-success fw-bold">✅ 盤點任務已結算</h5>
-            <div class="mb-3"><label>接收 Excel 報表的 Email</label><input type="email" id="exportEmail" class="form-control"></div>
-            <label>匯出範圍</label>
-            <select id="exportType" class="form-select mb-4">
-              <option value="all">匯出「全部名單」</option>
-              <option value="scanned">僅匯出「已盤點」</option>
-              <option value="unscanned">僅匯出「未盤點 (缺漏)」</option>
-            </select>
-            <button class="btn btn-primary w-100 mb-2 py-3 fw-bold shadow-sm" onclick="exportReport()" id="btnExport">📊 結算並寄送報表</button>
-            <button class="btn btn-outline-secondary w-100 py-2" onclick="clearAndBackToHome()">結束並返回首頁</button>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="move">
-          <div class="step-card active">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0 fw-bold text-primary">🚚 搬運人員填報</h5>
-              <div>
-                 <span class="badge bg-light text-dark border me-1" id="onlineUsersMove">👥 線上：1 人</span>
-                 <button class="btn btn-sm btn-outline-secondary" onclick="refreshSystem('move')">🔄 刷新</button>
-              </div>
-            </div>
-            <div id="mvPhase1">
-              <div class="mb-3"><label class="form-label text-primary fw-bold">1. 選擇異動專案事件</label><select id="mvEvent" class="form-select border-primary" onchange="loadWorkerLocations()"><option value="">請選擇專案...</option></select></div>
-              <div class="mb-3"><label class="form-label text-primary fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-primary" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
-            </div>
-            <div id="mvPhase2" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
-              <label class="form-label text-danger fw-bold">3. 選擇搬運文物 (可多選)</label>
-              <div class="d-flex justify-content-between mb-2">
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="toggleAllItems(true)">☑️ 全選</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllItems(false)">☐ 清除全選</button>
-              </div>
-              <div id="mvItemList" class="border rounded p-2 bg-light mb-2" style="max-height: 250px; overflow-y: auto;"></div>
-            </div>
-            <div id="mvPhase3" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
-              <div class="mb-3"><label class="form-label text-success fw-bold">4. 移往暫存地點</label><input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()"><input type="hidden" id="mvNewLoc"></div>
-              <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox" onchange="toggleBoxInput()"><label class="form-check-label fw-bold" for="mvIsBox">裝箱</label></div>
-              <div class="mb-3 bg-light p-3 border rounded fade-in-section" id="boxInputContainer" style="display:none;"><label class="form-label text-dark">📦 輸入箱名</label><input type="text" class="form-control" id="mvBoxName" placeholder="請填寫箱名，例如：BOX-01"></div>
-              <div class="mb-4"><label class="form-label text-dark fw-bold">5. 本處人員</label><select id="mvStaffInternal" class="form-select border-dark"></select></div>
-              <button class="btn btn-primary w-100 fw-bold fs-5 py-3 shadow-sm" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="mgr">
-          <div id="mgrDashboard" class="step-card active">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 text-danger fw-bold">⚙️ 管理面板</h5>
-                <button class="btn btn-light btn-sm border" onclick="refreshSystem('mgr')">🔄 刷新資料</button>
-            </div>
-            
-            <ul class="nav nav-pills mb-3 border-bottom pb-2" id="mgrMainPills">
-                <li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabVerify">📋 異動審核</button></li>
-                <li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabLoc">📍 空間架構</button></li>
-            </ul>
-
-            <div class="tab-content">
-              <div class="tab-pane fade show active" id="mgrTabVerify">
-                  <div class="card mb-3 border-danger shadow-sm">
-                    <div class="card-body py-2">
-                      <h6 class="card-title text-danger small fw-bold">本期盤點基準日設定</h6>
-                      <div class="input-group input-group-sm"><input type="datetime-local" id="newBaseline" class="form-control border-danger"><button class="btn btn-danger" onclick="updateBaseline()">更新</button></div>
-                      <small class="text-muted">※ 基準日後的掃描才會計入「已盤點」</small>
-                    </div>
-                  </div>
-                  <div class="mb-3"><label class="form-label small fw-bold">選擇審核專案</label><select id="mgrEvent" class="form-select border-primary" onchange="loadManagerData()"></select></div>
-                  <ul class="nav nav-pills mb-3" id="mgrPills"><li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrPending">待核對</button></li><li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已核對</button></li></ul>
-                  <div class="tab-content">
-                    <div class="tab-pane fade show active" id="mgrPending">
-                      <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tablePending"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物</th><th>地點/箱</th><th>修改</th></tr></thead><tbody></tbody></table></div>
-                      <button class="btn btn-success action-btn fw-bold w-100 py-2 shadow-sm" onclick="changeStatus('.chk-pend', true)">✅ 批次核對通過</button>
-                    </div>
-                    <div class="tab-pane fade" id="mgrConfirmed">
-                      <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tableConfirmed"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>地點/箱</th><th>管理員</th></tr></thead><tbody></tbody></table></div>
-                      <button class="btn btn-warning action-btn fw-bold w-100 py-2 shadow-sm mb-4" onclick="changeStatus('.chk-conf', false)">↩️ 撤銷核對狀態</button>
-                      <div class="card bg-dark text-white text-center p-3 shadow-sm rounded-3"><h6 class="mb-2">專案全部核對無誤後執行</h6><button class="btn btn-light w-100 fw-bold" onclick="syncToMaster()">💾 結案：同步至藏品總表</button></div>
-                    </div>
-                  </div>
-              </div>
-
-              <div class="tab-pane fade" id="mgrTabLoc">
-                 <div class="card border-primary shadow-sm mb-3">
-                     <div class="card-body">
-                         <h6 class="fw-bold text-primary mb-3">➕ 新增典藏地點</h6>
-                         <div class="row g-2 mb-2">
-                             <div class="col-12 col-md-4"><input type="text" id="locAddMain" class="form-control" placeholder="大區 (例: 書畫庫)"></div>
-                             <div class="col-12 col-md-4"><input type="text" id="locAddSub" class="form-control" placeholder="次區 (例: 高櫃區)"></div>
-                             <div class="col-12 col-md-4"><input type="text" id="locAddDetail" class="form-control" placeholder="詳細 (例: A01)"></div>
-                         </div>
-                         <button class="btn btn-primary w-100 fw-bold mt-2" onclick="addNewLocation()">確認新增</button>
-                     </div>
-                 </div>
-                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-bordered table-sm align-middle bg-white" id="tableLocations">
-                       <thead class="table-light sticky-top"><tr><th>大區</th><th>次區</th><th>詳細地點</th><th>操作</th></tr></thead>
-                       <tbody></tbody>
-                    </table>
-                 </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="locModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
-      <div class="modal-header bg-light"><h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body p-3">
-        <input type="search" id="modalLocSearch" class="form-control mb-3" placeholder="🔍 搜尋地點..." onkeyup="filterModalTree()" onsearch="filterModalTree()">
-        <div id="modalLocContainer"></div>
-      </div>
-    </div></div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-  <script>
-    // ==========================================
-    // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
-    const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec"; 
-    // ==========================================
-
-    let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
-    let audioCtx, scanner = null, queryScanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
-    let localItemCache = {}, syncQueue = [], isSyncing = false;   
-    let allPrintItems = [], printCartMap = new Map(), globalCatalog = {}; 
-    let globalManuals = {}; 
-    
-    // 💡 異動模組的專案級快取狀態
-    let currentProjectItems = [];
-    let currentMvEventId = "";
-
-    let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
-    localStorage.setItem('myUid', myUserId);
-    
-    function setProgress(pct, text) { document.getElementById('splashProgress').style.width = pct + '%'; if(text) document.getElementById('splashText').innerText = text; }
-    function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
-    function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
-    function showToast(msg) { const tb = document.getElementById('toastBox'); tb.innerText = msg; tb.style.display = 'block'; setTimeout(()=> tb.style.opacity = '1', 10); setTimeout(() => { tb.style.opacity = '0'; setTimeout(()=> tb.style.display = 'none', 300); }, 2500); }
-
-    function formatHelpText(raw) {
-        if (!raw) return ""; let lines = raw.split('\n'); let html = '';
-        lines.forEach(line => {
-            let text = line.trim(); if(!text) { html += '<div class="mb-2"></div>'; return; }
-            text = text.replace(/([^：\n]{2,20}：)/g, '<strong class="text-primary">$1</strong>');
-            if (/^(\d+\.|[•\-*])\s+/.test(text)) {
-                text = text.replace(/^(\d+\.|[•\-*])\s+(.*)$/, '<div class="d-flex mb-2"><span class="me-2 fw-bold text-secondary">$1</span><div>$2</div></div>');
-                html += text;
-            } else { html += '<div class="mb-2">' + text + '</div>'; }
-        });
-        return html;
-    }
-
-    async function callAPI(action, payload = {}) {
-      try {
-        const cacheBuster = "?t=" + new Date().getTime(); 
-        const response = await fetch(API_URL + cacheBuster, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, payload: payload }) });
-        const res = await response.json();
-        if (!res.success) throw new Error(res.error || res.msg);
-        return res.data;
-      } catch (err) { throw new Error(err.message); }
-    }
-
-    window.onload = function() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const directQueryId = urlParams.get('id');
-
-      if(directQueryId) {
-          document.getElementById('btnNavHome').classList.add('d-none'); document.getElementById('btnNavHome').classList.remove('d-flex');
-          document.getElementById('btnNavHelp').classList.add('d-none'); document.getElementById('btnNavHelp').classList.remove('d-flex');
-          document.getElementById('queryHeaderTitle').innerText = "典藏庫房藏品資訊";
-          document.getElementById('qResAdvancedArea').style.display = 'none'; document.getElementById('queryInputGrp').style.display = 'none';
-          document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('authScreen').style.display = 'none';
-          startAppLoading(directQueryId);
-      } else {
-          let tokenExp = localStorage.getItem('tokenExpiry');
-          if(tokenExp && parseInt(tokenExp) > Date.now()) {
-              document.getElementById('authScreen').style.display = 'none'; currentManager = localStorage.getItem('staffName') || "管理員"; startAppLoading(null);
-          } else {
-              document.getElementById('splashScreen').style.display = 'none'; document.getElementById('authScreen').style.display = 'flex';
-              localStorage.removeItem('staffToken'); localStorage.removeItem('staffName'); localStorage.removeItem('tokenExpiry');
+      var isHeading = p.getHeading() === DocumentApp.ParagraphHeading.HEADING2 || p.getHeading() === DocumentApp.ParagraphHeading.HEADING3;
+      var foundModule = false;
+      
+      if (isHeading) {
+        for (var key in moduleKeywords) {
+          if (text.indexOf(key) !== -1) {
+            currentModule = moduleKeywords[key];
+            if (!manualData[currentModule]) manualData[currentModule] = "";
+            foundModule = true; break;
           }
+        }
       }
-    };
-
-    async function loginAtFrontDoor() {
-        const pwd = document.getElementById('frontDoorPwd').value; if(!pwd) return alert("請輸入密碼！");
-        let btn = document.querySelector('#authScreen button'); btn.innerText = "驗證中..."; btn.disabled = true;
-        try {
-            const res = await callAPI('verifyManager', { pwd: pwd }); currentManager = res.managerName;
-            localStorage.setItem('staffToken', 'true'); localStorage.setItem('staffName', currentManager); localStorage.setItem('tokenExpiry', Date.now() + 604800000); 
-            document.getElementById('authScreen').style.opacity = '0';
-            setTimeout(() => { document.getElementById('authScreen').style.display = 'none'; document.getElementById('splashScreen').style.display = 'flex'; startAppLoading(null); }, 500);
-        } catch(e) { alert("密碼錯誤：" + e.message); btn.innerText = "進入系統"; btn.disabled = false; }
+      if (!foundModule && currentModule !== "") { manualData[currentModule] += text + "\n\n"; }
     }
 
-    function logoutSystem() {
-        if(!confirm("確定要登出系統嗎？")) return;
-        localStorage.removeItem('staffToken'); localStorage.removeItem('staffName'); localStorage.removeItem('tokenExpiry');
-        location.href = window.location.pathname;
-    }
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('模組說明書');
+    if (!sheet) sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('模組說明書');
+    sheet.clear(); sheet.appendRow(['模組ID', '說明內容']);
+    for (var mod in manualData) { sheet.appendRow([mod, manualData[mod].trim()]); }
+    SpreadsheetApp.getUi().alert('✅ 說明書同步完成！現在手機端抽屜已經是最新精準版了！');
+  } catch(e) { SpreadsheetApp.getUi().alert('❌ 同步失敗：' + e.message); }
+}
 
-    function updateProfileBanner() {
-        let name = localStorage.getItem('staffName') || "管理員", exp = parseInt(localStorage.getItem('tokenExpiry')) || 0, daysLeft = Math.ceil((exp - Date.now()) / (1000 * 60 * 60 * 24));
-        document.getElementById('welcomeName').innerText = `👋 歡迎歸隊，${name}！`; document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
-    }
+function doGet(e) { return processRequest(e.parameter.q); }
+function doPost(e) { return processRequest(e.postData.contents); }
 
-    async function startAppLoading(directQueryId) {
-      let fakeProgress = 10; setProgress(fakeProgress, '喚醒雲端伺服器...');
-      const loadingMessages = ["正在建立安全連線...", "載入全庫房數位圖鑑...", "同步歷史異動紀錄...", "解析空間樹狀圖...", "準備系統資源中..."];
-      let msgIndex = 0; const loadingInterval = setInterval(() => { fakeProgress += (85 - fakeProgress) * 0.1; msgIndex = (msgIndex + 1) % loadingMessages.length; setProgress(fakeProgress, loadingMessages[msgIndex]); }, 1000); 
+function processRequest(jsonString) {
+  try {
+    if (!jsonString) return ContentService.createTextOutput("API 正常運作中").setMimeType(ContentService.MimeType.TEXT);
+    var request = JSON.parse(jsonString);
+    var action = request.action;
+    var payload = request.payload || {};
+    var result = {};
+    var lock = LockService.getScriptLock();
+    
+    switch(action) {
+      case 'getInventoryInitData': result = getInventoryInitData(); break;
+      case 'startInventory': result = getGlobalProgress(payload.mode, payload.locations); break;
+      case 'submitScan': 
+        try { lock.waitLock(10000); result = submitScanWithLock(payload); } finally { lock.releaseLock(); } break;
+      case 'updateBaseline': 
+        var ts = new Date(payload.timeString.replace('T', ' ').replace(/-/g, '/')).getTime();
+        setBaseline(ts); result = true; break;
+      case 'exportInventoryReport': result = exportInventoryReport(payload); break;
+      case 'getWorkerInitData': result = getWorkerInitData(); break;
+      case 'getProjectPendingData': result = getProjectPendingData(payload.eventId); break;
+      case 'submitMovement': 
+        try { lock.waitLock(10000); result = submitMovement(payload); } finally { lock.releaseLock(); } break;
+      case 'verifyManager': result = verifyManager(payload.pwd); break;
+      case 'getManagerData': result = getManagerData(payload.eventId); break;
+      case 'toggleStatus': 
+        try { lock.waitLock(10000); result = toggleStatus(payload.rowIndices, payload.newStatus, payload.managerName); } finally { lock.releaseLock(); } break;
+      case 'editItem': 
+        try { lock.waitLock(10000); result = editItem(payload.rowIndex, payload.newLoc, payload.boxName, payload.managerName); } finally { lock.releaseLock(); } break;
+      case 'syncToMaster': 
+        try { lock.waitLock(10000); result = syncToMaster(payload.eventId); } finally { lock.releaseLock(); } break;
+      case 'queryItem': result = queryItem(payload.qrStr); break;
+      case 'registerItem': 
+        try { lock.waitLock(10000); result = registerItem(payload); } finally { lock.releaseLock(); } break;
+      
+      // 💡 空間管理 API
+      case 'addLocation':
+        try { lock.waitLock(10000); result = addLocation(payload); } finally { lock.releaseLock(); } break;
+      case 'deleteLocation':
+        try { lock.waitLock(10000); result = deleteLocation(payload.rowIndex); } finally { lock.releaseLock(); } break;
 
-      try {
-        const [invData, workData] = await Promise.all([callAPI('getInventoryInitData'), callAPI('getWorkerInitData')]);
-        clearInterval(loadingInterval); setProgress(90, '✅ 資料庫同步完成！建構使用者介面...');
+      case 'heartbeat':
+        var cache = CacheService.getScriptCache();
+        var activeUsers = JSON.parse(cache.get('activeUsers') || '{}');
+        var now = new Date().getTime();
+        activeUsers[payload.user] = now;
+        var count = 0;
+        for (var u in activeUsers) {
+            if (now - activeUsers[u] < 70000) { count++; } else { delete activeUsers[u]; } 
+        }
+        cache.put('activeUsers', JSON.stringify(activeUsers), 120); 
+        result = { count: count };
+        break;
         
-        globalCatalog = invData.catalog || {}; globalManuals = invData.manuals || {}; 
-        baselineTime = invData.baselineTime || 0; let d = new Date(baselineTime); if (isNaN(d.getTime())) d = new Date();
-        document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`; document.getElementById('mqBaseline').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
-        
-        globalLocTree = workData.locTree || []; renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); renderLocationsTable(globalLocTree); 
-        populateSelect('mvEvent', workData.events || [], true); populateSelect('mgrEvent', workData.events || [], true); populateSelect('mvStaffInternal', workData.staffInternal || []);
-        setProgress(100, '🚀 系統啟動！');
-        
-        setTimeout(() => {
-          document.getElementById('splashScreen').style.opacity = '0'; document.body.style.backgroundColor = '#f1f3f5';
-          setTimeout(() => {
-            document.getElementById('splashScreen').style.display = 'none';
-            if(directQueryId) { enterSystem('query'); execQuery(directQueryId); } else { updateProfileBanner(); document.getElementById('homeMenu').style.display = 'block'; }
-          }, 500);
-        }, 500);
-      } catch (err) { clearInterval(loadingInterval); alert("⚠️ 系統載入異常！\n錯誤細節：" + err.message); document.getElementById('splashText').innerText = "載入失敗，請重新整理"; document.getElementById('splashText').classList.add('text-danger'); }
+      default: throw new Error("未知的動作");
     }
+    return ContentService.createTextOutput(JSON.stringify({ success: true, data: result })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
 
-    function openHelpDrawer() {
-        let activeTab = document.querySelector('.nav-link.active'); if(!activeTab) return;
-        let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
-        let content = globalManuals[moduleId];
-        if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } else { document.getElementById('helpContent').innerHTML = formatHelpText(content); }
-        let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
-        document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
-        var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas')); bsOffcanvas.show();
-    }
+// 💡 核心升級：大中小區無縫拼接引擎
+function getLocationTreeFromSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('地點層級架構');
 
-    // 💡 背景靜默同步與心跳偵測
-    setInterval(async () => {
-        // 心跳
-        if(document.getElementById('step2').style.display === 'block' || document.getElementById('step1').style.display === 'block' || document.getElementById('mvPhase1').offsetParent !== null) {
-            try { let res = await callAPI('heartbeat', {user: myUserId}); document.getElementById('onlineUsersInv').innerText = `👥 線上：${res.count} 人`; document.getElementById('onlineUsersMove').innerText = `👥 線上：${res.count} 人`; } catch(e){}
-        }
-        // 盤點進度同步
-        if(document.getElementById('step2').style.display === 'block') {
-            try { let res = await callAPI('startInventory', sysState); if(res.total !== sysState.total || res.scanned !== sysState.scanned) { sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI(); showToast('✅ 最新盤點進度已同步'); } } catch(e){}
-        }
-        // 💡 異動搬運模組的背景靜默同步 (自癒能力)
-        if(document.getElementById('move').classList.contains('active') && currentMvEventId) {
-            silentMvSync();
-        }
-    }, 60000);
-
-    document.addEventListener("visibilitychange", async () => {
-        if (document.hidden) {
-            if (scanner && document.getElementById('step2').style.display === 'block') { await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
-            if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; }
-        }
+  if (!sheet || sheet.getLastRow() < 2) {
+    if (!sheet) sheet = ss.insertSheet('地點層級架構');
+    sheet.clear();
+    // 更新表頭為大中小型
+    sheet.appendRow(['大區', '中區', '小區']);
+    
+    // 舊資料轉移防呆
+    var oldTree = buildTree(getUniqueLocations());
+    var toAppend = [];
+    oldTree.forEach(m => {
+       m.subs.forEach(s => { s.details.forEach(d => { toAppend.push([m.main, s.sub, d.val.replace(m.main, '').replace(s.sub, '')]); }); });
     });
+    if(toAppend.length > 0) sheet.getRange(2, 1, toAppend.length, 3).setValues(toAppend);
+  }
 
-    function checkSavedSession() {
-      try { if(localStorage.getItem('invSession')) { document.getElementById('continueInvBox').style.display = 'block'; document.getElementById('invSettingsArea').style.display = 'none'; } else { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; } } catch(e) { document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
-    }
-
-    function enterSystem(sysId) {
-      document.getElementById('homeMenu').style.display = 'none'; document.getElementById('mainApp').style.display = 'block'; document.body.style.overflowY = 'auto'; 
-      if(sysId === 'inv') { document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
-      const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
-      document.getElementById('sysTitle').innerText = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' }[sysId];
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
+  var data = sheet.getDataRange().getValues();
+  var map = {}, mainOrder = [];
+  
+  for (var i = 1; i < data.length; i++) {
+    var main = String(data[i][0]).trim();
+    var medium = String(data[i][1]).trim();
+    var small = String(data[i][2]).trim();
     
-    async function stopScannerSafe(cam) { if (cam) { try { if (cam.getState() === 2 || cam.getState() === 3) { await cam.stop(); } } catch(e) {} try { cam.clear(); } catch(e) {} } }
+    if (!main && !medium && !small) continue;
+    if (!main) main = "未分類";
 
-    async function backToHome() {
-      let isStaff = localStorage.getItem('staffToken') === 'true'; if(!isStaff) return;
-      showMiniLoading('正在安全關閉模組...');
-      if (document.getElementById('step2').style.display === 'block') { await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; }
-      if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; }
-      window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block'; window.history.replaceState({}, document.title, window.location.pathname); hideMiniLoading();
-    }
+    // 💡 最關鍵的無縫拼接：大區 + 中區 + 小區 = 寫入母表單的字串
+    var fullLoc = main + medium + small; 
+
+    if (!map[main]) { map[main] = {}; mainOrder.push(main); }
     
-    async function refreshSystem(sysId) {
-      showMiniLoading('正在向雲端索取最新資料...');
-      try {
-        if(sysId === 'inv') { const res = await callAPI('getInventoryInitData'); globalCatalog = res.catalog || {}; renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); } 
-        else if (sysId === 'move') { const res = await callAPI('getWorkerInitData'); globalLocTree = res.locTree || []; populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); } 
-        else if (sysId === 'mgr') { const res = await callAPI('getWorkerInitData'); populateSelect('mgrEvent', res.events || [], true); globalLocTree = res.locTree || []; renderLocationsTable(globalLocTree); if(document.getElementById('mgrEvent').value) loadManagerData(); }
-      } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
+    var subKey = medium || "(本區)";
+    if (!map[main][subKey]) { map[main][subKey] = []; }
+    
+    var displayLabel = small || "(無)";
+    map[main][subKey].push({ label: displayLabel, val: fullLoc, rowIndex: i + 1 });
+  }
+
+  return mainOrder.map(m => {
+    return { main: m, subs: Object.keys(map[m]).sort().map(s => { return { sub: s, details: map[m][s].sort((a,b) => a.label.localeCompare(b.label)) }; }) };
+  });
+}
+
+function addLocation(p) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('地點層級架構');
+  sheet.appendRow([(p.main || "").trim(), (p.medium || "").trim(), (p.small || "").trim()]);
+  return getLocationTreeFromSheet();
+}
+
+function deleteLocation(rowIndex) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('地點層級架構');
+  sheet.deleteRow(rowIndex);
+  return getLocationTreeFromSheet();
+}
+
+function getBaseline() {
+  var prop = PropertiesService.getScriptProperties();
+  var time = prop.getProperty('INVENTORY_BASELINE');
+  if (!time || time === "null") time = new Date().getTime().toString();
+  return isNaN(parseInt(time, 10)) ? new Date().getTime() : parseInt(time, 10);
+}
+function setBaseline(timeNum) { PropertiesService.getScriptProperties().setProperty('INVENTORY_BASELINE', Math.floor(timeNum).toString()); }
+
+function getInventoryInitData() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單');
+  var data = sheet.getDataRange().getValues();
+  var baseline = getBaseline();
+  var catalog = {};
+  for (var i = 1; i < data.length; i++) {
+    var id = String(data[i][0]).trim();
+    if (id) {
+      var timeNum = data[i][5] ? new Date(data[i][5]).getTime() : 0;
+      catalog[id] = {
+        id: id, name: String(data[i][1]).trim(), location: String(data[i][2]).trim() || "未指定地點", desc: String(data[i][4]).trim(),
+        lastScanStr: timeNum > 0 ? Utilities.formatDate(new Date(timeNum), "GMT+8", "yyyy/MM/dd HH:mm") : "從未盤點",
+        isScanned: timeNum >= baseline, accession: String(data[i][8]).trim(), jiang: String(data[i][9]).trim(), propNum: String(data[i][10]).trim()
+      };
     }
+  }
+  
+  var manuals = {};
+  var mSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('模組說明書');
+  if(mSheet) {
+      var mData = mSheet.getDataRange().getValues();
+      for(var m=1; m<mData.length; m++) { manuals[mData[m][0]] = mData[m][1]; }
+  }
 
-    function populateSelect(id, arr, isObj = false) { if (!arr || !Array.isArray(arr)) return; document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); }
+  return { locTree: getLocationTreeFromSheet(), baselineTime: baseline, catalog: catalog, manuals: manuals };
+}
 
-    function renderTreeHTML(treeData, containerId, prefix, isMulti) {
-      if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
-      let html = `<div class="accordion" id="${prefix}Accordion">`;
-      treeData.forEach((mainNode, mIdx) => {
-        let totalLeaves = mainNode.subs.reduce((sum, subNode) => sum + subNode.details.length, 0); let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
-        html += `<div class="accordion-item main-item"><h2 class="accordion-header"><button class="accordion-button collapsed d-flex justify-content-between py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}"><div><strong class="fs-5">${mainNode.main}</strong> ${badgeHtml}</div></button></h2><div id="${prefix}Col${mIdx}" class="accordion-collapse collapse"><div class="accordion-body p-2 bg-light">`;
-        mainNode.subs.forEach((subNode, sIdx) => {
-          let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
-          if (subNode.details.length === 1) { let det = subNode.details[0]; let displayLabel = det.label === "(本區)" ? subNode.sub : det.label; html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${displayLabel}</label>` : `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${det.val}')">📍 ${displayLabel}</button>`) + `</div></div>`; } 
-          else {
-             html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
-             subNode.details.forEach((det, dIdx) => { let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white'; html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${det.label}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${det.val}')">${det.label}</button>`) + `</div>`; });
-             html += `</div></div></div>`;
-          }
-        });
-        html += `</div></div></div>`;
+function getWorkerInitData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), proj = ss.getSheetByName('異動專案').getDataRange().getValues(), active = [];
+  for(var i=1;i<proj.length;i++) if(proj[i][2]!=='已結案'&&proj[i][0]) active.push({id:proj[i][0],name:proj[i][1]});
+  var drop = ss.getSheetByName('下拉名單').getDataRange().getValues(), si=[];
+  for(var j=1;j<drop.length;j++) { if(drop[j][1] && drop[j][0]==='本處人員') si.push(String(drop[j][1]).trim()); }
+  return { events:active, staffInternal:si, locTree: getLocationTreeFromSheet() };
+}
+
+const ALIAS_DICT = { "樟": "樟櫃區", "樟櫃": "樟櫃區", "璋櫃": "樟櫃區", "樟木櫃": "樟櫃區", "高櫃": "高櫃區", "矮櫃": "矮櫃區", "書板區": "書板區" };
+function getUniqueLocations() {
+  var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單').getRange(2, 3, Math.max(1, SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單').getLastRow() - 1), 1).getValues();
+  var set = new Set(); data.forEach(r => { if(r[0]) set.add(String(r[0]).trim()); });
+  return Array.from(set).sort();
+}
+function buildTree(locArray) {
+  var map = {}, mainOrder = [];
+  locArray.forEach(loc => {
+    if (!loc) return; var rawStr = String(loc).trim(); if (rawStr === "") return;
+    var main = "其他地點", remainder = rawStr;
+    var mainMatch = rawStr.match(/^.*?(庫|房|室|廳|館)/);
+    if (mainMatch) { main = mainMatch[0]; remainder = rawStr.substring(main.length).trim(); }
+    if (!map[main]) { map[main] = {}; mainOrder.push(main); }
+    var subFolder = "(本區)", detailLabel = rawStr;
+    if (remainder !== "") {
+      var subMatch = remainder.match(/^([^\d()（）\-]+)/);
+      var rawPrefix = subMatch ? subMatch[1].trim() : remainder;
+      if (ALIAS_DICT[rawPrefix]) { subFolder = ALIAS_DICT[rawPrefix]; } else { subFolder = rawPrefix.length > 0 ? (rawPrefix + "區") : "(本區)"; }
+      detailLabel = remainder; 
+    }
+    if (!map[main][subFolder]) map[main][subFolder] = [];
+    map[main][subFolder].push({ label: detailLabel, val: rawStr });
+  });
+  mainOrder.sort((a, b) => a === "其他地點" ? 1 : (b === "其他地點" ? -1 : 0));
+  return mainOrder.map(m => { return { main: m, subs: Object.keys(map[m]).sort().map(s => { return { sub: s, details: map[m][s].sort((a,b) => a.label.localeCompare(b.label)) }; }) }; });
+}
+
+function queryItem(qrStr) {
+  var cleanId = String(qrStr).split('\n')[0].trim();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單');
+  var data = sheet.getDataRange().getValues();
+  var baseline = getBaseline();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === cleanId) { 
+      var timeNum = data[i][5] ? new Date(data[i][5]).getTime() : 0;
+      return { id: cleanId, name: String(data[i][1]).trim(), location: String(data[i][2]).trim(), desc: String(data[i][4]).trim(), lastScanStr: timeNum > 0 ? Utilities.formatDate(new Date(timeNum), "GMT+8", "yyyy/MM/dd HH:mm") : "從未盤點", isScanned: timeNum >= baseline, accession: String(data[i][8]).trim(), jiang: String(data[i][9]).trim(), propNum: String(data[i][10]).trim() };
+    }
+  }
+  throw new Error("系統中查無此文物編號：" + cleanId);
+}
+
+function registerItem(p) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單');
+  var data = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
+  for(var i = 1; i < data.length; i++) { if(String(data[i][0]).trim() === p.id.trim()) throw new Error("此編號已存在，不可重複建檔！"); }
+  var nextRow = sheet.getLastRow() + 1;
+  sheet.getRange(nextRow, 1, 1, 5).setValues([[p.id.trim(), p.name.trim(), p.loc.trim(), "", p.desc.trim()]]);
+  sheet.getRange(nextRow, 9, 1, 3).setValues([[p.accession.trim(), p.jiang.trim(), p.propNum.trim()]]);
+  return true;
+}
+
+function getGlobalProgress(mode, locations) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單'), data = sheet.getDataRange().getValues(), baseline = getBaseline(), total = 0, scanned = 0, itemMap = {}; 
+  for (var i = 1; i < data.length; i++) {
+    var loc = data[i][2];
+    if ((mode === 'all') || (locations.indexOf(loc) !== -1)) {
+      total++; var timeVal = data[i][5] ? new Date(data[i][5]).getTime() : 0, isScanned = timeVal >= baseline;
+      if (isScanned) scanned++;
+      itemMap[String(data[i][0]).trim()] = { name: String(data[i][1]).trim(), desc: String(data[i][4] || "").trim(), isScanned: isScanned };
+    }
+  }
+  return { total: total, scanned: scanned, baselineTime: baseline, itemMap: itemMap };
+}
+
+function submitScanWithLock(payload) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單');
+  var qrInputId = payload.qrStr.trim().split('\n')[0], baseline = getBaseline(), dataRange = sheet.getRange(1, 1, sheet.getLastRow(), 6).getValues(), rowIdx = -1, rowData = null;
+  for (var i = 1; i < dataRange.length; i++) { if (String(dataRange[i][0]).trim() === qrInputId) { rowIdx = i + 1; rowData = dataRange[i]; break; } }
+  if (rowIdx === -1) throw new Error('找不到此文物編號！');
+  if(payload.mode === 'partial' && payload.locations.indexOf(rowData[2]) === -1) throw new Error('不在目前盤點範圍內！');
+  if(rowData[5] && new Date(rowData[5]).getTime() >= baseline) throw new Error('已由團隊人員盤點過！');
+  sheet.getRange(rowIdx, 6).setValue(new Date()); SpreadsheetApp.flush(); return { success: true }; 
+}
+
+function getProjectPendingData(eid) {
+  var mvData = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動').getDataRange().getValues();
+  var items = [];
+  var locs = new Set();
+  
+  for(var i = 1; i < mvData.length; i++) {
+    if(mvData[i][1] == eid && !mvData[i][6]) { 
+      var loc = String(mvData[i][5]).trim();
+      locs.add(loc);
+      items.push({
+        rowIndex: i + 1,
+        qrCode: String(mvData[i][3]).split('\n')[0].trim(),
+        name: String(mvData[i][4]).trim() || "未知名稱",
+        loc: loc
       });
-      document.getElementById(containerId).innerHTML = html + '</div>';
     }
+  }
+  return { items: items, locTree: buildTree(Array.from(locs)) };
+}
 
-    function selectAllInSub(btn, isSelect, collapseId) { btn.closest('.sub-group').querySelectorAll('.leaf-cb').forEach(cb => { if (cb.closest('.leaf-item').style.display !== 'none') cb.checked = isSelect; }); if(isSelect && collapseId) { const div = document.getElementById(collapseId); if(div) div.classList.add('show'); } updateCounts(); }
-    function updateCounts() { document.querySelectorAll('.main-item').forEach(main => { const checked = Array.from(main.querySelectorAll('.leaf-cb')).filter(cb => cb.checked).length; const badge = main.querySelector('.count-badge'); if(!badge) return; badge.innerText = `已選 ${checked}/${badge.getAttribute('data-total')}`; badge.className = checked > 0 ? 'badge bg-success ms-2 count-badge' : 'badge bg-secondary ms-2 count-badge'; }); }
+function submitMovement(p) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動');
+  var dataRange = sheet.getDataRange();
+  var values = dataRange.getValues();
+  var ts = new Date();
+  var tsString = Utilities.formatDate(ts, "GMT+8", "yyyyMMddHHmmss");
 
-    function filterInvTree() { execFilter('invLocSearch', 'locCheckboxes'); }
-    function filterModalTree() { execFilter('modalLocSearch', 'modalLocContainer'); }
-    function execFilter(id, container) {
-      const term = document.getElementById(id).value.toLowerCase();
-      document.querySelectorAll(`#${container} .main-item`).forEach(main => {
-        let mVis = false;
-        main.querySelectorAll('.sub-group').forEach(sub => {
-          let sVis = false; sub.querySelectorAll('.leaf-item').forEach(leaf => { const txt = leaf.innerText.toLowerCase(); if (txt.includes(term)) { leaf.style.display = ''; sVis = true; mVis = true; } else { leaf.style.display = 'none'; } });
-          sub.style.display = sVis ? '' : 'none'; const coll = sub.querySelector('.collapse'); if(coll && term && sVis) coll.classList.add('show');
-        });
-        const mColl = main.querySelector('.accordion-collapse'); if(mColl && term && mVis) mColl.classList.add('show'); main.style.display = mVis ? '' : 'none';
-      });
+  for (var i = 0; i < p.rowIndices.length; i++) {
+    var arrIdx = p.rowIndices[i] - 1;
+    if (values[arrIdx][6]) { 
+      throw new Error("⚠️ 慢了一步！部分文物剛剛已被其他同仁搬運完成，系統將為您刷新最新名單！"); 
     }
+  }
 
-    function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
+  p.rowIndices.forEach(function(rIdx) {
+    var arrIdx = rIdx - 1; 
+    values[arrIdx][0] = "MV-" + tsString + "-" + rIdx; 
+    var oldLoc = values[arrIdx][6]; 
+    var oldIsBox = values[arrIdx][7]; 
+    var oldBoxName = values[arrIdx][8]; 
     
-    async function execQuery(rawStr) {
-      let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
-      if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
-      const res = globalCatalog[cleanId];
-      if(res) { renderQueryUI(res); } else {
-        showMiniLoading('🔍 查詢雲端最新狀態中...');
-        try { const freshRes = await callAPI('queryItem', { qrStr: cleanId }); globalCatalog[cleanId] = freshRes; renderQueryUI(freshRes); } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); }
+    values[arrIdx][6] = p.newLoc ? p.newLoc : oldLoc;
+    values[arrIdx][7] = (p.isBox !== undefined && p.isBox !== '') ? p.isBox : oldIsBox;
+    values[arrIdx][8] = p.boxName ? p.boxName : oldBoxName;
+    values[arrIdx][9] = ts; 
+    values[arrIdx][14] = p.staffInternal; 
+  });
+  
+  dataRange.setValues(values);
+  return true;
+}
+
+function verifyManager(pwd) {
+  var d = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('管理者密碼').getDataRange().getValues();
+  for(var i=1;i<d.length;i++) if(String(d[i][1]) === String(pwd)) return {managerName:d[i][0]};
+  throw new Error("密碼錯誤或查無此管理員");
+}
+
+function getManagerData(eid) {
+  var d = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動').getDataRange().getValues(), p=[], c=[];
+  for(var i=1;i<d.length;i++) {
+    if(d[i][1]==eid && d[i][6]) {
+      var item = {rowIndex:i+1,qrCode:d[i][3],oldLoc:d[i][5],newLoc:d[i][6],isBox:d[i][7],boxName:d[i][8],manager:d[i][11]};
+      d[i][10]===true ? c.push(item) : p.push(item);
+    }
+  }
+  return {pending:p, confirmed:c};
+}
+
+function toggleStatus(indices, stat, name) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動');
+  var dataRange = sheet.getDataRange();
+  var values = dataRange.getValues();
+  var ts = new Date();
+
+  indices.forEach(function(r) {
+    var arrIdx = r - 1;
+    values[arrIdx][10] = stat; 
+    values[arrIdx][11] = stat ? ("管理員 " + name) : ""; 
+    values[arrIdx][12] = stat ? ts : ""; 
+  });
+  
+  dataRange.setValues(values);
+  return true;
+}
+
+function editItem(ri, nl, nb, name) {
+  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動');
+  var log = Utilities.formatDate(new Date(),"GMT+8","yyyy/MM/dd HH:mm")+" 修正:["+s.getRange(ri,7).getValue()+"->"+nl+"] (by "+name+")\n";
+  s.getRange(ri,7).setValue(nl); s.getRange(ri,9).setValue(nb); s.getRange(ri,14).setValue((s.getRange(ri,14).getValue()||"")+log);
+  return true;
+}
+
+function syncToMaster(eid) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), mMove = ss.getSheetByName('藏品異動').getDataRange().getValues(), master = ss.getSheetByName('藏品清單'), mData = master.getDataRange().getValues(), mLocRange = master.getRange(1,3,master.getLastRow(),1), mLocVals = mLocRange.getValues(), indexMap = {}, count = 0;
+  for(var j=1;j<mData.length;j++){ var id=String(mData[j][0]).trim(); if(id) indexMap[id]=j; }
+  for(var i=1;i<mMove.length;i++){
+    if(mMove[i][1]==eid && mMove[i][10]===true){
+      var sid = String(mMove[i][3]).split('\n')[0].trim();
+      if(indexMap[sid]!==undefined){ mLocVals[indexMap[sid]][0]=mMove[i][6]; count++; }
+    }
+  }
+  mLocRange.setValues(mLocVals);
+  var pSheet = ss.getSheetByName('異動專案'), pData = pSheet.getDataRange().getValues();
+  for(var k=1;k<pData.length;k++) if(pData[k][0]==eid) pSheet.getRange(k+1,3).setValue('已結案');
+  return {count:count};
+}
+
+function exportInventoryReport(p) {
+  var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單').getDataRange().getValues(), baseline = getBaseline(), csv = ["QRcode,文物名稱,典藏地點,最近盤點時間,狀態"], count=0;
+  for(var i=1;i<data.length;i++){
+    var loc = data[i][2];
+    if(p.mode==='all' || p.locations.indexOf(loc)!==-1){
+      var time = data[i][5]?new Date(data[i][5]).getTime():0, isS = time >= baseline;
+      if(p.reportType==='all' || (p.reportType==='scanned'&&isS) || (p.reportType==='unscanned'&&!isS)){
+        csv.push(`${String(data[i][0]).replace(/,/g," ")},${String(data[i][1]).replace(/,/g," ")},${loc},${isS?Utilities.formatDate(new Date(time),"GMT+8","yyyy/MM/dd HH:mm"):""},${isS?"已盤點":"未盤點"}`); count++;
       }
     }
-    
-    function renderQueryUI(res) {
-      document.getElementById('qResLoc').innerText = res.location || "無地點資料"; document.getElementById('qResName').innerText = res.name || "未知名稱"; document.getElementById('qResPropNum').innerText = res.propNum || "未建檔"; document.getElementById('qResId').innerText = res.id; document.getElementById('qResAccession').innerText = res.accession || "未註明"; document.getElementById('qResJiang').innerText = res.jiang || "未註明"; document.getElementById('qResDesc').innerText = res.desc || "無備註說明";
-      const badge = document.getElementById('qResBadge');
-      if(res.isScanned) { badge.className = "badge bg-success position-absolute shadow-sm"; badge.innerHTML = `✅ 已盤點 (${res.lastScanStr})`; } else { badge.className = "badge bg-danger position-absolute shadow-sm"; badge.innerHTML = `⚠️ ${res.lastScanStr}`; }
-      document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('queryResultBox').style.display = 'block'; playSound('success');
-    }
-    
-    function startQueryScanner() {
-      document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block';
-      if (!queryScanner) queryScanner = new Html5Qrcode("query-reader");
-      if (queryScanner.getState() !== 2) { queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg)); }
-    }
-    
-    async function stopQueryScannerAndReturn() { showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; hideMiniLoading(); }
-
-    function triggerRegLoc() { currentModalTarget='regLoc'; document.getElementById('locModalTitle').innerText = "選擇「初始存放地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
-
-    async function submitRegistration() {
-      const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value };
-      if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...');
-      try {
-        await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`);
-        globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum };
-        if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); }
-        ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關';
-      } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); }
-    }
-
-    async function loadPrintList() {
-      if(allPrintItems && allPrintItems.length > 0) return; 
-      const items = Object.values(globalCatalog);
-      allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse();
-      const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); 
-      let locHtml = '<option value="">所有地點</option>'; 
-      locs.forEach(l => locHtml += `<option value="${l}">${l}</option>`); 
-      document.getElementById('printLocFilter').innerHTML = locHtml; 
-      filterPrintList(); 
-    }
-
-    function renderPrintList(items) {
-      const container = document.getElementById('printListContainer');
-      if(items.length === 0) { container.innerHTML = '<div class="p-3 text-center text-muted">查無紀錄</div>'; return; }
-      container.innerHTML = items.map((item, idx) => `
-        <div class="print-item p-2 d-flex align-items-center">
-          <input class="form-check-input me-2 cb-print" type="checkbox" value="${item.id}" data-name="${item.name}" data-loc="${item.loc}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)">
-          <label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${item.id}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${item.name}</div></label>
-        </div>`).join('');
-      updateCartBtn();
-    }
-
-    function filterPrintList() {
-      const term = document.getElementById('printSearch').value.toLowerCase(), locFilter = document.getElementById('printLocFilter').value;
-      const filtered = allPrintItems.filter(item => { return (item.id.toLowerCase().includes(term) || item.name.toLowerCase().includes(term)) && (locFilter === "" || item.loc === locFilter); });
-      renderPrintList(filtered);
-    }
-
-    function updateCart(cb) { if(cb.checked) { printCartMap.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc') }); } else { printCartMap.delete(cb.value); } updateCartBtn(); }
-    function togglePrintAll(isCheck) { document.querySelectorAll('.cb-print').forEach(cb => { cb.checked = isCheck; updateCart(cb); }); }
-    function selectTop10Print() { togglePrintAll(false); const cbs = document.querySelectorAll('.cb-print'); for(let i=0; i<Math.min(10, cbs.length); i++) { cbs[i].checked = true; updateCart(cbs[i]); } }
-    function updateCartBtn() { document.getElementById('btnGoPreview').innerText = `🏷️ 檢視已選標籤 (共 ${printCartMap.size} 件)`; }
-
-    function showPrintPreview() {
-      if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！");
-      document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block'; let html = '';
-      printCartMap.forEach((data, id) => { html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${id}</span><span class="small text-muted text-truncate">${data.name}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${data.loc}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${id}')">❌ 移除</button></div>`; });
-      document.getElementById('printPreviewContainer').innerHTML = html;
-    }
-
-    function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
-    function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
-
-    function generatePrintPage() {
-      if(printCartMap.size === 0) return alert("請至少選擇一筆項目！");
-      showMiniLoading("生成本機高品質 QR Code 中...");
-      
-      setTimeout(() => {
-          try {
-              const groups = {};
-              printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
-
-              let printHtml = `<div class="preview-paper"><div class="grid-container">`;
-              for(let loc of Object.keys(groups).sort()) {
-                 printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
-                 for(let item of groups[loc]) {
-                   const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`;
-                   const qr = new QRious({ value: urlStr, size: 150, level: 'M' });
-                   const base64Img = qr.toDataURL('image/png');
-                   printHtml += `<div class="label-box"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
-                 }
-              }
-              printHtml += `</div></div>`;
-              document.getElementById('printOverlayContent').innerHTML = printHtml;
-              document.getElementById('printOverlay').style.display = 'flex';
-              hideMiniLoading();
-          } catch(e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); }
-      }, 50); 
-    }
-
-    function closePrintOverlay() { document.getElementById('printOverlay').style.display = 'none'; document.getElementById('printOverlayContent').innerHTML = ''; }
-    function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
-
-    async function startInventorySession() {
-      sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial'; sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value);
-      if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！');
-      try { localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations})); } catch(e) {} await executeInventoryStart();
-    }
-    async function resumeInventorySession() { try { const saved = JSON.parse(localStorage.getItem('invSession')); if(!saved) return; sysState.mode = saved.mode; sysState.locations = saved.locations; } catch(e) {} await executeInventoryStart(); }
-    function clearInventorySession() { try { localStorage.removeItem('invSession'); } catch(e) {} document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
-
-    async function executeInventoryStart() {
-      showMiniLoading('下載名單，準備極速盤點...');
-      try {
-        const res = await callAPI('startInventory', sysState); sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI();
-        document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block'; hideMiniLoading();
-        if (!scanner) scanner = new Html5Qrcode("reader");
-        if (scanner.getState() !== 2) { scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); }
-      } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); }
-    }
-
-    function updateProgressUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned); document.getElementById('progressBar').style.width = (sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100)) + '%'; }
-
-    async function processScanLocal(msg) {
-      if (isProc || Date.now() - lastScan < 800) return; isProc = true; lastScan = Date.now();
-      let cleanMsg = msg.includes('?id=') ? new URL(msg).searchParams.get('id') : msg.trim().split('\n')[0]; const item = localItemCache[cleanMsg]; const overlay = document.getElementById('resultOverlay'); overlay.style.display = 'block';
-      if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在盤點範圍</span>'; document.getElementById('resName').innerText = cleanMsg; document.getElementById('resDesc').innerText = "請確認是否錯置或尚未建檔"; } 
-      else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點過</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點"; } 
-      else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = item.desc || ""; syncQueue.push(cleanMsg); triggerBackgroundSync(); }
-      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
-    }
-
-    async function triggerBackgroundSync() {
-      if (isSyncing || syncQueue.length === 0) return; isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
-      while (syncQueue.length > 0) { let currentMsg = syncQueue[0]; try { await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); syncQueue.shift(); } catch(e) { let errStr = e.message.toLowerCase(); if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) { break; } else { syncQueue.shift(); } } }
-      isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
-    }
-
-    async function pauseAndSave() { showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); hideMiniLoading(); }
-    async function finishInventory() { if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return; showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; hideMiniLoading(); }
-    function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
-    function playSound(k) { if (!audioCtx) return; if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = k === 'success' ? 'triangle' : 'square'; o.frequency.value = k === 'success' ? 1100 : 550; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => { o.stop(); }, 150); }
-
-    // 💡 優化：專案級快取，0 延遲加載地點與清單
-    async function loadWorkerLocations() {
-      const eid = document.getElementById('mvEvent').value; 
-      currentMvEventId = eid;
-      const d = document.getElementById('mvLocDisplay'); 
-      document.getElementById('mvLoc').value = ""; d.value = ""; 
-      document.getElementById('mvPhase2').style.display = 'none'; 
-      document.getElementById('mvPhase3').style.display = 'none';
-      if(!eid) return; 
-      
-      showMiniLoading('下載專案全資料中...'); 
-      try { 
-        const res = await callAPI('getProjectPendingData', { eventId: eid }); 
-        currentProjectItems = res.items || [];
-        pendingLocTree = res.locTree || []; 
-        d.placeholder = "請點此選擇..."; 
-      } catch (e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
-    }
-    
-    function triggerMvLoc() { if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！'); currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
-    function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「暫存地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
-    
-    function selectModalLoc(v) { 
-      document.getElementById(currentModalTarget).value=v; 
-      document.getElementById(currentModalTarget+'Display').value=v; 
-      bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
-      if(currentModalTarget==='mvLoc') loadWorkerItems(); 
-    }
-
-    // 💡 0 秒極速渲染清單
-    async function loadWorkerItems() {
-      const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value; 
-      if (!eid || !loc) return;
-      
-      const filteredItems = currentProjectItems.filter(x => x.loc === loc);
-      const listDiv = document.getElementById('mvItemList');
-      
-      if (filteredItems.length === 0) { 
-          listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點皆已搬運完畢！</div>'; 
-          document.getElementById('mvPhase3').style.display = 'none'; 
-      } else { 
-          listDiv.innerHTML = filteredItems.map((x, i) => `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" onchange="checkPhase3Trigger()"><label class="form-check-label w-100 fs-6" for="mvItem_${i}"><span class="text-primary fw-bold">[${x.qrCode}]</span> ${x.name}</label></div>`).join(''); 
-          checkPhase3Trigger(); 
-      }
-      document.getElementById('mvPhase2').style.display = 'block'; 
-    }
-
-    function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state); checkPhase3Trigger(); }
-    function checkPhase3Trigger() { document.getElementById('mvPhase3').style.display = document.querySelectorAll('.mv-item-cb:checked').length > 0 ? 'block' : 'none'; }
-    function toggleBoxInput() { const isBox = document.getElementById('mvIsBox').checked; document.getElementById('boxInputContainer').style.display = isBox ? 'block' : 'none'; if (!isBox) document.getElementById('mvBoxName').value = ''; }
-
-    // 💡 樂觀更新與防撞車提示
-    async function submitMovement() {
-      const selectedItems = Array.from(document.querySelectorAll('.mv-item-cb:checked')).map(cb => parseInt(cb.value)); 
-      const newLoc = document.getElementById('mvNewLoc').value, staffInt = document.getElementById('mvStaffInternal').value;
-      if(selectedItems.length === 0 || !newLoc || !staffInt) return alert('請確認皆已完整填寫！'); 
-      
-      showMiniLoading(`寫入 ${selectedItems.length} 件紀錄...`);
-      try { 
-        await callAPI('submitMovement', { rowIndices: selectedItems, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInt }); 
-        alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
-        
-        // 樂觀剔除已搬運文物
-        currentProjectItems = currentProjectItems.filter(x => !selectedItems.includes(x.rowIndex));
-        document.getElementById('mvPhase3').style.display = 'none'; 
-        loadWorkerItems(); 
-        silentMvSync(); // 觸發背景自癒更新樹狀圖
-      } catch(e) { 
-        alert(e.message); 
-        if(e.message.includes("慢了一步")) { loadWorkerLocations(); } // 被搶先則強制重新下載專案
-      } finally { hideMiniLoading(); }
-    }
-
-    // 💡 背景靜默自癒
-    async function silentMvSync() {
-      if(!currentMvEventId) return;
-      try {
-        const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId });
-        currentProjectItems = res.items || [];
-        pendingLocTree = res.locTree || [];
-      } catch(e) {}
-    }
-
-    async function updateBaseline() {
-      const timeVal = document.getElementById('newBaseline').value; if(!timeVal) return alert('請選擇日期時間'); if(!confirm("確定要更新基準日嗎？")) return;
-      showMiniLoading('更新中...'); try { await callAPI('updateBaseline', { timeString: timeVal }); alert('✅ 更新成功！'); location.reload(); } catch (e) { alert("更新失敗：" + e.message); hideMiniLoading(); }
-    }
-    
-    async function loadManagerData() {
-      showMiniLoading('載入表單中...');
-      try { const res = await callAPI('getManagerData', { eventId: document.getElementById('mgrEvent').value }); renderTable('tablePending', res.pending, 'chk-pend', true); renderTable('tableConfirmed', res.confirmed, 'chk-conf', false); } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
-    }
-    function renderTable(tid, data, cls, edit) { document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b>${x.qrCode.split('\n')[0]}</b><br><small>${x.oldLoc}</small></td><td>${x.newLoc}<br><small>${x.boxName||''}</small></td><td>${edit?`<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${x.newLoc}','${x.boxName}')">📝修改</button>`:`<small>${x.manager}</small>`}</td></tr>`).join(''); }
-    async function changeStatus(cls, stat) { const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請先勾選項目！'); showMiniLoading('處理中...'); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
-    async function promptEdit(ri, nl, nb) { const loc = prompt("修改暫存地點：", nl), box = prompt("修改箱名：", nb); if(loc!==null) { showMiniLoading('更新中...'); try { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } } }
-    async function syncToMaster() { if(!confirm("確定要結案同步嗎？")) return; showMiniLoading('寫入總表中...'); try { await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('✅ 結案成功！'); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
-    function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
-    function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
-
-    function renderLocationsTable(tree) {
-       let html = '';
-       tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { html += `<tr><td>${m.main}</td><td>${s.sub}</td><td><b>${d.label}</b></td><td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button></td></tr>`; }); }); });
-       document.querySelector('#tableLocations tbody').innerHTML = html;
-    }
-
-    async function addNewLocation() {
-        const m = document.getElementById('locAddMain').value; const s = document.getElementById('locAddSub').value; const d = document.getElementById('locAddDetail').value;
-        if(!d) return alert("「詳細地點」為必填欄位！");
-        showMiniLoading('寫入新地點中...');
-        try { const newTree = await callAPI('addLocation', { main: m, sub: s, detail: d }); globalLocTree = newTree; renderLocationsTable(globalLocTree); document.getElementById('locAddMain').value = ''; document.getElementById('locAddSub').value = ''; document.getElementById('locAddDetail').value = ''; alert("✅ 新地點已建立！"); } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
-    }
-
-    async function deleteLoc(rowIndex) {
-        if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return;
-        showMiniLoading('刪除地點中...');
-        try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree; renderLocationsTable(globalLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); }
-    }
-  </script>
-</body>
-</html>
+  }
+  MailApp.sendEmail(p.email, "盤點報告", "附件為最新報告，共"+count+"筆", {attachments:[Utilities.newBlob("\uFEFF"+csv.join("\n"), 'text/csv', 'report.csv')]});
+  return true;
+}
