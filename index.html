@@ -482,6 +482,33 @@
     </div></div>
   </div>
 
+  <div class="modal fade" id="editLocModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold text-primary">📝 修改典藏地點</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <input type="hidden" id="editLocRowIndex">
+          <div class="mb-3">
+            <label class="form-label text-dark fw-bold">大區 <span class="text-danger">*</span></label>
+            <input type="text" id="editLocMain" class="form-control border-primary" placeholder="例: 東側小庫房">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-dark fw-bold">中區</label>
+            <input type="text" id="editLocMedium" class="form-control" placeholder="例: 黑櫃1">
+          </div>
+          <div class="mb-4">
+            <label class="form-label text-dark fw-bold">小區</label>
+            <input type="text" id="editLocSmall" class="form-control" placeholder="建議加上橫槓，如: -07">
+          </div>
+          <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm" onclick="submitEditLoc()">💾 確認儲存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
@@ -498,7 +525,6 @@
     let currentProjectItems = [];
     let currentMvEventId = "";
     
-    // 💡 空間管理佇列變數
     let locUpdateQueue = [];
     let isLocSyncing = false;
 
@@ -609,7 +635,7 @@
         let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
         let content = globalManuals[moduleId];
         if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } else { document.getElementById('helpContent').innerHTML = formatHelpText(content); }
-        let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異搬搬運', 'mgr': '⚙️ 管理員後台' };
+        let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
         document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
         var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas')); bsOffcanvas.show();
     }
@@ -944,7 +970,6 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
-    // 💡 全新：實裝樂觀更新與背景任務佇列
     function renderLocationsTable(tree) {
        let html = '';
        tree.forEach(m => { 
@@ -957,13 +982,12 @@
              let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
              let safeSmall = displaySmall.replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-             // 替每一列加上 ID，方便後續做 DOM 樂觀更新
              html += `<tr id="locRow_${d.rowIndex}">
                         <td>${m.main}</td>
                         <td>${displayMedium}</td>
                         <td><b>${displaySmall}</b></td>
                         <td class="text-center text-nowrap">
-                          <button class="btn btn-sm btn-outline-primary me-1" onclick="editLoc(${d.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
+                          <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditLocModal(${d.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
                           <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button>
                         </td>
                       </tr>`; 
@@ -991,15 +1015,27 @@
         } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // 💡 樂觀更新：修改地點 (0 毫秒畫面更新)
-    async function editLoc(rowIndex, oldMain, oldMedium, oldSmall) {
-        const m = prompt("修改【大區】：", oldMain);
-        if (m === null) return; 
-        const med = prompt("修改【中區】：", oldMedium);
-        if (med === null) return; 
-        const s = prompt("修改【小區】：\n(建議可在此處加上橫槓，如：-07)", oldSmall);
-        if (s === null) return;
+    // 💡 全新：一站式預填與呼叫 Modal
+    function openEditLocModal(rowIndex, oldMain, oldMedium, oldSmall) {
+        document.getElementById('editLocRowIndex').value = rowIndex;
+        document.getElementById('editLocMain').value = oldMain;
+        document.getElementById('editLocMedium').value = oldMedium;
+        document.getElementById('editLocSmall').value = oldSmall;
+        
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editLocModal')).show();
+    }
+
+    // 💡 全新：送出修改與樂觀更新
+    function submitEditLoc() {
+        const rowIndex = parseInt(document.getElementById('editLocRowIndex').value);
+        const m = document.getElementById('editLocMain').value.trim();
+        const med = document.getElementById('editLocMedium').value.trim();
+        const s = document.getElementById('editLocSmall').value.trim();
+
         if(!m) return alert("❌「大區」不可為空！");
+
+        // 瞬間關閉視窗
+        bootstrap.Modal.getInstance(document.getElementById('editLocModal')).hide();
 
         // 1. Optimistic UI (樂觀畫面更新)
         const safeMain = m.replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -1011,9 +1047,9 @@
             row.innerHTML = `
                 <td>${m}</td>
                 <td>${med}</td>
-                <td><b>${s}</b><span class="badge bg-warning text-dark ms-2" id="syncBadge_${rowIndex}">☁️ 同步中...</span></td>
+                <td><b>${s}</b><br><span class="badge bg-warning text-dark mt-1" id="syncBadge_${rowIndex}">☁️ 同步中...</span></td>
                 <td class="text-center text-nowrap">
-                  <button class="btn btn-sm btn-outline-primary me-1" onclick="editLoc(${rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
+                  <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditLocModal(${rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
                   <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${rowIndex})">🗑️</button>
                 </td>`;
         }
@@ -1025,32 +1061,25 @@
         processLocQueue();
     }
 
-    // 💡 隱形背景佇列處理器
     async function processLocQueue() {
         if (isLocSyncing || locUpdateQueue.length === 0) return;
         isLocSyncing = true;
 
-        // 複製一份當前的待辦清單，並清空原清單準備接單
         const updatesToProcess = [...locUpdateQueue];
         locUpdateQueue = [];
 
         try {
-            // 批次丟給後端處理
             const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess });
             globalLocTree = newTree;
-            
-            // 寫入成功後，重新渲染整張乾淨的表格 (消除黃色同步標籤)
             renderLocationsTable(globalLocTree); 
             showToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`);
         } catch (e) {
             console.error("背景更新失敗", e);
             showToast("⚠️ 部分地點背景更新失敗，將於下次重試");
-            // 發生錯誤，把任務塞回清單最前面，下次再試
             locUpdateQueue = [...updatesToProcess, ...locUpdateQueue];
-            renderLocationsTable(globalLocTree); // 還原成舊的正確資料
+            renderLocationsTable(globalLocTree); 
         } finally {
             isLocSyncing = false;
-            // 檢查是否還有新的待辦事項，有的話繼續執行
             if (locUpdateQueue.length > 0) {
                 processLocQueue();
             }
