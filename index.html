@@ -258,7 +258,7 @@
                 <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
               </div>
             </div>
-            <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動掃描器</button>
+            <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟 budding 掃描器</button>
             <div id="query-reader-container" style="display:none;">
               <div id="query-reader"></div>
               <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
@@ -672,7 +672,6 @@
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
           if (subNode.details.length === 1) { 
              let det = subNode.details[0]; 
-             // 💡 確保無小區時的顯示
              let displayLabel = det.label === "(無)" ? subNode.sub : det.label; 
              html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${displayLabel}</label>` : `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${det.val}')">📍 ${displayLabel}</button>`) + `</div></div>`; 
           } 
@@ -680,7 +679,7 @@
              html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
              subNode.details.forEach((det, dIdx) => { 
                 let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white'; 
-                let dLabel = det.label === "(無)" ? subNode.sub : det.label; // 防呆顯示
+                let dLabel = det.label === "(無)" ? subNode.sub : det.label; 
                 html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${dLabel}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${det.val}')">${dLabel}</button>`) + `</div>`; 
              });
              html += `</div></div></div>`;
@@ -897,17 +896,32 @@
     function toggleBoxInput() { const isBox = document.getElementById('mvIsBox').checked; document.getElementById('boxInputContainer').style.display = isBox ? 'block' : 'none'; if (!isBox) document.getElementById('mvBoxName').value = ''; }
 
     async function submitMovement() {
-      const selectedItems = Array.from(document.querySelectorAll('.mv-item-cb:checked')).map(cb => parseInt(cb.value)); const newLoc = document.getElementById('mvNewLoc').value, staffInt = document.getElementById('mvStaffInternal').value;
-      if(selectedItems.length === 0 || !newLoc || !staffInt) return alert('請確認皆已完整填寫！'); showMiniLoading(`寫入 ${selectedItems.length} 件紀錄...`);
+      const selectedItems = Array.from(document.querySelectorAll('.mv-item-cb:checked')).map(cb => parseInt(cb.value)); 
+      const newLoc = document.getElementById('mvNewLoc').value, staffInt = document.getElementById('mvStaffInternal').value;
+      if(selectedItems.length === 0 || !newLoc || !staffInt) return alert('請確認皆已完整填寫！'); 
+      
+      showMiniLoading(`寫入 ${selectedItems.length} 件紀錄...`);
       try { 
-        await callAPI('submitMovement', { rowIndices: selectedItems, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInt }); alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
-        currentProjectItems = currentProjectItems.filter(x => !selectedItems.includes(x.rowIndex)); document.getElementById('mvPhase3').style.display = 'none'; loadWorkerItems(); silentMvSync(); 
-      } catch(e) { alert(e.message); if(e.message.includes("慢了一步")) { loadWorkerLocations(); } } finally { hideMiniLoading(); }
+        await callAPI('submitMovement', { rowIndices: selectedItems, newLoc: newLoc, isBox: document.getElementById('mvIsBox').checked ? 'TRUE' : 'FALSE', boxName: document.getElementById('mvBoxName').value, staffInternal: staffInt }); 
+        alert(`✅ 成功送出 ${selectedItems.length} 件文物搬運紀錄！`); 
+        
+        currentProjectItems = currentProjectItems.filter(x => !selectedItems.includes(x.rowIndex));
+        document.getElementById('mvPhase3').style.display = 'none'; 
+        loadWorkerItems(); 
+        silentMvSync(); 
+      } catch(e) { 
+        alert(e.message); 
+        if(e.message.includes("慢了一步")) { loadWorkerLocations(); } 
+      } finally { hideMiniLoading(); }
     }
 
     async function silentMvSync() {
       if(!currentMvEventId) return;
-      try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {}
+      try {
+        const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId });
+        currentProjectItems = res.items || [];
+        pendingLocTree = res.locTree || [];
+      } catch(e) {}
     }
 
     async function updateBaseline() {
@@ -926,7 +940,7 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
-    // 💡 渲染後台空間清單，確保空的小區也能漂亮顯示
+    // 💡 渲染表格：加入修改按鈕
     function renderLocationsTable(tree) {
        let html = '';
        tree.forEach(m => { 
@@ -934,7 +948,21 @@
            s.details.forEach(d => { 
              let displaySmall = d.label === "(無)" ? "" : d.label;
              let displayMedium = s.sub === "(本區)" ? "" : s.sub;
-             html += `<tr><td>${m.main}</td><td>${displayMedium}</td><td><b>${displaySmall}</b></td><td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button></td></tr>`; 
+             
+             // 防呆編碼：避免單引號與雙引號破壞 HTML 屬性
+             let safeMain = m.main.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+             let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+             let safeSmall = displaySmall.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+             html += `<tr>
+                        <td>${m.main}</td>
+                        <td>${displayMedium}</td>
+                        <td><b>${displaySmall}</b></td>
+                        <td class="text-center text-nowrap">
+                          <button class="btn btn-sm btn-outline-primary me-1" onclick="editLoc(${d.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
+                          <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button>
+                        </td>
+                      </tr>`; 
            }); 
          }); 
        });
@@ -957,6 +985,33 @@
             document.getElementById('locAddSmall').value = ''; 
             alert("✅ 新地點已建立！"); 
         } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
+    }
+
+    // 💡 全新：單筆地點防呆修改函式
+    async function editLoc(rowIndex, oldMain, oldMedium, oldSmall) {
+        // 1. 連續彈出三個視窗，並預先填入舊資料
+        const m = prompt("修改【大區】：", oldMain);
+        if (m === null) return; // 按下取消則終止
+        
+        const med = prompt("修改【中區】：", oldMedium);
+        if (med === null) return; 
+        
+        const s = prompt("修改【小區】：\n(建議可在此處加上橫槓，如：-07)", oldSmall);
+        if (s === null) return;
+        
+        if(!m) return alert("❌「大區」不可為空！");
+        
+        showMiniLoading('更新地點中...');
+        try {
+            const newTree = await callAPI('updateLocation', { rowIndex: rowIndex, main: m, medium: med, small: s });
+            globalLocTree = newTree;
+            renderLocationsTable(globalLocTree);
+            alert("✅ 地點已更新完成！");
+        } catch(e) {
+            alert("更新失敗：" + e.message);
+        } finally {
+            hideMiniLoading();
+        }
     }
 
     async function deleteLoc(rowIndex) {
