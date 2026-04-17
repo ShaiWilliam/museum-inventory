@@ -258,7 +258,7 @@
                 <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
               </div>
             </div>
-            <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟 budding 掃描器</button>
+            <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動掃描器</button>
             <div id="query-reader-container" style="display:none;">
               <div id="query-reader"></div>
               <button class="btn btn-outline-secondary w-100 mt-3 py-2 fw-bold" onclick="stopQueryScannerAndReturn()">返回手動輸入</button>
@@ -497,6 +497,10 @@
     let globalManuals = {}; 
     let currentProjectItems = [];
     let currentMvEventId = "";
+    
+    // 💡 空間管理佇列變數
+    let locUpdateQueue = [];
+    let isLocSyncing = false;
 
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
     localStorage.setItem('myUid', myUserId);
@@ -605,7 +609,7 @@
         let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
         let content = globalManuals[moduleId];
         if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } else { document.getElementById('helpContent').innerHTML = formatHelpText(content); }
-        let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
+        let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異搬搬運', 'mgr': '⚙️ 管理員後台' };
         document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
         var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas')); bsOffcanvas.show();
     }
@@ -940,7 +944,7 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
-    // 💡 渲染表格：加入修改按鈕
+    // 💡 全新：實裝樂觀更新與背景任務佇列
     function renderLocationsTable(tree) {
        let html = '';
        tree.forEach(m => { 
@@ -949,12 +953,12 @@
              let displaySmall = d.label === "(無)" ? "" : d.label;
              let displayMedium = s.sub === "(本區)" ? "" : s.sub;
              
-             // 防呆編碼：避免單引號與雙引號破壞 HTML 屬性
              let safeMain = m.main.replace(/'/g, "\\'").replace(/"/g, "&quot;");
              let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
              let safeSmall = displaySmall.replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-             html += `<tr>
+             // 替每一列加上 ID，方便後續做 DOM 樂觀更新
+             html += `<tr id="locRow_${d.rowIndex}">
                         <td>${m.main}</td>
                         <td>${displayMedium}</td>
                         <td><b>${displaySmall}</b></td>
@@ -987,30 +991,69 @@
         } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // 💡 全新：單筆地點防呆修改函式
+    // 💡 樂觀更新：修改地點 (0 毫秒畫面更新)
     async function editLoc(rowIndex, oldMain, oldMedium, oldSmall) {
-        // 1. 連續彈出三個視窗，並預先填入舊資料
         const m = prompt("修改【大區】：", oldMain);
-        if (m === null) return; // 按下取消則終止
-        
+        if (m === null) return; 
         const med = prompt("修改【中區】：", oldMedium);
         if (med === null) return; 
-        
         const s = prompt("修改【小區】：\n(建議可在此處加上橫槓，如：-07)", oldSmall);
         if (s === null) return;
-        
         if(!m) return alert("❌「大區」不可為空！");
+
+        // 1. Optimistic UI (樂觀畫面更新)
+        const safeMain = m.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const safeMed = med.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const safeSmall = s.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const row = document.getElementById(`locRow_${rowIndex}`);
         
-        showMiniLoading('更新地點中...');
+        if(row) {
+            row.innerHTML = `
+                <td>${m}</td>
+                <td>${med}</td>
+                <td><b>${s}</b><span class="badge bg-warning text-dark ms-2" id="syncBadge_${rowIndex}">☁️ 同步中...</span></td>
+                <td class="text-center text-nowrap">
+                  <button class="btn btn-sm btn-outline-primary me-1" onclick="editLoc(${rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
+                  <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${rowIndex})">🗑️</button>
+                </td>`;
+        }
+
+        // 2. 丟入背景佇列排隊
+        locUpdateQueue.push({ rowIndex: rowIndex, main: m, medium: med, small: s });
+
+        // 3. 呼叫背景機器人默默處理
+        processLocQueue();
+    }
+
+    // 💡 隱形背景佇列處理器
+    async function processLocQueue() {
+        if (isLocSyncing || locUpdateQueue.length === 0) return;
+        isLocSyncing = true;
+
+        // 複製一份當前的待辦清單，並清空原清單準備接單
+        const updatesToProcess = [...locUpdateQueue];
+        locUpdateQueue = [];
+
         try {
-            const newTree = await callAPI('updateLocation', { rowIndex: rowIndex, main: m, medium: med, small: s });
+            // 批次丟給後端處理
+            const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess });
             globalLocTree = newTree;
-            renderLocationsTable(globalLocTree);
-            alert("✅ 地點已更新完成！");
-        } catch(e) {
-            alert("更新失敗：" + e.message);
+            
+            // 寫入成功後，重新渲染整張乾淨的表格 (消除黃色同步標籤)
+            renderLocationsTable(globalLocTree); 
+            showToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`);
+        } catch (e) {
+            console.error("背景更新失敗", e);
+            showToast("⚠️ 部分地點背景更新失敗，將於下次重試");
+            // 發生錯誤，把任務塞回清單最前面，下次再試
+            locUpdateQueue = [...updatesToProcess, ...locUpdateQueue];
+            renderLocationsTable(globalLocTree); // 還原成舊的正確資料
         } finally {
-            hideMiniLoading();
+            isLocSyncing = false;
+            // 檢查是否還有新的待辦事項，有的話繼續執行
+            if (locUpdateQueue.length > 0) {
+                processLocQueue();
+            }
         }
     }
 
