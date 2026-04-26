@@ -543,7 +543,12 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec"; 
     // ==========================================
 
-    let currentManager = "", globalLocTree = [], pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
+    let currentManager = "", pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
+    
+    // 💡 雙軌樹狀圖架構 (前端核心變數)
+    let globalLocTree = []; // 給操作員用的 (只包含顯示中的地點)
+    let mgrLocTree = [];    // 給管理員用的 (包含已隱藏的退役地點)
+
     let audioCtx, scanner = null, queryScanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
     let localItemCache = {}, syncQueue = [], isSyncing = false;   
     let allPrintItems = [], printCartMap = new Map(), globalCatalog = {}; 
@@ -554,7 +559,6 @@
     let locUpdateQueue = [];
     let isLocSyncing = false;
 
-    // 💡 全新：管理員後台的記憶體快取，用於 0 延遲交叉篩選
     let mgrPendingData = [];
     let mgrConfirmedData = [];
 
@@ -646,7 +650,14 @@
         baselineTime = invData.baselineTime || 0; let d = new Date(baselineTime); if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`; document.getElementById('mqBaseline').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         
-        globalLocTree = workData.locTree || []; renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); renderLocationsTable(globalLocTree); 
+        // 💡 雙軌初始化載入
+        globalLocTree = workData.locTree || []; 
+        mgrLocTree = workData.mgrLocTree || [];
+
+        // UI 渲染綁定對應的樹
+        renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); 
+        renderLocationsTable(mgrLocTree); 
+
         populateSelect('mvEvent', workData.events || [], true); populateSelect('mgrEvent', workData.events || [], true); populateSelect('mvStaffInternal', workData.staffInternal || []);
         setProgress(100, '🚀 系統啟動！');
         
@@ -714,9 +725,26 @@
     async function refreshSystem(sysId) {
       showMiniLoading('正在向雲端索取最新資料...');
       try {
-        if(sysId === 'inv') { const res = await callAPI('getInventoryInitData'); globalCatalog = res.catalog || {}; renderTreeHTML(res.locTree || [], 'locCheckboxes', 'inv', true); } 
-        else if (sysId === 'move') { const res = await callAPI('getWorkerInitData'); globalLocTree = res.locTree || []; populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); } 
-        else if (sysId === 'mgr') { const res = await callAPI('getWorkerInitData'); populateSelect('mgrEvent', res.events || [], true); globalLocTree = res.locTree || []; renderLocationsTable(globalLocTree); if(document.getElementById('mgrEvent').value) loadManagerData(); }
+        if(sysId === 'inv') { 
+            const res = await callAPI('getInventoryInitData'); 
+            globalCatalog = res.catalog || {}; 
+            globalLocTree = res.locTree || [];
+            renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); 
+        } 
+        else if (sysId === 'move') { 
+            const res = await callAPI('getWorkerInitData'); 
+            globalLocTree = res.locTree || []; 
+            mgrLocTree = res.mgrLocTree || [];
+            populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); 
+        } 
+        else if (sysId === 'mgr') { 
+            const res = await callAPI('getWorkerInitData'); 
+            populateSelect('mgrEvent', res.events || [], true); 
+            globalLocTree = res.locTree || []; 
+            mgrLocTree = res.mgrLocTree || [];
+            renderLocationsTable(mgrLocTree); 
+            if(document.getElementById('mgrEvent').value) loadManagerData(); 
+        }
       } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
@@ -989,7 +1017,6 @@
       showMiniLoading('更新中...'); try { await callAPI('updateBaseline', { timeString: timeVal }); alert('✅ 更新成功！'); location.reload(); } catch (e) { alert("更新失敗：" + e.message); hideMiniLoading(); }
     }
     
-    // 💡 核心升級：載入管理員資料與初始化複合篩選器
     async function loadManagerData() {
       const eid = document.getElementById('mgrEvent').value;
       if(!eid) {
@@ -1005,7 +1032,6 @@
           mgrPendingData = res.pending;
           mgrConfirmedData = res.confirmed;
           
-          // 萃取下拉選單的選項
           const allData = [...mgrPendingData, ...mgrConfirmedData];
           const locs = [...new Set(allData.map(x => x.newLoc).filter(Boolean))].sort();
           const boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort();
@@ -1017,12 +1043,10 @@
           
           document.getElementById('mgrFilterSec').style.display = 'block';
           
-          // 觸發首次過濾與渲染
           applyMgrFilters();
       } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // 💡 核心升級：0 延遲複合交叉篩選邏輯
     function applyMgrFilters() {
       const kw = document.getElementById('mgrSearchKw').value.toLowerCase().trim();
       const loc = document.getElementById('mgrSearchLoc').value;
@@ -1046,7 +1070,6 @@
       renderTable('tableConfirmed', filteredC, 'chk-conf', false);
     }
 
-    // 💡 渲染表格：加入名稱與搬運人員資訊
     function renderTable(tid, data, cls, edit) { 
         document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => {
             let safeLoc = x.newLoc.replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -1081,7 +1104,6 @@
       showMiniLoading('處理中...'); 
       try { 
         await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); 
-        // 操作後必須重抓最新名單
         loadManagerData(); 
       } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } 
     }
@@ -1101,6 +1123,7 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
+    // 💡 渲染空間架構表格：加入隱藏/顯示狀態與按鈕
     function renderLocationsTable(tree) {
        let html = '';
        tree.forEach(m => { 
@@ -1113,11 +1136,19 @@
              let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
              let safeSmall = displaySmall.replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-             html += `<tr id="locRow_${d.rowIndex}">
+             // 根據 isHidden 狀態設定 UI 樣式
+             let rowClass = d.isHidden ? "opacity-50 bg-light" : "";
+             let statusBadge = d.isHidden ? `<span class="badge bg-secondary ms-2">🙈 已隱藏</span>` : `<span class="badge bg-success ms-2">👁️ 使用中</span>`;
+             let toggleBtn = d.isHidden 
+                ? `<button class="btn btn-sm btn-outline-success me-1" onclick="toggleLocStatus(${d.rowIndex}, false)" title="設為顯示">👁️</button>` 
+                : `<button class="btn btn-sm btn-outline-secondary me-1" onclick="toggleLocStatus(${d.rowIndex}, true)" title="設為隱藏">🙈</button>`;
+
+             html += `<tr id="locRow_${d.rowIndex}" class="${rowClass}">
                         <td>${m.main}</td>
                         <td>${displayMedium}</td>
-                        <td><b>${displaySmall}</b></td>
+                        <td><b>${displaySmall}</b> ${statusBadge}</td>
                         <td class="text-center text-nowrap">
+                          ${toggleBtn}
                           <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditLocModal(${d.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
                           <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button>
                         </td>
@@ -1137,8 +1168,9 @@
         showMiniLoading('寫入新地點中...');
         try { 
             const newTree = await callAPI('addLocation', { main: m, medium: med, small: s }); 
-            globalLocTree = newTree; 
-            renderLocationsTable(globalLocTree); 
+            globalLocTree = newTree.locTree; 
+            mgrLocTree = newTree.mgrLocTree;
+            renderLocationsTable(mgrLocTree); 
             document.getElementById('locAddMain').value = ''; 
             document.getElementById('locAddMedium').value = ''; 
             document.getElementById('locAddSmall').value = ''; 
@@ -1171,11 +1203,13 @@
         const row = document.getElementById(`locRow_${rowIndex}`);
         
         if(row) {
+            // 這裡保留樂觀更新，但狀態徽章要靠背景刷新後補上
             row.innerHTML = `
                 <td>${m}</td>
                 <td>${med}</td>
                 <td><b>${s}</b><br><span class="badge bg-warning text-dark mt-1" id="syncBadge_${rowIndex}">☁️ 同步中...</span></td>
                 <td class="text-center text-nowrap">
+                  <button class="btn btn-sm btn-outline-secondary me-1" disabled>🙈</button>
                   <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditLocModal(${rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
                   <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${rowIndex})">🗑️</button>
                 </td>`;
@@ -1194,14 +1228,15 @@
 
         try {
             const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess });
-            globalLocTree = newTree;
-            renderLocationsTable(globalLocTree); 
+            globalLocTree = newTree.locTree;
+            mgrLocTree = newTree.mgrLocTree;
+            renderLocationsTable(mgrLocTree); 
             showToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`);
         } catch (e) {
             console.error("背景更新失敗", e);
             showToast("⚠️ 部分地點背景更新失敗，將於下次重試");
             locUpdateQueue = [...updatesToProcess, ...locUpdateQueue];
-            renderLocationsTable(globalLocTree); 
+            renderLocationsTable(mgrLocTree); 
         } finally {
             isLocSyncing = false;
             if (locUpdateQueue.length > 0) {
@@ -1210,10 +1245,30 @@
         }
     }
 
+    // 💡 全新：切換顯示/隱藏狀態
+    async function toggleLocStatus(rowIndex, setHidden) {
+        showMiniLoading('更新狀態中...');
+        try { 
+            const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); 
+            globalLocTree = newTree.locTree; 
+            mgrLocTree = newTree.mgrLocTree; 
+            renderLocationsTable(mgrLocTree); 
+        } catch(e) { 
+            alert("狀態切換失敗：" + e.message); 
+        } finally { 
+            hideMiniLoading(); 
+        }
+    }
+
     async function deleteLoc(rowIndex) {
         if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return;
         showMiniLoading('刪除地點中...');
-        try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree; renderLocationsTable(globalLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); }
+        try { 
+            const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); 
+            globalLocTree = newTree.locTree; 
+            mgrLocTree = newTree.mgrLocTree; 
+            renderLocationsTable(mgrLocTree); 
+        } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); }
     }
   </script>
 </body>
