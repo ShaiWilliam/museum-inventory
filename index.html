@@ -430,15 +430,41 @@
                       <small class="text-muted">※ 基準日後的掃描才會計入「已盤點」</small>
                     </div>
                   </div>
-                  <div class="mb-3"><label class="form-label small fw-bold">選擇審核專案</label><select id="mgrEvent" class="form-select border-primary" onchange="loadManagerData()"></select></div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold">選擇審核專案</label>
+                    <select id="mgrEvent" class="form-select border-primary" onchange="loadManagerData()"></select>
+                  </div>
+
+                  <div id="mgrFilterSec" class="mb-3 bg-light p-3 border rounded shadow-sm fade-in-section" style="display:none;">
+                    <h6 class="fw-bold text-dark small mb-2">🔍 進階篩選與查核 (可疊加條件)</h6>
+                    <div class="row g-2">
+                      <div class="col-12">
+                        <input type="search" id="mgrSearchKw" class="form-control border-secondary" placeholder="✏️ 關鍵字搜尋 (輸入編號或名稱)..." onkeyup="applyMgrFilters()" onsearch="applyMgrFilters()">
+                      </div>
+                      <div class="col-4">
+                        <select id="mgrSearchLoc" class="form-select border-secondary" onchange="applyMgrFilters()"><option value="">📍 所有地點</option></select>
+                      </div>
+                      <div class="col-4">
+                        <select id="mgrSearchBox" class="form-select border-secondary" onchange="applyMgrFilters()"><option value="">📦 所有箱號</option></select>
+                      </div>
+                      <div class="col-4">
+                        <select id="mgrSearchStaff" class="form-select border-secondary" onchange="applyMgrFilters()"><option value="">👤 所有人員</option></select>
+                      </div>
+                    </div>
+                    <div class="mt-2 text-end">
+                       <span class="badge bg-secondary" id="mgrFilterCount">共 0 筆</span>
+                    </div>
+                  </div>
+
                   <ul class="nav nav-pills mb-3" id="mgrPills"><li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrPending">待核對</button></li><li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrConfirmed">已核對</button></li></ul>
                   <div class="tab-content">
                     <div class="tab-pane fade show active" id="mgrPending">
-                      <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tablePending"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物</th><th>地點/箱</th><th>修改</th></tr></thead><tbody></tbody></table></div>
+                      <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tablePending"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-pend')"></th><th>文物</th><th>移往/裝箱</th><th>操作</th></tr></thead><tbody></tbody></table></div>
                       <button class="btn btn-success action-btn fw-bold w-100 py-2 shadow-sm" onclick="changeStatus('.chk-pend', true)">✅ 批次核對通過</button>
                     </div>
                     <div class="tab-pane fade" id="mgrConfirmed">
-                      <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tableConfirmed"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>地點/箱</th><th>管理員</th></tr></thead><tbody></tbody></table></div>
+                      <div class="table-responsive"><table class="table table-bordered table-striped align-middle" id="tableConfirmed"><thead><tr class="table-light"><th><input type="checkbox" onchange="toggleAllCheck(this, '.chk-conf')"></th><th>文物</th><th>移往/裝箱</th><th>狀態</th></tr></thead><tbody></tbody></table></div>
                       <button class="btn btn-warning action-btn fw-bold w-100 py-2 shadow-sm mb-4" onclick="changeStatus('.chk-conf', false)">↩️ 撤銷核對狀態</button>
                       <div class="card bg-dark text-white text-center p-3 shadow-sm rounded-3"><h6 class="mb-2">專案全部核對無誤後執行</h6><button class="btn btn-light w-100 fw-bold" onclick="syncToMaster()">💾 結案：同步至藏品總表</button></div>
                     </div>
@@ -527,6 +553,10 @@
     
     let locUpdateQueue = [];
     let isLocSyncing = false;
+
+    // 💡 全新：管理員後台的記憶體快取，用於 0 延遲交叉篩選
+    let mgrPendingData = [];
+    let mgrConfirmedData = [];
 
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
     localStorage.setItem('myUid', myUserId);
@@ -959,13 +989,114 @@
       showMiniLoading('更新中...'); try { await callAPI('updateBaseline', { timeString: timeVal }); alert('✅ 更新成功！'); location.reload(); } catch (e) { alert("更新失敗：" + e.message); hideMiniLoading(); }
     }
     
+    // 💡 核心升級：載入管理員資料與初始化複合篩選器
     async function loadManagerData() {
+      const eid = document.getElementById('mgrEvent').value;
+      if(!eid) {
+          document.getElementById('mgrFilterSec').style.display = 'none';
+          document.querySelector('#tablePending tbody').innerHTML = '';
+          document.querySelector('#tableConfirmed tbody').innerHTML = '';
+          return;
+      }
+      
       showMiniLoading('載入表單中...');
-      try { const res = await callAPI('getManagerData', { eventId: document.getElementById('mgrEvent').value }); renderTable('tablePending', res.pending, 'chk-pend', true); renderTable('tableConfirmed', res.confirmed, 'chk-conf', false); } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
+      try { 
+          const res = await callAPI('getManagerData', { eventId: eid }); 
+          mgrPendingData = res.pending;
+          mgrConfirmedData = res.confirmed;
+          
+          // 萃取下拉選單的選項
+          const allData = [...mgrPendingData, ...mgrConfirmedData];
+          const locs = [...new Set(allData.map(x => x.newLoc).filter(Boolean))].sort();
+          const boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort();
+          const staffs = [...new Set(allData.map(x => x.staff).filter(Boolean))].sort();
+          
+          document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${x}">${x}</option>`).join('');
+          document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${x}">${x}</option>`).join('');
+          document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${x}">${x}</option>`).join('');
+          
+          document.getElementById('mgrFilterSec').style.display = 'block';
+          
+          // 觸發首次過濾與渲染
+          applyMgrFilters();
+      } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
     }
-    function renderTable(tid, data, cls, edit) { document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b>${x.qrCode.split('\n')[0]}</b><br><small>${x.oldLoc}</small></td><td>${x.newLoc}<br><small>${x.boxName||''}</small></td><td>${edit?`<button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${x.newLoc}','${x.boxName}')">📝修改</button>`:`<small>${x.manager}</small>`}</td></tr>`).join(''); }
-    async function changeStatus(cls, stat) { const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請先勾選項目！'); showMiniLoading('處理中...'); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
-    async function promptEdit(ri, nl, nb) { const loc = prompt("修改暫存地點：", nl), box = prompt("修改箱名：", nb); if(loc!==null) { showMiniLoading('更新中...'); try { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } } }
+
+    // 💡 核心升級：0 延遲複合交叉篩選邏輯
+    function applyMgrFilters() {
+      const kw = document.getElementById('mgrSearchKw').value.toLowerCase().trim();
+      const loc = document.getElementById('mgrSearchLoc').value;
+      const box = document.getElementById('mgrSearchBox').value;
+      const staff = document.getElementById('mgrSearchStaff').value;
+
+      const filterFn = (x) => {
+          const matchKw = !kw || (x.qrCode.toLowerCase().includes(kw) || (x.name && x.name.toLowerCase().includes(kw)));
+          const matchLoc = !loc || x.newLoc === loc;
+          const matchBox = !box || x.boxName === box;
+          const matchStaff = !staff || x.staff === staff;
+          return matchKw && matchLoc && matchBox && matchStaff;
+      };
+
+      const filteredP = mgrPendingData.filter(filterFn);
+      const filteredC = mgrConfirmedData.filter(filterFn);
+      
+      document.getElementById('mgrFilterCount').innerText = `篩選結果: 待核對 ${filteredP.length} 筆 / 已核對 ${filteredC.length} 筆`;
+
+      renderTable('tablePending', filteredP, 'chk-pend', true); 
+      renderTable('tableConfirmed', filteredC, 'chk-conf', false);
+    }
+
+    // 💡 渲染表格：加入名稱與搬運人員資訊
+    function renderTable(tid, data, cls, edit) { 
+        document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => {
+            let safeLoc = x.newLoc.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            let safeBox = x.boxName.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            return `<tr>
+                      <td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td>
+                      <td>
+                        <b class="text-dark">${x.qrCode.split('\n')[0]}</b><br>
+                        <span class="text-primary small fw-bold">${x.name}</span><br>
+                        <small class="text-muted">原: ${x.oldLoc}</small>
+                      </td>
+                      <td>
+                        <span class="text-success fw-bold">${x.newLoc}</span><br>
+                        <small class="badge bg-light text-dark border mt-1">${x.boxName||'未裝箱'}</small>
+                      </td>
+                      <td>
+                        ${edit ? 
+                          `<small class="text-muted d-block mb-1">搬運: ${x.staff}</small>
+                           <button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` 
+                          : 
+                          `<small class="text-muted d-block mb-1">搬運: ${x.staff}</small>
+                           <small class="badge bg-success">核對: ${x.manager}</small>`
+                        }
+                      </td>
+                    </tr>`;
+        }).join(''); 
+    }
+
+    async function changeStatus(cls, stat) { 
+      const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); 
+      if(rows.length === 0) return alert('請先勾選項目！'); 
+      showMiniLoading('處理中...'); 
+      try { 
+        await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); 
+        // 操作後必須重抓最新名單
+        loadManagerData(); 
+      } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } 
+    }
+
+    async function promptEdit(ri, nl, nb) { 
+      const loc = prompt("修改暫存地點：", nl), box = prompt("修改箱名：", nb); 
+      if(loc!==null) { 
+        showMiniLoading('更新中...'); 
+        try { 
+          await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); 
+          loadManagerData(); 
+        } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } 
+      } 
+    }
+
     async function syncToMaster() { if(!confirm("確定要結案同步嗎？")) return; showMiniLoading('寫入總表中...'); try { await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('✅ 結案成功！'); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
@@ -1015,7 +1146,6 @@
         } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    // 💡 全新：一站式預填與呼叫 Modal
     function openEditLocModal(rowIndex, oldMain, oldMedium, oldSmall) {
         document.getElementById('editLocRowIndex').value = rowIndex;
         document.getElementById('editLocMain').value = oldMain;
@@ -1025,7 +1155,6 @@
         bootstrap.Modal.getOrCreateInstance(document.getElementById('editLocModal')).show();
     }
 
-    // 💡 全新：送出修改與樂觀更新
     function submitEditLoc() {
         const rowIndex = parseInt(document.getElementById('editLocRowIndex').value);
         const m = document.getElementById('editLocMain').value.trim();
@@ -1034,10 +1163,8 @@
 
         if(!m) return alert("❌「大區」不可為空！");
 
-        // 瞬間關閉視窗
         bootstrap.Modal.getInstance(document.getElementById('editLocModal')).hide();
 
-        // 1. Optimistic UI (樂觀畫面更新)
         const safeMain = m.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const safeMed = med.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const safeSmall = s.replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -1054,10 +1181,7 @@
                 </td>`;
         }
 
-        // 2. 丟入背景佇列排隊
         locUpdateQueue.push({ rowIndex: rowIndex, main: m, medium: med, small: s });
-
-        // 3. 呼叫背景機器人默默處理
         processLocQueue();
     }
 
