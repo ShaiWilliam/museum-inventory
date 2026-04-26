@@ -11,6 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
@@ -83,7 +84,9 @@
     
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
 
-    #toastBox { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(25, 135, 84, 0.95); color: white; padding: 10px 20px; border-radius: 30px; z-index: 10000; display: none; opacity: 0; transition: opacity 0.3s; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(5px); }
+    /* 💡 同步提示標籤 UI */
+    #syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
+    .sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
 
     #printOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
     #printOverlayTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -96,6 +99,12 @@
     .qr-img { width: 3cm; height: 3cm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
     .id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
     .name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
+
+    /* 💡 全新：卡片式地點 UI 樣式 (完美移植自簽到退系統) */
+    .loc-card-new { background: #fff; border: 1px solid #eaeaea; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: 0.2s; }
+    .loc-card-new:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+    .loc-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .loc-card-title { font-weight: 600; font-size: 1.05rem; color: #212529; word-break: break-word; line-height: 1.4; }
 
     @media print {
         body * { visibility: hidden; }
@@ -111,7 +120,11 @@
 </head>
 <body>
 
-  <div id="toastBox">✅ 最新進度已同步</div>
+  <div id="syncToast">
+    <div class="sync-badge" id="syncToastContent">
+      <i class="fas fa-circle-notch fa-spin text-info me-2" id="syncToastIcon"></i> <span id="syncToastText">同步中...</span>
+    </div>
+  </div>
 
   <div id="printOverlay">
     <div id="printOverlayTopBar">
@@ -483,12 +496,19 @@
                          <button class="btn btn-primary w-100 fw-bold mt-2" onclick="addNewLocation()">確認新增</button>
                      </div>
                  </div>
-                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-bordered table-sm align-middle bg-white" id="tableLocations">
-                       <thead class="table-light sticky-top"><tr><th>大區</th><th>中區</th><th>小區</th><th>操作</th></tr></thead>
-                       <tbody></tbody>
-                    </table>
+
+                 <div class="bg-white rounded shadow-sm p-3 mb-3 border">
+                   <h6 class="text-success mb-3 border-bottom pb-2 fw-bold"><i class="fas fa-check-circle me-1"></i> 啟用中地點</h6>
+                   <div id="activeLocList"></div>
                  </div>
+                 
+                 <div class="bg-white rounded shadow-sm p-3 border">
+                   <button class="btn btn-light w-100 text-muted fw-bold border" onclick="document.getElementById('inactiveLocList').classList.toggle('d-none')">
+                     📁 展開/收合已停用歷史地點 (<span id="inactiveLocCount">0</span>)
+                   </button>
+                   <div id="inactiveLocList" class="d-none mt-3"></div>
+                 </div>
+
               </div>
 
             </div>
@@ -545,9 +565,8 @@
 
     let currentManager = "", pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
     
-    // 💡 雙軌樹狀圖架構 (前端核心變數)
-    let globalLocTree = []; // 給操作員用的 (只包含顯示中的地點)
-    let mgrLocTree = [];    // 給管理員用的 (包含已隱藏的退役地點)
+    let globalLocTree = []; 
+    let mgrLocTree = [];    
 
     let audioCtx, scanner = null, queryScanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
     let localItemCache = {}, syncQueue = [], isSyncing = false;   
@@ -569,6 +588,37 @@
     function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
     function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
     function showToast(msg) { const tb = document.getElementById('toastBox'); tb.innerText = msg; tb.style.display = 'block'; setTimeout(()=> tb.style.opacity = '1', 10); setTimeout(() => { tb.style.opacity = '0'; setTimeout(()=> tb.style.display = 'none', 300); }, 2500); }
+
+    // 💡 同步提示功能 (來自簽到退系統)
+    function showSyncToast(text, isSuccess = false) {
+        const toast = document.getElementById('syncToast');
+        const icon = document.getElementById('syncToastIcon');
+        document.getElementById('syncToastText').innerText = text;
+
+        if (isSuccess) {
+            icon.className = "fas fa-check-circle text-success me-2";
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.style.display = 'none', 300);
+            }, 2000);
+        } else {
+            icon.className = "fas fa-circle-notch fa-spin text-info me-2";
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.opacity = '1', 10);
+        }
+    }
+
+    // 💡 智慧拼接演算法 (前端版，用於防呆檢查)
+    function smartConcatLoc(main, med, small) {
+      main = main || ""; med = med || ""; small = small || "";
+      if (!small) return main + med;
+      var prefixMatch = small.match(/^([^\-]+)-/);
+      if (prefixMatch && med) {
+        var prefix = prefixMatch[1];
+        if (med.endsWith(prefix)) { return main + med + small.substring(prefix.length); }
+      }
+      return main + med + small;
+    }
 
     function formatHelpText(raw) {
         if (!raw) return ""; let lines = raw.split('\n'); let html = '';
@@ -650,13 +700,11 @@
         baselineTime = invData.baselineTime || 0; let d = new Date(baselineTime); if (isNaN(d.getTime())) d = new Date();
         document.getElementById('baselineInfo').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`; document.getElementById('mqBaseline').innerText = `📅 本期盤點基準日：${d.toLocaleString()}`;
         
-        // 💡 雙軌初始化載入
         globalLocTree = workData.locTree || []; 
         mgrLocTree = workData.mgrLocTree || [];
 
-        // UI 渲染綁定對應的樹
         renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); 
-        renderLocationsTable(mgrLocTree); 
+        renderLocationsList(mgrLocTree); // 💡 改為呼叫卡片式渲染引擎
 
         populateSelect('mvEvent', workData.events || [], true); populateSelect('mgrEvent', workData.events || [], true); populateSelect('mvStaffInternal', workData.staffInternal || []);
         setProgress(100, '🚀 系統啟動！');
@@ -742,7 +790,7 @@
             populateSelect('mgrEvent', res.events || [], true); 
             globalLocTree = res.locTree || []; 
             mgrLocTree = res.mgrLocTree || [];
-            renderLocationsTable(mgrLocTree); 
+            renderLocationsList(mgrLocTree); // 💡 重新渲染卡片
             if(document.getElementById('mgrEvent').value) loadManagerData(); 
         }
       } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
@@ -1042,7 +1090,6 @@
           document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${x}">${x}</option>`).join('');
           
           document.getElementById('mgrFilterSec').style.display = 'block';
-          
           applyMgrFilters();
       } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
     }
@@ -1123,54 +1170,89 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
-    // 💡 渲染空間架構表格：加入隱藏/顯示狀態與按鈕
-    function renderLocationsTable(tree) {
-       let html = '';
+    // 💡 核心升級：全新卡片式地點 UI 渲染 (完美移植簽到退系統邏輯) 
+    function renderLocationsList(tree) {
+       let allLocs = [];
        tree.forEach(m => { 
          m.subs.forEach(s => { 
            s.details.forEach(d => { 
-             let displaySmall = d.label === "(無)" ? "" : d.label;
-             let displayMedium = s.sub === "(本區)" ? "" : s.sub;
-             
-             let safeMain = m.main.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-             let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-             let safeSmall = displaySmall.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-
-             // 根據 isHidden 狀態設定 UI 樣式
-             let rowClass = d.isHidden ? "opacity-50 bg-light" : "";
-             let statusBadge = d.isHidden ? `<span class="badge bg-secondary ms-2">🙈 已隱藏</span>` : `<span class="badge bg-success ms-2">👁️ 使用中</span>`;
-             let toggleBtn = d.isHidden 
-                ? `<button class="btn btn-sm btn-outline-success me-1" onclick="toggleLocStatus(${d.rowIndex}, false)" title="設為顯示">👁️</button>` 
-                : `<button class="btn btn-sm btn-outline-secondary me-1" onclick="toggleLocStatus(${d.rowIndex}, true)" title="設為隱藏">🙈</button>`;
-
-             html += `<tr id="locRow_${d.rowIndex}" class="${rowClass}">
-                        <td>${m.main}</td>
-                        <td>${displayMedium}</td>
-                        <td><b>${displaySmall}</b> ${statusBadge}</td>
-                        <td class="text-center text-nowrap">
-                          ${toggleBtn}
-                          <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditLocModal(${d.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
-                          <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${d.rowIndex})">🗑️</button>
-                        </td>
-                      </tr>`; 
+               allLocs.push({
+                   main: m.main, med: s.sub, small: d.label, full: d.val,
+                   rowIndex: d.rowIndex, isHidden: d.isHidden
+               });
            }); 
          }); 
        });
-       document.querySelector('#tableLocations tbody').innerHTML = html;
+
+       const activeList = document.getElementById('activeLocList');
+       const inactiveList = document.getElementById('inactiveLocList');
+
+       let activeLocs = allLocs.filter(r => !r.isHidden);
+       let inactiveLocs = allLocs.filter(r => r.isHidden);
+
+       const buildCard = (r) => {
+         let displaySmall = r.small === "(無)" ? r.full : r.small;
+         let displayMedium = r.med === "(本區)" ? "" : r.med;
+         let safeMain = r.main.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+         let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+         let safeSmall = (r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+         return `
+         <div class="loc-card-new" id="locCard_${r.rowIndex}">
+           <div class="loc-card-header">
+             <div>
+               <span class="badge bg-light text-dark border me-1">${r.main}</span>
+               ${displayMedium ? `<span class="badge bg-light text-dark border">${displayMedium}</span>` : ''}
+             </div>
+             <div>
+               <span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" 
+                     onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">
+                 ${!r.isHidden ? '已啟用' : '已停用'}
+               </span>
+               <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button>
+               <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>
+             </div>
+           </div>
+           <div class="loc-card-title">${displaySmall}</div>
+         </div>`;
+       };
+
+       activeList.innerHTML = activeLocs.length > 0 ? activeLocs.map(buildCard).join('') : '<div class="text-muted text-center py-2 small">無啟用中的地點</div>';
+       inactiveList.innerHTML = inactiveLocs.length > 0 ? inactiveLocs.map(buildCard).join('') : '<div class="text-muted text-center py-2 small">無停用資料</div>';
+       document.getElementById('inactiveLocCount').innerText = inactiveLocs.length;
     }
 
     async function addNewLocation() {
-        const m = document.getElementById('locAddMain').value; 
-        const med = document.getElementById('locAddMedium').value; 
-        const s = document.getElementById('locAddSmall').value;
+        const m = document.getElementById('locAddMain').value.trim(); 
+        const med = document.getElementById('locAddMedium').value.trim(); 
+        const s = document.getElementById('locAddSmall').value.trim();
         if(!m) return alert("「大區」為必填欄位！");
+        
+        // 💡 智慧防呆：檢查是否已存在 (包含隱藏區) 
+        let fullStr = smartConcatLoc(m, med, s);
+        let flatTree = [];
+        mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d))));
+        let existing = flatTree.find(d => d.val === fullStr);
+
+        if (existing) {
+            document.getElementById('locAddMain').value = ''; 
+            document.getElementById('locAddMedium').value = ''; 
+            document.getElementById('locAddSmall').value = ''; 
+            
+            if (!existing.isHidden) {
+                return showToast(' ⚠️ 此地點已在啟用清單中！', true);
+            } else {
+                showToast(' ⚠️ 偵測到歷史停用地點，將為您自動喚醒...', true);
+                return toggleLocStatus(existing.rowIndex, false);
+            }
+        }
         
         showMiniLoading('寫入新地點中...');
         try { 
             const newTree = await callAPI('addLocation', { main: m, medium: med, small: s }); 
             globalLocTree = newTree.locTree; 
             mgrLocTree = newTree.mgrLocTree;
-            renderLocationsTable(mgrLocTree); 
+            renderLocationsList(mgrLocTree); 
             document.getElementById('locAddMain').value = ''; 
             document.getElementById('locAddMedium').value = ''; 
             document.getElementById('locAddSmall').value = ''; 
@@ -1200,19 +1282,24 @@
         const safeMain = m.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const safeMed = med.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const safeSmall = s.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-        const row = document.getElementById(`locRow_${rowIndex}`);
         
-        if(row) {
-            // 這裡保留樂觀更新，但狀態徽章要靠背景刷新後補上
-            row.innerHTML = `
-                <td>${m}</td>
-                <td>${med}</td>
-                <td><b>${s}</b><br><span class="badge bg-warning text-dark mt-1" id="syncBadge_${rowIndex}">☁️ 同步中...</span></td>
-                <td class="text-center text-nowrap">
-                  <button class="btn btn-sm btn-outline-secondary me-1" disabled>🙈</button>
-                  <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditLocModal(${rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')">📝</button>
-                  <button class="btn btn-sm btn-outline-danger" onclick="deleteLoc(${rowIndex})">🗑️</button>
-                </td>`;
+        // 樂觀更新卡片 UI
+        const card = document.getElementById(`locCard_${rowIndex}`);
+        if(card) {
+            let displaySmall = s === "" ? smartConcatLoc(m, med, s) : s;
+            card.innerHTML = `
+              <div class="loc-card-header">
+                 <div>
+                   <span class="badge bg-light text-dark border me-1">${m}</span>
+                   ${med ? `<span class="badge bg-light text-dark border">${med}</span>` : ''}
+                   <span class="badge bg-warning text-dark ms-2" id="syncBadge_${rowIndex}">☁️ 同步中...</span>
+                 </div>
+                 <div>
+                   <button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" disabled><i class="fas fa-edit"></i></button>
+                   <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${rowIndex})"><i class="fas fa-trash"></i></button>
+                 </div>
+               </div>
+               <div class="loc-card-title">${displaySmall}</div>`;
         }
 
         locUpdateQueue.push({ rowIndex: rowIndex, main: m, medium: med, small: s });
@@ -1230,13 +1317,13 @@
             const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess });
             globalLocTree = newTree.locTree;
             mgrLocTree = newTree.mgrLocTree;
-            renderLocationsTable(mgrLocTree); 
-            showToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`);
+            renderLocationsList(mgrLocTree); 
+            showSyncToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`, true);
         } catch (e) {
             console.error("背景更新失敗", e);
-            showToast("⚠️ 部分地點背景更新失敗，將於下次重試");
+            showSyncToast("⚠️ 部分地點背景更新失敗，將於下次重試", true);
             locUpdateQueue = [...updatesToProcess, ...locUpdateQueue];
-            renderLocationsTable(mgrLocTree); 
+            renderLocationsList(mgrLocTree); 
         } finally {
             isLocSyncing = false;
             if (locUpdateQueue.length > 0) {
@@ -1245,19 +1332,28 @@
         }
     }
 
-    // 💡 全新：切換顯示/隱藏狀態
+    // 💡 樂觀切換狀態 
     async function toggleLocStatus(rowIndex, setHidden) {
-        showMiniLoading('更新狀態中...');
+        showSyncToast('狀態更新同步中...');
+        
+        // 1. 先用前端記憶體做樂觀更新
+        let found = false;
+        mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => {
+            if(d.rowIndex === rowIndex) { d.isHidden = setHidden; found = true; }
+        })));
+        if(found) renderLocationsList(mgrLocTree);
+
+        // 2. 呼叫後端確認
         try { 
             const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); 
             globalLocTree = newTree.locTree; 
             mgrLocTree = newTree.mgrLocTree; 
-            renderLocationsTable(mgrLocTree); 
+            renderLocationsList(mgrLocTree); 
+            showSyncToast("✅ 狀態已同步", true);
         } catch(e) { 
             alert("狀態切換失敗：" + e.message); 
-        } finally { 
-            hideMiniLoading(); 
-        }
+            showSyncToast("❌ 同步失敗", true);
+        } 
     }
 
     async function deleteLoc(rowIndex) {
@@ -1267,7 +1363,7 @@
             const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); 
             globalLocTree = newTree.locTree; 
             mgrLocTree = newTree.mgrLocTree; 
-            renderLocationsTable(mgrLocTree); 
+            renderLocationsList(mgrLocTree); 
         } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); }
     }
   </script>
