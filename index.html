@@ -84,7 +84,6 @@
     
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
 
-    /* 💡 同步提示標籤 UI */
     #syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
     .sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
 
@@ -100,7 +99,6 @@
     .id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
     .name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
 
-    /* 💡 全新：卡片式地點 UI 樣式 (完美移植自簽到退系統) */
     .loc-card-new { background: #fff; border: 1px solid #eaeaea; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: 0.2s; }
     .loc-card-new:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
     .loc-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -498,15 +496,21 @@
                  </div>
 
                  <div class="bg-white rounded shadow-sm p-3 mb-3 border">
-                   <h6 class="text-success mb-3 border-bottom pb-2 fw-bold"><i class="fas fa-check-circle me-1"></i> 啟用中地點</h6>
-                   <div id="activeLocList"></div>
+                   <button class="btn w-100 text-success fw-bold border-success mb-2" style="background-color: #e8f5e9;" onclick="document.getElementById('activeLocContainer').classList.toggle('d-none')">
+                     <i class="fas fa-check-circle me-1"></i> 展開 / 收合啟用中地點 (<span id="activeLocCount">0</span>)
+                   </button>
+                   <div id="activeLocContainer" class="">
+                     <div class="accordion mt-2" id="activeAccordion"></div>
+                   </div>
                  </div>
                  
                  <div class="bg-white rounded shadow-sm p-3 border">
-                   <button class="btn btn-light w-100 text-muted fw-bold border" onclick="document.getElementById('inactiveLocList').classList.toggle('d-none')">
-                     📁 展開/收合已停用歷史地點 (<span id="inactiveLocCount">0</span>)
+                   <button class="btn btn-light w-100 text-muted fw-bold border mb-2" onclick="document.getElementById('inactiveLocContainer').classList.toggle('d-none')">
+                     📁 展開 / 收合已停用歷史地點 (<span id="inactiveLocCount">0</span>)
                    </button>
-                   <div id="inactiveLocList" class="d-none mt-3"></div>
+                   <div id="inactiveLocContainer" class="d-none">
+                     <div class="accordion mt-2" id="inactiveAccordion"></div>
+                   </div>
                  </div>
 
               </div>
@@ -587,9 +591,7 @@
     function setProgress(pct, text) { document.getElementById('splashProgress').style.width = pct + '%'; if(text) document.getElementById('splashText').innerText = text; }
     function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
     function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
-    function showToast(msg) { const tb = document.getElementById('toastBox'); tb.innerText = msg; tb.style.display = 'block'; setTimeout(()=> tb.style.opacity = '1', 10); setTimeout(() => { tb.style.opacity = '0'; setTimeout(()=> tb.style.display = 'none', 300); }, 2500); }
-
-    // 💡 同步提示功能 (來自簽到退系統)
+    
     function showSyncToast(text, isSuccess = false) {
         const toast = document.getElementById('syncToast');
         const icon = document.getElementById('syncToastIcon');
@@ -597,10 +599,7 @@
 
         if (isSuccess) {
             icon.className = "fas fa-check-circle text-success me-2";
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.style.display = 'none', 300);
-            }, 2000);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.style.display = 'none', 300); }, 2000);
         } else {
             icon.className = "fas fa-circle-notch fa-spin text-info me-2";
             toast.style.display = 'block';
@@ -608,7 +607,6 @@
         }
     }
 
-    // 💡 智慧拼接演算法 (前端版，用於防呆檢查)
     function smartConcatLoc(main, med, small) {
       main = main || ""; med = med || ""; small = small || "";
       if (!small) return main + med;
@@ -704,7 +702,7 @@
         mgrLocTree = workData.mgrLocTree || [];
 
         renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); 
-        renderLocationsList(mgrLocTree); // 💡 改為呼叫卡片式渲染引擎
+        renderLocationsList(mgrLocTree); 
 
         populateSelect('mvEvent', workData.events || [], true); populateSelect('mgrEvent', workData.events || [], true); populateSelect('mvStaffInternal', workData.staffInternal || []);
         setProgress(100, '🚀 系統啟動！');
@@ -734,7 +732,7 @@
             try { let res = await callAPI('heartbeat', {user: myUserId}); document.getElementById('onlineUsersInv').innerText = `👥 線上：${res.count} 人`; document.getElementById('onlineUsersMove').innerText = `👥 線上：${res.count} 人`; } catch(e){}
         }
         if(document.getElementById('step2').style.display === 'block') {
-            try { let res = await callAPI('startInventory', sysState); if(res.total !== sysState.total || res.scanned !== sysState.scanned) { sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI(); showToast('✅ 最新盤點進度已同步'); } } catch(e){}
+            try { let res = await callAPI('startInventory', sysState); if(res.total !== sysState.total || res.scanned !== sysState.scanned) { sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI(); showSyncToast('✅ 最新盤點進度已同步', true); } } catch(e){}
         }
         if(document.getElementById('move').classList.contains('active') && currentMvEventId) {
             silentMvSync();
@@ -790,7 +788,7 @@
             populateSelect('mgrEvent', res.events || [], true); 
             globalLocTree = res.locTree || []; 
             mgrLocTree = res.mgrLocTree || [];
-            renderLocationsList(mgrLocTree); // 💡 重新渲染卡片
+            renderLocationsList(mgrLocTree); 
             if(document.getElementById('mgrEvent').value) loadManagerData(); 
         }
       } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
@@ -1170,25 +1168,31 @@
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
 
-    // 💡 核心升級：全新卡片式地點 UI 渲染 (完美移植簽到退系統邏輯) 
+    // 💡 終極進化：大區智慧分群手風琴 UI 引擎
     function renderLocationsList(tree) {
        let allLocs = [];
        tree.forEach(m => { 
          m.subs.forEach(s => { 
            s.details.forEach(d => { 
-               allLocs.push({
-                   main: m.main, med: s.sub, small: d.label, full: d.val,
-                   rowIndex: d.rowIndex, isHidden: d.isHidden
-               });
+               allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden });
            }); 
          }); 
        });
 
-       const activeList = document.getElementById('activeLocList');
-       const inactiveList = document.getElementById('inactiveLocList');
-
        let activeLocs = allLocs.filter(r => !r.isHidden);
        let inactiveLocs = allLocs.filter(r => r.isHidden);
+
+       // 💡 智慧分群演算法：按「大區」打包資料
+       const groupByMain = (arr) => {
+         return arr.reduce((acc, curr) => {
+           if(!acc[curr.main]) acc[curr.main] = [];
+           acc[curr.main].push(curr);
+           return acc;
+         }, {});
+       };
+
+       const activeGrouped = groupByMain(activeLocs);
+       const inactiveGrouped = groupByMain(inactiveLocs);
 
        const buildCard = (r) => {
          let displaySmall = r.small === "(無)" ? r.full : r.small;
@@ -1217,8 +1221,33 @@
          </div>`;
        };
 
-       activeList.innerHTML = activeLocs.length > 0 ? activeLocs.map(buildCard).join('') : '<div class="text-muted text-center py-2 small">無啟用中的地點</div>';
-       inactiveList.innerHTML = inactiveLocs.length > 0 ? inactiveLocs.map(buildCard).join('') : '<div class="text-muted text-center py-2 small">無停用資料</div>';
+       // 💡 渲染收合資料夾 (手風琴)
+       const buildAccordion = (groupedData, prefixId) => {
+           let keys = Object.keys(groupedData).sort();
+           if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`;
+           return keys.map((mainKey, idx) => {
+               let items = groupedData[mainKey];
+               let colId = `${prefixId}Col${idx}`;
+               return `
+               <div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden">
+                 <h2 class="accordion-header">
+                   <button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">
+                     📂 ${mainKey} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span>
+                   </button>
+                 </h2>
+                 <div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}">
+                   <div class="accordion-body bg-light p-2">
+                     ${items.map(buildCard).join('')}
+                   </div>
+                 </div>
+               </div>`;
+           }).join('');
+       };
+
+       document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc');
+       document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc');
+
+       document.getElementById('activeLocCount').innerText = activeLocs.length;
        document.getElementById('inactiveLocCount').innerText = inactiveLocs.length;
     }
 
@@ -1228,7 +1257,6 @@
         const s = document.getElementById('locAddSmall').value.trim();
         if(!m) return alert("「大區」為必填欄位！");
         
-        // 💡 智慧防呆：檢查是否已存在 (包含隱藏區) 
         let fullStr = smartConcatLoc(m, med, s);
         let flatTree = [];
         mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d))));
@@ -1283,7 +1311,6 @@
         const safeMed = med.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const safeSmall = s.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         
-        // 樂觀更新卡片 UI
         const card = document.getElementById(`locCard_${rowIndex}`);
         if(card) {
             let displaySmall = s === "" ? smartConcatLoc(m, med, s) : s;
@@ -1332,18 +1359,15 @@
         }
     }
 
-    // 💡 樂觀切換狀態 
     async function toggleLocStatus(rowIndex, setHidden) {
         showSyncToast('狀態更新同步中...');
         
-        // 1. 先用前端記憶體做樂觀更新
         let found = false;
         mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => {
             if(d.rowIndex === rowIndex) { d.isHidden = setHidden; found = true; }
         })));
         if(found) renderLocationsList(mgrLocTree);
 
-        // 2. 呼叫後端確認
         try { 
             const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); 
             globalLocTree = newTree.locTree; 
