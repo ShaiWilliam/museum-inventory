@@ -51,7 +51,11 @@
     .home-icon { font-size: 2.2rem; margin-bottom: 8px; }
     
     #mainApp { display: none; padding-bottom: 60px; animation: fadeIn 0.3s; }
-    .navbar { padding-top: max(15px, env(safe-area-inset-top)) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    
+    /* 💡 優化 4：全域置頂導覽列 (Fixed Navbar) */
+    .navbar { position: fixed !important; top: 0; left: 0; right: 0; z-index: 1040; padding-top: max(15px, env(safe-area-inset-top)) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    #mainApp .container { padding-top: calc(max(15px, env(safe-area-inset-top)) + 65px); }
+
     .nav-tabs { display: none; }
     .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
     .step-card.active { display: block; }
@@ -76,7 +80,7 @@
     .fake-input-btn { cursor: pointer; text-align: left; background-color: #f8f9fa; }
     .fade-in-section { animation: fadeIn 0.4s ease-out; }
     
-    #miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
+    #miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
 
     #printListContainer { max-height: 40vh; overflow-y: auto; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; }
     .print-item { border-bottom: 1px solid #e9ecef; }
@@ -87,9 +91,10 @@
     #syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
     .sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
 
-    #printOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
-    #printOverlayTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-    #printOverlayContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+    /* 預覽與列印共用設定 */
+    #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
+    #printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
     
     .preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
     .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; }
@@ -106,10 +111,13 @@
 
     @media print {
         body * { visibility: hidden; }
-        #printOverlay, #printOverlay * { visibility: visible; }
-        #printOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
-        #printOverlayTopBar { display: none !important; }
-        #printOverlayContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
+        /* 隱藏主介面 */
+        #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
+        
+        #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay * { visibility: visible; }
+        #printOverlay, #printReportOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
+        #printOverlayTopBar, #printReportTopBar { display: none !important; }
+        #printOverlayContent, #printReportContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
         .preview-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
         .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @page { margin: 1cm; size: A4 portrait; }
@@ -131,6 +139,16 @@
       <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
     </div>
     <div id="printOverlayContent"></div>
+  </div>
+
+  <!-- 💡 優化 5.2：搬運清冊列印畫面 -->
+  <div id="printReportOverlay">
+    <div id="printReportTopBar">
+      <button class="btn btn-outline-secondary fw-bold" onclick="closePrintReport()">🔙 返回</button>
+      <h6 class="mb-0 fw-bold text-dark">搬運清冊預覽</h6>
+      <button class="btn btn-success fw-bold px-4" onclick="window.print()">🖨️ 列印表單</button>
+    </div>
+    <div id="printReportContent"></div>
   </div>
 
   <div id="authScreen">
@@ -210,7 +228,7 @@
       <div class="home-card c-move" onclick="enterSystem('move')">
         <div class="home-icon">🚚</div>
         <h5 class="fw-bold text-primary mb-1">文物異動搬運</h5>
-        <p class="text-muted small mb-0">建立專案、地點轉換與裝箱</p>
+        <p class="text-muted small mb-0">專案管理、地點轉換與裝箱</p>
       </div>
       <div class="home-card c-mgr" onclick="enterSystem('mgr')">
         <div class="home-icon">⚙️</div>
@@ -226,7 +244,7 @@
   </div>
 
   <div id="mainApp">
-    <nav class="navbar navbar-dark bg-dark mb-2 sticky-top">
+    <nav class="navbar navbar-dark bg-dark">
       <div class="container-fluid d-flex justify-content-between align-items-center">
         <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="btnNavHome" onclick="backToHome()"><span>🏠</span> 首頁</button>
         <span class="navbar-brand mb-0 h1 fs-6 text-truncate text-center flex-grow-1 px-2" id="sysTitle">系統載入中</span>
@@ -244,6 +262,7 @@
       </ul>
 
       <div class="tab-content mt-3">
+        <!-- 查詢模組 -->
         <div class="tab-pane fade" id="query">
           <div class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -277,6 +296,7 @@
           </div>
         </div>
 
+        <!-- 建檔模組 -->
         <div class="tab-pane fade" id="register">
           <ul class="nav nav-pills nav-fill mb-3" id="regPills">
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regFormSec">📝 新增登錄</button></li>
@@ -323,6 +343,7 @@
           </div>
         </div>
 
+        <!-- 盤點模組 -->
         <div class="tab-pane fade" id="inv">
           <div id="step1" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -389,26 +410,36 @@
           </div>
         </div>
 
+        <!-- 異動模組 (重構雙軌制) -->
         <div class="tab-pane fade" id="move">
           <ul class="nav nav-pills nav-fill mb-3" id="mvPills">
-            <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveCreateTab">🆕 建立新專案</button></li>
-            <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveExecuteTab" onclick="refreshSystem('move')">🚚 執行待搬運</button></li>
+            <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveCreateTab">📝 專案管理</button></li>
+            <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveExecuteTab" onclick="refreshSystem('move')">🚚 執行搬運</button></li>
           </ul>
 
           <div class="tab-content">
-            <!-- 建立新專案頁籤 -->
+            <!-- 💡 優化 1 & 3：專案編修與手動雜物功能 -->
             <div class="tab-pane fade show active" id="moveCreateTab">
               <div class="step-card active border-primary border-top border-4">
                   <div class="mb-3">
-                      <label class="form-label text-dark fw-bold">1. 專案名稱 <span class="text-danger">*</span></label>
+                      <label class="form-label text-dark fw-bold">1. 選擇專案操作 <span class="text-danger">*</span></label>
+                      <select id="newMvActionSelect" class="form-select border-primary fw-bold text-primary" onchange="switchMoveProjectAction()">
+                         <option value="NEW">➕ 建立全新專案</option>
+                      </select>
+                  </div>
+                  <div class="mb-3">
+                      <label class="form-label text-dark fw-bold">2. 專案名稱 <span class="text-danger">*</span></label>
                       <input type="text" id="newMvName" class="form-control border-primary" placeholder="例：112年度A庫房漏水緊急搬遷">
                   </div>
                   <div class="mb-4">
-                      <label class="form-label text-dark fw-bold">2. 專案說明 (選填)</label>
+                      <label class="form-label text-dark fw-bold">3. 專案說明 (選填)</label>
                       <input type="text" id="newMvDesc" class="form-control" placeholder="簡單描述本次搬運目的">
                   </div>
                   <div class="mb-4 pt-3 border-top">
-                      <label class="form-label text-danger fw-bold">3. 從藏品總表挑選待搬運文物</label>
+                      <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label text-danger fw-bold mb-0">4. 挑選待搬運文物</label>
+                        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="openMiscModal()">➕ 新增非藏品(雜物)</button>
+                      </div>
                       <div class="row g-2 mb-3">
                           <div class="col-12 col-md-6"><input type="search" id="newMvSearch" class="form-control border-secondary" placeholder="🔍 搜尋編號或名稱..." onkeyup="filterNewMvList()" onsearch="filterNewMvList()"></div>
                           <div class="col-12 col-md-6"><select id="newMvLocFilter" class="form-select border-secondary" onchange="filterNewMvList()"><option value="">所有地點</option></select></div>
@@ -421,15 +452,15 @@
                           <div class="text-center text-muted py-3">請利用上方搜尋或篩選地點來顯示文物</div>
                       </div>
                       <div class="d-flex justify-content-between align-items-center bg-light p-3 border rounded shadow-sm">
-                          <span class="fw-bold text-primary fs-5">已選入專案：<span id="newMvSelectedCount" class="text-danger">0</span> 件</span>
+                          <span class="fw-bold text-primary fs-5">專案待搬運：<span id="newMvSelectedCount" class="text-danger">0</span> 件</span>
                           <button class="btn btn-outline-danger fw-bold" onclick="clearNewMvSelection()">清空選擇</button>
                       </div>
                   </div>
-                  <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm" onclick="submitNewProject()">🚀 送出建立搬運專案</button>
+                  <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm" onclick="submitNewProject()">💾 儲存專案與搬運清單</button>
               </div>
             </div>
 
-            <!-- 執行待搬運頁籤 (原介面) -->
+            <!-- 執行待搬運頁籤 -->
             <div class="tab-pane fade" id="moveExecuteTab">
               <div class="step-card active border-success border-top border-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -439,10 +470,24 @@
                      <button class="btn btn-sm btn-outline-secondary" onclick="refreshSystem('move')">🔄 刷新</button>
                   </div>
                 </div>
+                
                 <div id="mvPhase1">
                   <div class="mb-3"><label class="form-label text-success fw-bold">1. 選擇異動專案事件</label><select id="mvEvent" class="form-select border-success" onchange="loadWorkerLocations()"><option value="">請選擇專案...</option></select></div>
-                  <div class="mb-3"><label class="form-label text-success fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
+                  
+                  <!-- 💡 優化 5.1：專案進度條 -->
+                  <div class="mb-4 fade-in-section" id="mvProgressBox" style="display:none;">
+                    <div class="d-flex justify-content-between small fw-bold text-secondary mb-1">
+                       <span>專案搬運進度</span>
+                       <span id="mvProgressText">0 / 0 件 (0%)</span>
+                    </div>
+                    <div class="progress" style="height: 10px; border-radius: 5px;">
+                       <div id="mvProgressBar" class="progress-bar bg-success" style="width: 0%; transition: width 0.5s ease;"></div>
+                    </div>
+                  </div>
+
+                  <div class="mb-3" id="mvLocSelector" style="display:none;"><label class="form-label text-success fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
                 </div>
+
                 <div id="mvPhase2" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
                   <label class="form-label text-danger fw-bold">3. 選擇實際搬運文物 (可多選)</label>
                   <div class="d-flex justify-content-between mb-2">
@@ -485,9 +530,15 @@
                     </div>
                   </div>
                   
-                  <div class="mb-3">
-                    <label class="form-label small fw-bold">選擇審核專案</label>
-                    <select id="mgrEvent" class="form-select border-primary" onchange="loadManagerData()"></select>
+                  <div class="mb-3 d-flex gap-2">
+                    <div class="flex-grow-1">
+                      <label class="form-label small fw-bold">選擇審核專案</label>
+                      <select id="mgrEvent" class="form-select border-primary" onchange="loadManagerData()"></select>
+                    </div>
+                    <!-- 💡 優化 5.2：列印搬運清冊按鈕 -->
+                    <div class="align-self-end">
+                      <button class="btn btn-outline-dark fw-bold" onclick="printMovementList()" id="btnPrintReport" disabled>🖨️ 列印清冊</button>
+                    </div>
                   </div>
 
                   <div id="mgrFilterSec" class="mb-3 bg-light p-3 border rounded shadow-sm fade-in-section" style="display:none;">
@@ -555,9 +606,7 @@
                      <div class="accordion mt-2" id="inactiveAccordion"></div>
                    </div>
                  </div>
-
               </div>
-
             </div>
           </div>
         </div>
@@ -565,6 +614,7 @@
     </div>
   </div>
 
+  <!-- 地點選擇 Modal -->
   <div class="modal fade" id="locModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
       <div class="modal-header bg-light"><h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -575,6 +625,7 @@
     </div></div>
   </div>
 
+  <!-- 修改地點 Modal -->
   <div class="modal fade" id="editLocModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg">
@@ -597,6 +648,31 @@
             <input type="text" id="editLocSmall" class="form-control" placeholder="建議加上橫槓，如: -07">
           </div>
           <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm" onclick="submitEditLoc()">💾 確認儲存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💡 優化 3：手動新增非藏品(雜物) Modal -->
+  <div class="modal fade" id="miscModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold text-danger">➕ 新增非藏品 (雜物)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="alert alert-warning small py-2 mb-3">此功能專供「非典藏文物」之雜物、設備等搬運使用，其紀錄不會寫回藏品總表。</div>
+          <div class="mb-3">
+            <label class="form-label text-dark fw-bold">物品名稱 <span class="text-danger">*</span></label>
+            <input type="text" id="miscName" class="form-control border-danger" placeholder="例: A庫房除濕機、中型展櫃">
+          </div>
+          <div class="mb-4">
+            <label class="form-label text-dark fw-bold">目前所在地點 <span class="text-danger">*</span></label>
+            <input type="text" id="miscLocDisplay" class="form-control fake-input-btn border-danger" readonly placeholder="點此選擇目前地點" onclick="triggerMiscLoc()">
+            <input type="hidden" id="miscLoc">
+          </div>
+          <button class="btn btn-danger w-100 fw-bold py-3 fs-5" onclick="addMiscItem()">加入搬運清單</button>
         </div>
       </div>
     </div>
@@ -751,7 +827,15 @@
         renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true); 
         renderLocationsList(mgrLocTree); 
 
-        populateSelect('mvEvent', workData.events || [], true); populateSelect('mgrEvent', workData.events || [], true); populateSelect('mvStaffInternal', workData.staffInternal || []);
+        // 寫入各處下拉選單
+        populateSelect('mvEvent', workData.events || [], true); 
+        populateSelect('mgrEvent', workData.events || [], true); 
+        populateSelect('mvStaffInternal', workData.staffInternal || []);
+        
+        // 💡 專案編修：寫入建立專案的下拉名單
+        const actionSelect = document.getElementById('newMvActionSelect');
+        actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (workData.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
+
         setProgress(100, '🚀 系統啟動！');
         
         setTimeout(() => {
@@ -840,7 +924,12 @@
             const res = await callAPI('getWorkerInitData'); 
             globalLocTree = res.locTree || []; 
             mgrLocTree = res.mgrLocTree || [];
-            populateSelect('mvEvent', res.events || [], true); loadWorkerLocations(); 
+            populateSelect('mvEvent', res.events || [], true); 
+            
+            const actionSelect = document.getElementById('newMvActionSelect');
+            actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (res.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
+            
+            loadWorkerLocations(); 
         } 
         else if (sysId === 'mgr') { 
             const res = await callAPI('getWorkerInitData'); 
@@ -1019,6 +1108,10 @@
     }
 
     function closePrintOverlay() { document.getElementById('printOverlay').style.display = 'none'; document.getElementById('printOverlayContent').innerHTML = ''; }
+    
+    // 💡 關閉列印搬運清冊
+    function closePrintReport() { document.getElementById('printReportOverlay').style.display = 'none'; document.getElementById('printReportContent').innerHTML = ''; }
+
     function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 
     async function startInventorySession() {
@@ -1077,7 +1170,7 @@
     function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
     function playSound(k) { if (!audioCtx) return; if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = k === 'success' ? 'triangle' : 'square'; o.frequency.value = k === 'success' ? 1100 : 550; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => { o.stop(); }, 150); }
 
-    // 💡 建立新專案相關功能
+    // 💡 建立與編修專案相關功能 (優化 1 & 3)
     function loadNewMvList() {
       if(allMvItems && allMvItems.length > 0) return;
       const items = Object.values(globalCatalog);
@@ -1086,6 +1179,65 @@
       let locHtml = '<option value="">所有地點</option>'; 
       locs.forEach(l => locHtml += `<option value="${l}">${l}</option>`); 
       document.getElementById('newMvLocFilter').innerHTML = locHtml;
+    }
+
+    async function switchMoveProjectAction() {
+       const val = document.getElementById('newMvActionSelect').value;
+       if(val === 'NEW') {
+          document.getElementById('newMvName').value = '';
+          document.getElementById('newMvDesc').value = '';
+          clearNewMvSelection();
+       } else {
+          showMiniLoading('讀取專案資料中...');
+          try {
+             const res = await callAPI('getProjectDataForEdit', { eventId: val });
+             document.getElementById('newMvName').value = res.name;
+             document.getElementById('newMvDesc').value = res.desc;
+             newMvCart.clear();
+             res.items.forEach(item => {
+                newMvCart.set(item.id, { name: item.name, loc: item.loc, isMisc: item.id.startsWith('MISC-') });
+                // 若為雜物，確保存在於總表中以便顯示
+                if (item.id.startsWith('MISC-') && !allMvItems.find(x => x.id === item.id)) {
+                   allMvItems.unshift({ id: item.id, name: item.name, loc: item.loc, isMisc: true });
+                }
+             });
+             document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+             filterNewMvList();
+          } catch(e) { alert("讀取失敗: " + e.message); } finally { hideMiniLoading(); }
+       }
+    }
+
+    function openMiscModal() {
+       document.getElementById('miscName').value = '';
+       document.getElementById('miscLocDisplay').value = '';
+       document.getElementById('miscLoc').value = '';
+       bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
+    }
+    
+    function triggerMiscLoc() {
+       currentModalTarget='miscLoc';
+       document.getElementById('locModalTitle').innerText = "選擇「雜物所在地點」";
+       document.getElementById('modalLocSearch').value = ''; filterModalTree();
+       renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
+       bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
+    }
+    
+    function addMiscItem() {
+       const name = document.getElementById('miscName').value.trim();
+       const loc = document.getElementById('miscLoc').value.trim();
+       if(!name || !loc) return alert("請完整填寫名稱與地點！");
+       
+       const miscId = "MISC-" + new Date().getTime() + "-" + Math.floor(Math.random()*100);
+       allMvItems.unshift({ id: miscId, name: name, loc: loc, isMisc: true });
+       newMvCart.set(miscId, { name: name, loc: loc, isMisc: true });
+       
+       bootstrap.Modal.getInstance(document.getElementById('miscModal')).hide();
+       document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+       
+       // 自動在搜尋框填入該雜物名稱，以利使用者直接看到
+       document.getElementById('newMvSearch').value = name;
+       filterNewMvList();
+       showSyncToast("✅ 雜物已加入清單", true);
     }
 
     function filterNewMvList() {
@@ -1109,8 +1261,11 @@
         <div class="print-item p-2 d-flex align-items-center">
           <input class="form-check-input me-2 cb-newmv" type="checkbox" value="${item.id}" data-name="${item.name}" data-loc="${item.loc}" id="nmv_${idx}" ${newMvCart.has(item.id) ? 'checked' : ''} onchange="updateNewMvCart(this)">
           <label class="form-check-label flex-grow-1 d-flex flex-column" for="nmv_${idx}">
-             <div class="fw-bold text-dark d-flex justify-content-between"><span>${item.id}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span></div>
-             <div class="small text-muted text-truncate" style="max-width: 250px;">${item.name}</div>
+             <div class="fw-bold text-dark d-flex justify-content-between">
+                <span>${item.isMisc ? '📦 ' + item.id : item.id}</span>
+                <span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span>
+             </div>
+             <div class="small ${item.isMisc ? 'text-danger' : 'text-muted'} text-truncate" style="max-width: 250px;">${item.name}</div>
           </label>
         </div>`).join('');
 
@@ -1141,26 +1296,35 @@
     }
 
     async function submitNewProject() {
+      const action = document.getElementById('newMvActionSelect').value;
       const pName = document.getElementById('newMvName').value.trim();
       const pDesc = document.getElementById('newMvDesc').value.trim();
       if(!pName) return alert("請輸入專案名稱！");
       if(newMvCart.size === 0) return alert("請至少挑選一件待搬運文物！");
 
-      showMiniLoading('正在建立專案與草稿清單...');
+      showMiniLoading('正在儲存專案與清單資料...');
+      
+      // 整理出所有包含雜物的詳細資訊，供後端寫入
+      let miscDetails = {};
+      newMvCart.forEach((val, key) => {
+         if (key.startsWith('MISC-')) miscDetails[key] = val;
+      });
+
       try {
-        await callAPI('createMovementProject', {
+        await callAPI('saveMovementProject', {
+          eventId: action,
           name: pName,
           desc: pDesc,
           itemIds: Array.from(newMvCart.keys()),
+          miscDetails: miscDetails,
           manager: currentManager
         });
-        alert('✅ 專案建立成功！您現在可以切換到「執行待搬運」頁籤開始作業了。');
-        document.getElementById('newMvName').value = '';
-        document.getElementById('newMvDesc').value = '';
-        clearNewMvSelection();
+        
+        alert('✅ 專案資料儲存成功！');
         refreshSystem('move'); // 重新載入專案下拉名單
+        
       } catch (e) {
-        alert("專案建立失敗：" + e.message);
+        alert("專案儲存失敗：" + e.message);
       } finally {
         hideMiniLoading();
       }
@@ -1171,9 +1335,23 @@
       const eid = document.getElementById('mvEvent').value; currentMvEventId = eid;
       const d = document.getElementById('mvLocDisplay'); document.getElementById('mvLoc').value = ""; d.value = ""; 
       document.getElementById('mvPhase2').style.display = 'none'; document.getElementById('mvPhase3').style.display = 'none';
+      document.getElementById('mvLocSelector').style.display = 'none';
+      document.getElementById('mvProgressBox').style.display = 'none';
+      
       if(!eid) return; showMiniLoading('下載專案全資料中...'); 
       try { 
-        const res = await callAPI('getProjectPendingData', { eventId: eid }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; d.placeholder = "請點此選擇..."; 
+        const res = await callAPI('getProjectPendingData', { eventId: eid }); 
+        currentProjectItems = res.items || []; 
+        pendingLocTree = res.locTree || []; 
+        d.placeholder = "請點此選擇..."; 
+        
+        // 更新進度條
+        document.getElementById('mvLocSelector').style.display = 'block';
+        document.getElementById('mvProgressBox').style.display = 'block';
+        let progressPct = res.total > 0 ? Math.round((res.moved / res.total) * 100) : 0;
+        document.getElementById('mvProgressText').innerText = `${res.moved} / ${res.total} 件 (${progressPct}%)`;
+        document.getElementById('mvProgressBar').style.width = `${progressPct}%`;
+        
       } catch (e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
     }
     
@@ -1186,7 +1364,7 @@
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value; if (!eid || !loc) return;
       const filteredItems = currentProjectItems.filter(x => x.loc === loc); const listDiv = document.getElementById('mvItemList');
       if (filteredItems.length === 0) { listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點皆已搬運完畢！</div>'; document.getElementById('mvPhase3').style.display = 'none'; } 
-      else { listDiv.innerHTML = filteredItems.map((x, i) => `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" onchange="checkPhase3Trigger()"><label class="form-check-label w-100 fs-6" for="mvItem_${i}"><span class="text-primary fw-bold">[${x.qrCode}]</span> ${x.name}</label></div>`).join(''); checkPhase3Trigger(); }
+      else { listDiv.innerHTML = filteredItems.map((x, i) => `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" onchange="checkPhase3Trigger()"><label class="form-check-label w-100 fs-6" for="mvItem_${i}"><span class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-primary'} fw-bold">[${x.qrCode}]</span> ${x.name}</label></div>`).join(''); checkPhase3Trigger(); }
       document.getElementById('mvPhase2').style.display = 'block'; 
     }
 
@@ -1208,6 +1386,8 @@
         document.getElementById('mvPhase3').style.display = 'none'; 
         loadWorkerItems(); 
         silentMvSync(); 
+        // 刷新進度條資料
+        loadWorkerLocations();
       } catch(e) { 
         alert(e.message); 
         if(e.message.includes("慢了一步")) { loadWorkerLocations(); } 
@@ -1232,6 +1412,7 @@
       const eid = document.getElementById('mgrEvent').value;
       if(!eid) {
           document.getElementById('mgrFilterSec').style.display = 'none';
+          document.getElementById('btnPrintReport').disabled = true;
           document.querySelector('#tablePending tbody').innerHTML = '';
           document.querySelector('#tableConfirmed tbody').innerHTML = '';
           return;
@@ -1253,6 +1434,7 @@
           document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${x}">${x}</option>`).join('');
           
           document.getElementById('mgrFilterSec').style.display = 'block';
+          document.getElementById('btnPrintReport').disabled = false;
           applyMgrFilters();
       } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
     }
@@ -1287,7 +1469,7 @@
             return `<tr>
                       <td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td>
                       <td>
-                        <b class="text-dark">${x.qrCode.split('\n')[0]}</b><br>
+                        <b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${x.qrCode.split('\n')[0]}</b><br>
                         <span class="text-primary small fw-bold">${x.name}</span><br>
                         <small class="text-muted">原: ${x.oldLoc}</small>
                       </td>
@@ -1329,7 +1511,7 @@
       } 
     }
 
-    async function syncToMaster() { if(!confirm("確定要結案同步嗎？")) return; showMiniLoading('寫入總表中...'); try { await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('✅ 結案成功！'); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
+    async function syncToMaster() { if(!confirm("確定要結案同步嗎？(注意：系統將自動略過「MISC-」開頭的雜物項目)")) return; showMiniLoading('寫入總表中...'); try { await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('✅ 結案成功！'); loadManagerData(); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     
     function exportReport() { 
@@ -1349,6 +1531,73 @@
           alert("失敗：" + e.message); 
           hideMiniLoading(); 
       }); 
+    }
+
+    // 💡 優化 5.2：產出實體搬運清冊
+    function printMovementList() {
+       let allData = [...mgrPendingData, ...mgrConfirmedData];
+       if(allData.length === 0) return alert("目前無資料可列印！");
+       
+       let sel = document.getElementById('mgrEvent');
+       let eventName = sel.options[sel.selectedIndex].text.replace('✏️ 編輯專案: ', '');
+
+       let html = `
+       <div class="preview-paper">
+           <h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3>
+           <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+               <span><strong>專案名稱：</strong> ${eventName}</span>
+               <span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span>
+           </div>
+           <table class="table table-bordered table-sm" style="font-size: 10pt;">
+               <thead class="table-light">
+                   <tr>
+                       <th width="5%">項次</th>
+                       <th width="20%">文物/雜物編號</th>
+                       <th width="25%">名稱</th>
+                       <th width="20%">原典藏地點</th>
+                       <th width="20%">移往暫存地點 (箱號)</th>
+                       <th width="10%">核對簽章</th>
+                   </tr>
+               </thead>
+               <tbody>
+       `;
+
+       allData.forEach((item, idx) => {
+           let dest = item.newLoc ? item.newLoc : "未搬運";
+           if(item.boxName) dest += `<br><small>(${item.boxName})</small>`;
+           html += `
+               <tr>
+                   <td class="text-center">${idx + 1}</td>
+                   <td>${item.qrCode.split('\n')[0]}</td>
+                   <td>${item.name}</td>
+                   <td>${item.oldLoc}</td>
+                   <td>${dest}</td>
+                   <td></td>
+               </tr>
+           `;
+       });
+
+       html += `
+               </tbody>
+           </table>
+           <div class="mt-5 d-flex justify-content-between px-5">
+               <div class="text-center">
+                   <div><strong>點交人簽章</strong></div>
+                   <div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div>
+               </div>
+               <div class="text-center">
+                   <div><strong>搬運負責人簽章</strong></div>
+                   <div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div>
+               </div>
+               <div class="text-center">
+                   <div><strong>管理員審核簽章</strong></div>
+                   <div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div>
+               </div>
+           </div>
+       </div>`;
+
+       document.getElementById('printReportContent').innerHTML = html;
+       document.getElementById('printReportOverlay').style.display = 'flex';
     }
 
     function renderLocationsList(tree) {
