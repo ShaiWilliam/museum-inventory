@@ -90,7 +90,6 @@
     #syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
     .sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
 
-    /* 預覽與列印共用設定 */
     #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
     #printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
@@ -110,7 +109,6 @@
 
     @media print {
         body * { visibility: hidden; }
-        /* 隱藏主介面 */
         #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
         
         #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay * { visibility: visible; }
@@ -140,7 +138,6 @@
     <div id="printOverlayContent"></div>
   </div>
 
-  <!-- 搬運清冊列印畫面 -->
   <div id="printReportOverlay">
     <div id="printReportTopBar">
       <button class="btn btn-outline-secondary fw-bold" onclick="closePrintReport()">🔙 返回</button>
@@ -435,9 +432,13 @@
                       <input type="text" id="newMvDesc" class="form-control" placeholder="簡單描述本次搬運目的">
                   </div>
                   <div class="mb-4 pt-3 border-top">
-                      <div class="d-flex justify-content-between align-items-center mb-2">
+                      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                         <label class="form-label text-danger fw-bold mb-0">4. 挑選待搬運文物</label>
-                        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="openMiscModal()">➕ 新增非藏品(雜物)</button>
+                        <div>
+                            <!-- 💡 智慧貼上與批次匯入按鈕 -->
+                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="openImportModal()"><i class="fas fa-file-import"></i> 批次匯入</button>
+                            <button class="btn btn-sm btn-outline-danger fw-bold" onclick="openMiscModal()">➕ 新增雜物</button>
+                        </div>
                       </div>
                       <div class="row g-2 mb-3">
                           <div class="col-12 col-md-6"><input type="search" id="newMvSearch" class="form-control border-secondary" placeholder="🔍 搜尋編號或名稱..." onkeyup="filterNewMvList()" onsearch="filterNewMvList()"></div>
@@ -451,7 +452,6 @@
                           <div class="text-center text-muted py-3">請利用上方搜尋或篩選地點來顯示文物</div>
                       </div>
                       
-                      <!-- 💡 更新：專案待搬運區塊，新增「批次設定臨時編碼」按鈕 -->
                       <div class="d-flex justify-content-between align-items-center bg-light p-3 border rounded shadow-sm flex-wrap gap-2">
                           <span class="fw-bold text-primary fs-5">專案待搬運：<span id="newMvSelectedCount" class="text-danger">0</span> 件</span>
                           <div>
@@ -680,7 +680,7 @@
     </div>
   </div>
 
-  <!-- 💡 更新：批次設定臨時編碼 Modal -->
+  <!-- 批次設定臨時編碼 Modal -->
   <div class="modal fade" id="tempCodeModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg">
@@ -716,6 +716,55 @@
     </div>
   </div>
 
+  <!-- 💡 智慧匯入 (Smart Paste) Modal -->
+  <div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold text-success"><i class="fas fa-file-import"></i> 批次匯入與解析</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="alert alert-success small py-2 mb-3">
+            💡 <strong>操作提示：</strong>請從 Excel 複製表格內容後，直接在下方貼上。系統將為您自動解析！<br>
+            📌 建議欄位順序：<strong>藏品編號</strong> (Tab空白) <strong>名稱</strong> (Tab空白) <strong>臨時編碼</strong>
+          </div>
+          <div class="mb-3">
+            <textarea id="importTextarea" class="form-control border-success" rows="6" placeholder="請在此貼上 Excel 內容..."></textarea>
+          </div>
+          <button class="btn btn-secondary w-100 fw-bold mb-4" onclick="parseImportData()">🔍 執行資料解析與比對</button>
+
+          <!-- 預覽區塊 -->
+          <div id="importPreviewSection" class="fade-in-section" style="display:none;">
+            <h6 class="fw-bold mb-2 text-dark">解析預覽結果：</h6>
+            <div class="d-flex justify-content-between mb-2 align-items-end flex-wrap gap-2">
+               <span class="small text-muted" id="importStats"></span>
+               <button class="btn btn-sm btn-warning fw-bold shadow-sm" id="btnConvertMisc" onclick="convertUnmatchedToMisc()" style="display:none;"><i class="fas fa-magic"></i> 批次將未知項目轉為雜物</button>
+            </div>
+            <div class="table-responsive border rounded" style="max-height: 300px; overflow-y: auto;">
+              <table class="table table-bordered table-sm text-center align-middle mb-0" style="font-size: 0.9rem;">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th width="15%">狀態</th>
+                    <th width="30%">編號 / 臨時編碼</th>
+                    <th width="30%">名稱</th>
+                    <th width="25%">目前地點</th>
+                  </tr>
+                </thead>
+                <tbody id="importPreviewTableBody">
+                </tbody>
+              </table>
+            </div>
+            <div class="alert alert-warning small py-2 mt-3 mb-3" id="importWarningMsg" style="display:none;">
+              ⚠️ 尚有未知項目無法匯入！請選擇將其轉為雜物，或是手動清除。
+            </div>
+            <button class="btn btn-success w-100 fw-bold py-3 fs-5 shadow-sm" id="btnConfirmImport" onclick="confirmImport()">✅ 確認匯入有效項目至清單</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
@@ -736,9 +785,10 @@
     let currentProjectItems = [];
     let currentMvEventId = "";
     
-    // 建立新專案相關變數
+    // 建立新專案與匯入相關變數
     let newMvCart = new Map();
     let allMvItems = [];
+    let parsedImportItems = [];
 
     let locUpdateQueue = [];
     let isLocSyncing = false;
@@ -1233,7 +1283,6 @@
                 if (item.id.startsWith('MISC-') && !allMvItems.find(x => x.id === item.id)) {
                    allMvItems.unshift({ id: item.id, name: item.name, loc: item.loc, isMisc: true, tempCode: item.tempCode });
                 } else {
-                   // 若為既有藏品，也一併更新 allMvItems 內的 tempCode，確保列表重繪時顯示正確
                    let existing = allMvItems.find(x => x.id === item.id);
                    if(existing) existing.tempCode = item.tempCode;
                 }
@@ -1295,7 +1344,6 @@
       let html = displayItems.map((item, idx) => {
         let cartItem = newMvCart.get(item.id);
         let isChecked = cartItem ? 'checked' : '';
-        // 💡 取得並顯示臨時編碼 Badge
         let tcBadge = (cartItem && cartItem.tempCode) ? `<span class="badge bg-info text-dark ms-2 shadow-sm"><i class="fas fa-tag"></i> ${cartItem.tempCode}</span>` : '';
         
         return `<div class="print-item p-2 d-flex align-items-center">
@@ -1320,7 +1368,6 @@
     function updateNewMvCart(cb) {
       if(cb.checked) {
           let existingItem = newMvCart.get(cb.value);
-          // 若原本就有臨時編碼，保留它
           let tc = existingItem ? existingItem.tempCode : null;
           newMvCart.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc'), tempCode: tc });
       } else {
@@ -1331,7 +1378,7 @@
 
     function toggleNewMvAll(isCheck) {
       document.querySelectorAll('.cb-newmv').forEach(cb => { cb.checked = isCheck; updateNewMvCart(cb); });
-      filterNewMvList(); // 全選或全清空後重新渲染以顯示正確的 Badge
+      filterNewMvList(); 
     }
 
     function clearNewMvSelection() {
@@ -1340,7 +1387,7 @@
       filterNewMvList();
     }
 
-    // 💡 臨時編碼邏輯：開啟設定視窗
+    // 💡 批次設定臨時編碼功能
     function openTempCodeModal() {
         if(newMvCart.size === 0) return alert("請先挑選文物加入清單！");
         let html = '';
@@ -1367,7 +1414,6 @@
         document.querySelectorAll('.tc-item-cb').forEach(cb => cb.checked = state);
     }
 
-    // 💡 臨時編碼邏輯：套用並寫入 Map
     function applyTempCodes() {
         let prefix = document.getElementById('tcPrefix').value.trim();
         let startNum = parseInt(document.getElementById('tcStartNum').value.trim());
@@ -1383,13 +1429,171 @@
             if(item) {
                 item.tempCode = prefix + currentNum;
                 newMvCart.set(id, item);
+                
+                let inAllList = allMvItems.find(x => x.id === id);
+                if(inAllList) inAllList.tempCode = item.tempCode;
+
                 currentNum++;
             }
         });
         
         bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide();
-        filterNewMvList(); // 更新背景清單顯示 Badge
+        filterNewMvList(); 
         showSyncToast("✅ 臨時編碼已成功套用，請記得點擊儲存專案！", true);
+    }
+
+    // 💡 智慧貼上與批次匯入功能
+    function openImportModal() {
+        document.getElementById('importTextarea').value = '';
+        document.getElementById('importPreviewSection').style.display = 'none';
+        parsedImportItems = [];
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+    }
+
+    function parseImportData() {
+        const raw = document.getElementById('importTextarea').value.trim();
+        if(!raw) return alert("請先貼上資料！");
+
+        parsedImportItems = [];
+        const lines = raw.split('\n');
+
+        lines.forEach(line => {
+            if(!line.trim()) return;
+            // 支援 Tab 或逗號分隔
+            let cols = line.includes('\t') ? line.split('\t') : line.split(',');
+            cols = cols.map(c => c.trim());
+
+            if (cols.length === 0 || !cols[0]) return;
+
+            let parsedId = cols[0];
+            let parsedName = cols.length > 1 ? cols[1] : '';
+            let parsedTempCode = cols.length > 2 ? cols[2] : '';
+
+            let existing = allMvItems.find(x => x.id === parsedId);
+            let inCart = newMvCart.has(parsedId);
+
+            let status = 'match'; 
+            let loc = '未知';
+
+            if (existing) {
+                parsedName = parsedName || existing.name;
+                loc = existing.loc;
+                if (inCart) status = 'duplicate';
+            } else {
+                status = 'unmatched';
+            }
+
+            parsedImportItems.push({
+                originalId: parsedId,
+                finalId: parsedId,
+                name: parsedName || '未知名稱',
+                loc: loc,
+                tempCode: parsedTempCode,
+                status: status,
+                isMisc: false
+            });
+        });
+
+        renderImportPreview();
+        document.getElementById('importPreviewSection').style.display = 'block';
+    }
+
+    function renderImportPreview() {
+        let html = '';
+        let matchCount = 0, unmatchedCount = 0, dupCount = 0;
+
+        parsedImportItems.forEach(item => {
+            let statusBadge = '';
+            let trClass = '';
+
+            if (item.status === 'match') {
+                statusBadge = '<span class="badge bg-success">✅ 成功</span>';
+                matchCount++;
+            } else if (item.status === 'duplicate') {
+                statusBadge = '<span class="badge bg-secondary">🔄 已在清單</span>';
+                trClass = 'table-secondary text-muted';
+                dupCount++;
+            } else if (item.status === 'unmatched') {
+                statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>';
+                trClass = 'table-danger';
+                unmatchedCount++;
+            } else if (item.status === 'misc') {
+                statusBadge = '<span class="badge bg-warning text-dark">📦 轉為雜物</span>';
+                trClass = 'table-warning';
+                matchCount++; 
+            }
+
+            let tcHtml = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+
+            html += `
+            <tr class="${trClass}">
+                <td>${statusBadge}</td>
+                <td class="fw-bold text-start">${item.finalId}${tcHtml}</td>
+                <td class="text-start">${item.name}</td>
+                <td>${item.loc}</td>
+            </tr>`;
+        });
+
+        document.getElementById('importPreviewTableBody').innerHTML = html || '<tr><td colspan="4" class="text-center">無有效資料</td></tr>';
+        document.getElementById('importStats').innerHTML = `共 ${parsedImportItems.length} 筆資料 (✅ 可匯入: ${matchCount} | ❌ 未知: ${unmatchedCount} | 🔄 重複: ${dupCount})`;
+
+        const btnMisc = document.getElementById('btnConvertMisc');
+        const warnMsg = document.getElementById('importWarningMsg');
+        
+        if (unmatchedCount > 0) {
+            btnMisc.style.display = 'inline-block';
+            warnMsg.style.display = 'block';
+        } else {
+            btnMisc.style.display = 'none';
+            warnMsg.style.display = 'none';
+        }
+
+        document.getElementById('btnConfirmImport').disabled = (matchCount === 0);
+    }
+
+    function convertUnmatchedToMisc() {
+        let defaultLoc = prompt("即將轉換未知項目為雜物。\n請輸入這些雜物統一的「目前所在地點」：", "未指定");
+        if (defaultLoc === null) return; 
+
+        parsedImportItems.forEach(item => {
+            if (item.status === 'unmatched') {
+                item.status = 'misc';
+                item.isMisc = true;
+                item.finalId = "MISC-" + new Date().getTime() + "-" + Math.floor(Math.random()*10000);
+                item.loc = defaultLoc.trim() || '未指定';
+            }
+        });
+        renderImportPreview();
+    }
+
+    function confirmImport() {
+        let importCount = 0;
+        parsedImportItems.forEach(item => {
+            if (item.status === 'match' || item.status === 'misc') {
+                
+                if (item.isMisc && !allMvItems.find(x => x.id === item.finalId)) {
+                    allMvItems.unshift({ id: item.finalId, name: item.name, loc: item.loc, isMisc: true, tempCode: item.tempCode });
+                }
+
+                newMvCart.set(item.finalId, {
+                    name: item.name,
+                    loc: item.loc,
+                    isMisc: item.isMisc,
+                    tempCode: item.tempCode
+                });
+
+                if (!item.isMisc) {
+                    let existing = allMvItems.find(x => x.id === item.finalId);
+                    if(existing && item.tempCode) existing.tempCode = item.tempCode;
+                }
+                importCount++;
+            }
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+        filterNewMvList();
+        showSyncToast(`✅ 成功匯入 ${importCount} 筆項目！`, true);
     }
 
     async function submitNewProject() {
@@ -1406,7 +1610,7 @@
       
       newMvCart.forEach((val, key) => {
          if (key.startsWith('MISC-')) miscDetails[key] = val;
-         if (val.tempCode) tempCodes[key] = val.tempCode; // 收集所有的臨時編碼
+         if (val.tempCode) tempCodes[key] = val.tempCode; 
       });
 
       try {
@@ -1416,7 +1620,7 @@
           desc: pDesc,
           itemIds: Array.from(newMvCart.keys()),
           miscDetails: miscDetails,
-          tempCodes: tempCodes, // 💡 將臨時編碼傳送至後端
+          tempCodes: tempCodes, 
           manager: currentManager
         });
         
@@ -1464,7 +1668,6 @@
       const filteredItems = currentProjectItems.filter(x => x.loc === loc); const listDiv = document.getElementById('mvItemList');
       if (filteredItems.length === 0) { listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點皆已搬運完畢！</div>'; document.getElementById('mvPhase3').style.display = 'none'; } 
       else { 
-          // 💡 執行搬運時，醒目顯示臨時編碼
           listDiv.innerHTML = filteredItems.map((x, i) => {
               let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark me-2 shadow-sm fs-6"><i class="fas fa-tag"></i> ${x.tempCode}</span>` : '';
               let isMisc = x.qrCode.startsWith('MISC');
@@ -1651,7 +1854,6 @@
       }); 
     }
 
-    // 💡 實體搬運清冊：加入臨時編碼顯示
     function printMovementList() {
        let allData = [...mgrPendingData, ...mgrConfirmedData];
        if(allData.length === 0) return alert("目前無資料可列印！");
