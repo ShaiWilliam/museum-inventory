@@ -991,9 +991,30 @@
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
+    // 💡 修正：背景同步邏輯優化，避免網路中斷時資料從佇列遺失
     async function triggerBackgroundSync() {
-      if (isSyncing || syncQueue.length === 0) return; isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
-      while (syncQueue.length > 0) { let currentMsg = syncQueue[0]; try { await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); syncQueue.shift(); } catch(e) { let errStr = e.message.toLowerCase(); if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet')) { break; } else { syncQueue.shift(); } } }
+      if (isSyncing || syncQueue.length === 0) return; 
+      isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
+      
+      while (syncQueue.length > 0) { 
+          let currentMsg = syncQueue[0]; 
+          try { 
+              // 只有當這行 await 成功執行且沒有報錯時，才會往下走到 shift()
+              await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
+              syncQueue.shift(); // 成功寫入資料庫，從佇列移除
+          } catch(e) { 
+              let errStr = e.message.toLowerCase(); 
+              // 判斷是否為網路或 fetch 層級的錯誤
+              if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet') || errStr.includes('failed to fetch')) { 
+                  // 是網路錯誤，保留在佇列中，中斷迴圈，等下次觸發再試
+                  break; 
+              } else { 
+                  // 其他錯誤（例如：伺服器回傳該項目不存在），則記錄錯誤並移除，避免卡死佇列
+                  console.error("背景同步失敗 (非網路問題):", e);
+                  syncQueue.shift(); 
+              } 
+          } 
+      }
       isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
     }
 
@@ -1166,7 +1187,26 @@
 
     async function syncToMaster() { if(!confirm("確定要結案同步嗎？")) return; showMiniLoading('寫入總表中...'); try { await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('✅ 結案成功！'); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
-    function exportReport() { const emailInput = document.getElementById('exportEmail').value; if (!emailInput) return alert('請填寫 Email！'); showMiniLoading('寄送中...'); callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { alert('報表已寄出！'); hideMiniLoading(); }).catch(e => { alert("失敗：" + e.message); hideMiniLoading(); }); }
+    
+    // 💡 修正：加入 Email 格式的簡單驗證
+    function exportReport() { 
+      const emailInput = document.getElementById('exportEmail').value.trim(); 
+      if (!emailInput) return alert('請填寫 Email！'); 
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailInput)) {
+          return alert('請輸入有效的 Email 格式！例如：example@gmail.com');
+      }
+
+      showMiniLoading('寄送中...'); 
+      callAPI('exportInventoryReport', { email: emailInput, reportType: document.getElementById('exportType').value, mode: sysState.mode, locations: sysState.locations }).then(()=> { 
+          alert('報表已寄出！'); 
+          hideMiniLoading(); 
+      }).catch(e => { 
+          alert("失敗：" + e.message); 
+          hideMiniLoading(); 
+      }); 
+    }
 
     // 💡 終極進化：大區智慧分群手風琴 UI 引擎
     function renderLocationsList(tree) {
