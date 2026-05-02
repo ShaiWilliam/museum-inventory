@@ -669,10 +669,14 @@
             <label class="form-label text-dark fw-bold">物品名稱 <span class="text-danger">*</span></label>
             <input type="text" id="miscName" class="form-control border-danger" placeholder="例: A庫房除濕機、中型展櫃">
           </div>
-          <div class="mb-4">
+          <div class="mb-3">
             <label class="form-label text-dark fw-bold">目前所在地點 <span class="text-danger">*</span></label>
             <input type="text" id="miscLocDisplay" class="form-control fake-input-btn border-danger" readonly placeholder="點此選擇目前地點" onclick="triggerMiscLoc()">
             <input type="hidden" id="miscLoc">
+          </div>
+          <div class="mb-4">
+            <label class="form-label text-dark fw-bold">臨時編碼 (選填)</label>
+            <input type="text" id="miscTempCode" class="form-control border-info" placeholder="例: M1, L61...">
           </div>
           <button class="btn btn-danger w-100 fw-bold py-3 fs-5" onclick="addMiscItem()">加入搬運清單</button>
         </div>
@@ -1297,6 +1301,7 @@
        document.getElementById('miscName').value = '';
        document.getElementById('miscLocDisplay').value = '';
        document.getElementById('miscLoc').value = '';
+       document.getElementById('miscTempCode').value = '';
        bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
     }
     
@@ -1311,11 +1316,12 @@
     function addMiscItem() {
        const name = document.getElementById('miscName').value.trim();
        const loc = document.getElementById('miscLoc').value.trim();
+       const tCode = document.getElementById('miscTempCode').value.trim();
        if(!name || !loc) return alert("請完整填寫名稱與地點！");
        
        const miscId = "MISC-" + new Date().getTime() + "-" + Math.floor(Math.random()*100);
-       allMvItems.unshift({ id: miscId, name: name, loc: loc, isMisc: true });
-       newMvCart.set(miscId, { name: name, loc: loc, isMisc: true });
+       allMvItems.unshift({ id: miscId, name: name, loc: loc, isMisc: true, tempCode: tCode });
+       newMvCart.set(miscId, { name: name, loc: loc, isMisc: true, tempCode: tCode });
        
        bootstrap.Modal.getInstance(document.getElementById('miscModal')).hide();
        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
