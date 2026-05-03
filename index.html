@@ -281,6 +281,7 @@
                   <div class="row g-2 mb-2"><div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div><div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div></div>
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
+
                 <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
               </div>
             </div>
@@ -306,7 +307,9 @@
                 <div class="mb-3"><label class="form-label fw-bold text-dark">初始存放地點 <span class="text-danger">*</span></label><input type="text" id="regLocDisplay" class="form-control fake-input-btn" readonly placeholder="點此開啟地點選單..." onclick="triggerRegLoc()"><input type="hidden" id="regLoc"></div>
                 <div class="mb-4"><label class="form-label fw-bold text-dark">財產編號</label><input type="text" id="regPropNum" class="form-control bg-light" placeholder="例如：財50_40..."></div>
                 <div class="row mb-3 g-2"><div class="col-6"><label class="form-label fw-bold text-dark">入藏等級</label><input type="text" id="regAccession" class="form-control" placeholder="例如：館藏"></div><div class="col-6"><label class="form-label fw-bold text-dark">蔣元素</label><select id="regJiang" class="form-select"><option value="不相關">不相關</option><option value="相關">相關</option><option value="待確認">待確認</option></select></div></div>
+                
                 <div class="mb-4"><label class="form-label fw-bold text-dark">備註說明</label><textarea id="regDesc" class="form-control" rows="2" placeholder="選填"></textarea></div>
+                
                 <div class="alert alert-info py-2 small">💡 提示：送出後，系統將自動於資料庫建檔，並立刻同步至查詢與列印模組中。</div>
                 <button class="btn btn-info w-100 fw-bold py-3 text-white fs-5 shadow-sm" onclick="submitRegistration()">✅ 確認登錄建檔</button>
               </div>
@@ -427,15 +430,16 @@
                       <label class="form-label text-dark fw-bold">2. 專案名稱 <span class="text-danger">*</span></label>
                       <input type="text" id="newMvName" class="form-control border-primary" placeholder="例：112年度A庫房漏水緊急搬遷">
                   </div>
+                  
                   <div class="mb-4">
                       <label class="form-label text-dark fw-bold">3. 專案說明 (選填)</label>
                       <input type="text" id="newMvDesc" class="form-control" placeholder="簡單描述本次搬運目的">
                   </div>
+                  
                   <div class="mb-4 pt-3 border-top">
                       <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                         <label class="form-label text-danger fw-bold mb-0">4. 挑選待搬運文物</label>
                         <div>
-                            <!-- 💡 智慧貼上與批次匯入按鈕 -->
                             <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="openImportModal()"><i class="fas fa-file-import"></i> 批次匯入</button>
                             <button class="btn btn-sm btn-outline-danger fw-bold" onclick="openMiscModal()">➕ 新增雜物</button>
                         </div>
@@ -712,7 +716,6 @@
             </div>
           </div>
           <div id="tcItemList" style="max-height: 250px; overflow-y: auto;" class="bg-light p-2 rounded border mb-3">
-            <!-- 勾選清單由 JS 動態生成 -->
           </div>
           <button class="btn btn-info w-100 fw-bold py-3 fs-5 text-white shadow-sm" onclick="applyTempCodes()">✅ 確認套用並儲存</button>
         </div>
@@ -720,7 +723,7 @@
     </div>
   </div>
 
-  <!-- 💡 智慧匯入 (Smart Paste) Modal -->
+  <!-- 智慧匯入 Modal -->
   <div class="modal fade" id="importModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg">
@@ -738,7 +741,6 @@
           </div>
           <button class="btn btn-secondary w-100 fw-bold mb-4" onclick="parseImportData()">🔍 執行資料解析與比對</button>
 
-          <!-- 預覽區塊 -->
           <div id="importPreviewSection" class="fade-in-section" style="display:none;">
             <h6 class="fw-bold mb-2 text-dark">解析預覽結果：</h6>
             <div class="d-flex justify-content-between mb-2 align-items-end flex-wrap gap-2">
@@ -789,7 +791,6 @@
     let currentProjectItems = [];
     let currentMvEventId = "";
     
-    // 建立新專案與匯入相關變數
     let newMvCart = new Map();
     let allMvItems = [];
     let parsedImportItems = [];
@@ -1084,6 +1085,7 @@
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
       const res = globalCatalog[cleanId];
+      
       if(res) { renderQueryUI(res); } else {
         showMiniLoading('🔍 查詢雲端最新狀態中...');
         try { const freshRes = await callAPI('queryItem', { qrStr: cleanId }); globalCatalog[cleanId] = freshRes; renderQueryUI(freshRes); } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); }
@@ -1258,7 +1260,6 @@
     function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
     function playSound(k) { if (!audioCtx) return; if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = k === 'success' ? 'triangle' : 'square'; o.frequency.value = k === 'success' ? 1100 : 550; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => { o.stop(); }, 150); }
 
-    // 💡 建立與編修專案相關功能 
     function loadNewMvList() {
       if(allMvItems && allMvItems.length > 0) return;
       const items = Object.values(globalCatalog);
@@ -1310,8 +1311,19 @@
        document.getElementById('locModalTitle').innerText = "選擇「雜物所在地點」";
        document.getElementById('modalLocSearch').value = ''; filterModalTree();
        renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
+       
+       // 💡 修正：先隱藏雜物視窗，再呼叫地點視窗，避免圖層打架 (Z-index 衝突)
+       bootstrap.Modal.getInstance(document.getElementById('miscModal')).hide();
        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
     }
+
+    // 💡 修正：監聽地點視窗關閉事件，如果是從雜物視窗來的，選完地點後就自動恢復雜物視窗
+    document.getElementById('locModal').addEventListener('hidden.bs.modal', function () {
+        if (currentModalTarget === 'miscLoc') {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
+            currentModalTarget = ''; // 重置目標，避免影響其他功能
+        }
+    });
     
     function addMiscItem() {
        const name = document.getElementById('miscName').value.trim();
@@ -1393,7 +1405,6 @@
       filterNewMvList();
     }
 
-    // 💡 批次設定臨時編碼功能
     function openTempCodeModal() {
         if(newMvCart.size === 0) return alert("請先挑選文物加入清單！");
         let html = '';
@@ -1448,7 +1459,6 @@
         showSyncToast("✅ 臨時編碼已成功套用，請記得點擊儲存專案！", true);
     }
 
-    // 💡 智慧貼上與批次匯入功能
     function openImportModal() {
         document.getElementById('importTextarea').value = '';
         document.getElementById('importPreviewSection').style.display = 'none';
@@ -1465,7 +1475,6 @@
 
         lines.forEach(line => {
             if(!line.trim()) return;
-            // 支援 Tab 或逗號分隔
             let cols = line.includes('\t') ? line.split('\t') : line.split(',');
             cols = cols.map(c => c.trim());
 
@@ -1640,7 +1649,6 @@
       }
     }
 
-    // 💡 執行待搬運作業相關功能
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; currentMvEventId = eid;
       const d = document.getElementById('mvLocDisplay'); document.getElementById('mvLoc').value = ""; d.value = ""; 
