@@ -808,7 +808,7 @@
         <div class="modal-body p-4">
           <div class="alert alert-success small py-2 mb-3">
             💡 <strong>操作提示：</strong>請從 Excel 複製表格內容後，直接在下方貼上。系統將為您自動解析！<br>
-            📌 建議欄位順序：<strong>藏品編號</strong> (Tab空白) <strong>名稱</strong> (Tab空白) <strong>臨時編碼</strong>
+            📌 建議欄位順序：<strong>臨時編碼</strong> (Tab空白) <strong>藏品編號</strong> (Tab空白) <strong>名稱</strong>
           </div>
           <div class="mb-3">
             <textarea id="importTextarea" class="form-control border-success" rows="6" placeholder="請在此貼上 Excel 內容..."></textarea>
@@ -1660,105 +1660,12 @@
         });
         
         saveMvDraft();
-        filterNewMvList(); // 更新底層專案清單
-        
-        let targetPrefix = getPrefix(prefix + "1");
-        refreshCartPrefixDropdown(targetPrefix); // 💡 統一更新下拉選單並切換到新前綴
-
-        filterCartList();
-        showSyncToast("✅ 批次修改已套用", true);
-        
-        // 隱藏編輯區
-        const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea'));
-        if(bsCollapse) bsCollapse.hide();
-    }
-
-    function updateCartItemTc(id, val) {
-        let item = newMvCart.get(id);
-        if(item) {
-            item.tempCode = val;
-            newMvCart.set(id, item);
-            saveMvDraft();
-            filterNewMvList(); 
-            refreshCartPrefixDropdown(); // 💡 單筆修改後也靜默更新下拉選單
-        }
-    }
-
-    function removeCartItem(id) {
-        newMvCart.delete(id);
-        saveMvDraft();
-        filterNewMvList();
-        
-        refreshCartPrefixDropdown(); // 💡 統一更新下拉選單
-
-        filterCartList();
-        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
-    }
-
-    // 批次設定臨時編碼 Modal (原主介面的按鈕)
-    function openTempCodeModal() {
-        if(newMvCart.size === 0) return alert("請先挑選文物加入清單！");
-        let html = '';
-        let idx = 0;
-        newMvCart.forEach((val, id) => {
-            let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${val.tempCode}</span>` : '';
-            // 預設全不勾，並打上 data-has-tc 標籤供智慧選擇
-            html += `
-            <div class="form-check mb-2 pb-2 border-bottom">
-                <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
-                <label class="form-check-label w-100 fs-6" for="tc_${idx}">
-                    <span class="fw-bold text-dark">${id}</span> ${tcBadge}<br>
-                    <small class="text-muted">${val.name}</small>
-                </label>
-            </div>`;
-            idx++;
-        });
-        document.getElementById('tcItemList').innerHTML = html;
-        document.getElementById('tcPrefix').value = '';
-        document.getElementById('tcStartNum').value = '1';
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('tempCodeModal')).show();
-    }
-
-    function toggleTcAll(state) {
-        document.querySelectorAll('.tc-item-cb').forEach(cb => cb.checked = state);
-    }
-
-    function toggleTcUncoded() {
-        document.querySelectorAll('.tc-item-cb').forEach(cb => {
-            cb.checked = (cb.getAttribute('data-has-tc') === 'false');
-        });
-    }
-
-    function applyTempCodes() {
-        let prefix = document.getElementById('tcPrefix').value.trim();
-        let startNum = parseInt(document.getElementById('tcStartNum').value.trim());
-        if(isNaN(startNum)) startNum = 1;
-        
-        let cbs = document.querySelectorAll('.tc-item-cb:checked');
-        if(cbs.length === 0) return alert("請勾選要配發臨時編碼的項目！");
-
-        let currentNum = startNum;
-        cbs.forEach(cb => {
-            let id = cb.value;
-            let item = newMvCart.get(id);
-            if(item) {
-                item.tempCode = prefix + currentNum;
-                newMvCart.set(id, item);
-                
-                let inAllList = allMvItems.find(x => x.id === id);
-                if(inAllList) inAllList.tempCode = item.tempCode;
-
-                currentNum++;
-            }
-        });
-        
-        saveMvDraft();
         bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide();
         filterNewMvList(); 
         showSyncToast("✅ 臨時編碼已成功套用，請記得點擊儲存專案！", true);
     }
 
-    // 💡 優化 2：智慧匯入 Modal (加入衝突警示機制)
+    // 💡 優化 2：智慧匯入 Modal (加入衝突警示機制與新欄位順序)
     function openImportModal() {
         document.getElementById('importTextarea').value = '';
         document.getElementById('importPreviewSection').style.display = 'none';
@@ -1778,11 +1685,23 @@
             let cols = line.includes('\t') ? line.split('\t') : line.split(',');
             cols = cols.map(c => c.trim());
 
-            if (cols.length === 0 || !cols[0]) return;
+            if (cols.length === 0) return;
 
-            let parsedId = cols[0];
-            let parsedName = cols.length > 1 ? cols[1] : '';
-            let parsedTempCode = cols.length > 2 ? cols[2] : '';
+            let parsedTempCode = '';
+            let parsedId = '';
+            let parsedName = '';
+
+            if (cols.length === 1) {
+                // 如果只貼上一個欄位，為求保險預設視為「藏品編號」
+                parsedId = cols[0];
+            } else {
+                // 依據新版順序：臨時編碼 -> 藏品編號 -> 名稱
+                parsedTempCode = cols[0];
+                parsedId = cols[1];
+                parsedName = cols.length > 2 ? cols[2] : '';
+            }
+
+            if (!parsedId) return; // 若解析後藏品編號為空，則跳過該行
 
             let existing = allMvItems.find(x => x.id === parsedId);
             let inCart = newMvCart.has(parsedId);
