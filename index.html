@@ -467,7 +467,7 @@
                           <div>
                               <button class="btn btn-outline-primary fw-bold me-1 shadow-sm" onclick="openCartModal()">🛒 檢視/精修清單</button>
                               <button class="btn btn-outline-info fw-bold me-1 shadow-sm" onclick="openTempCodeModal()"><i class="fas fa-tags"></i> 批次編碼</button>
-                              <button class="btn btn-outline-danger fw-bold shadow-sm" onclick="clearNewMvSelection()">清空選擇</button>
+                              <button class="btn btn-outline-danger fw-bold shadow-sm" onclick="clearNewMvSelection(true)">清空選擇</button>
                           </div>
                       </div>
                   </div>
@@ -532,6 +532,8 @@
             <ul class="nav nav-pills mb-3 border-bottom pb-2" id="mgrMainPills">
                 <li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabVerify">📋 異動審核</button></li>
                 <li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabLoc">📍 空間架構</button></li>
+                <!-- 💡 新增：批次校正地點頁籤 -->
+                <li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabOverride">🔄 批次強制校正地點</button></li>
             </ul>
 
             <div class="tab-content">
@@ -620,6 +622,43 @@
                    </div>
                  </div>
               </div>
+
+              <!-- 💡 新增：批次強制校正地點的專屬介面 -->
+              <div class="tab-pane fade" id="mgrTabOverride">
+                 <div class="card border-danger shadow-sm mb-3">
+                     <div class="card-body">
+                         <h6 class="fw-bold text-danger mb-3"><i class="fas fa-exclamation-triangle"></i> 批次強制覆寫總表地點</h6>
+                         <div class="alert alert-warning small py-2 mb-3">
+                             ⚠️ <strong>危險操作警告：</strong>此功能將直接且永久地覆寫「藏品清單」總表中的地點，不會留下專案異動紀錄。適用於<strong>歷史舊資料補登</strong>或是<strong>一物分拆多地</strong>的特殊修正。<br>
+                             📌 建議貼上格式：<strong>藏品編號</strong> (Tab空白) <strong>正確存放地點</strong>
+                         </div>
+                         <textarea id="importOverrideTextarea" class="form-control border-danger mb-3" rows="6" placeholder="請在此貼上 Excel 內容...&#10;PT08306900&#9;A庫房-鐵櫃1 / B庫房-層架2&#10;..."></textarea>
+                         <button class="btn btn-secondary w-100 fw-bold" onclick="parseOverrideData()">🔍 預覽校正結果</button>
+                     </div>
+                 </div>
+
+                 <div id="overridePreviewSection" class="bg-white rounded shadow-sm p-3 border fade-in-section" style="display:none;">
+                     <h6 class="fw-bold text-dark mb-2">比對預覽：</h6>
+                     <div class="table-responsive border rounded mb-3" style="max-height: 350px; overflow-y: auto;">
+                         <table class="table table-bordered table-sm text-center align-middle mb-0" style="font-size: 0.9rem;">
+                             <thead class="table-light sticky-top">
+                                 <tr>
+                                     <th width="15%">狀態</th>
+                                     <th width="20%">編號</th>
+                                     <th width="30%">原地點 (將被覆寫)</th>
+                                     <th width="35%">新地點 (強制校正)</th>
+                                 </tr>
+                             </thead>
+                             <tbody id="overridePreviewTableBody"></tbody>
+                         </table>
+                     </div>
+                     <div class="d-flex justify-content-between align-items-center">
+                         <span class="small fw-bold text-secondary" id="overrideStats">共 0 筆待校正</span>
+                         <button class="btn btn-danger fw-bold shadow-sm" id="btnConfirmOverride" onclick="confirmOverride()" disabled>⚠️ 確認強制覆寫地點</button>
+                     </div>
+                 </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -754,7 +793,8 @@
              <!-- 動態生成已選清單 -->
           </div>
         </div>
-        <div class="modal-footer bg-light p-2 d-flex justify-content-end">
+        <div class="modal-footer bg-light p-2 d-flex justify-content-between">
+           <button class="btn btn-outline-danger fw-bold" onclick="clearNewMvSelection(true, 'cartModal')">清空全部</button>
            <button class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">完成精修</button>
         </div>
       </div>
@@ -1519,11 +1559,20 @@
       filterNewMvList(); 
     }
 
-    function clearNewMvSelection() {
+    function clearNewMvSelection(requireConfirm = false, modalId = null) {
+      if (requireConfirm) {
+          if (newMvCart.size === 0) return;
+          if (!confirm("確定要清空目前已選擇的待搬運文物嗎？這將會清除您的勾選清單與臨時編碼！")) return;
+      }
       newMvCart.clear();
       saveMvDraft();
       document.getElementById('newMvSelectedCount').innerText = 0;
       filterNewMvList();
+      
+      if (modalId) {
+          let m = bootstrap.Modal.getInstance(document.getElementById(modalId));
+          if (m) m.hide();
+      }
     }
 
     // --- 💡 優化 4: 輔助函數：提取英文前綴 ---
@@ -1861,6 +1910,95 @@
         document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
         filterNewMvList();
         showSyncToast(`✅ 成功匯入/更新 ${importCount} 筆項目！`, true);
+    }
+
+    // 💡 新增：解析批次強制校正資料
+    let parsedOverrideItems = [];
+    function parseOverrideData() {
+        const raw = document.getElementById('importOverrideTextarea').value.trim();
+        if(!raw) return alert("請先貼上資料！");
+
+        const lines = raw.split('\n');
+        let payload = [];
+
+        lines.forEach(line => {
+            if(!line.trim()) return;
+            let cols = line.includes('\t') ? line.split('\t') : line.split(',');
+            cols = cols.map(c => c.trim());
+
+            if (cols.length >= 2 && cols[0]) {
+                payload.push({ id: cols[0], newLoc: cols[1] });
+            }
+        });
+
+        if(payload.length === 0) return alert("解析失敗！請確保貼上格式為「編號 + 地點」。");
+
+        showMiniLoading("正在比對雲端總表...");
+        callAPI('previewLocationOverride', { items: payload }).then(res => {
+            parsedOverrideItems = res.results;
+            renderOverridePreview();
+            document.getElementById('overridePreviewSection').style.display = 'block';
+            hideMiniLoading();
+        }).catch(e => {
+            alert("預覽失敗：" + e.message);
+            hideMiniLoading();
+        });
+    }
+
+    // 💡 新增：渲染校正預覽表
+    function renderOverridePreview() {
+        let html = '';
+        let validCount = 0;
+
+        parsedOverrideItems.forEach(item => {
+            let statusBadge = '';
+            let trClass = '';
+
+            if (item.status === 'ok') {
+                statusBadge = '<span class="badge bg-success">✅ 準備覆寫</span>';
+                validCount++;
+            } else if (item.status === 'no_change') {
+                statusBadge = '<span class="badge bg-secondary">⏸️ 地點相同</span>';
+                trClass = 'table-secondary text-muted';
+            } else {
+                statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>';
+                trClass = 'table-danger text-muted';
+            }
+
+            html += `
+            <tr class="${trClass}">
+                <td>${statusBadge}</td>
+                <td class="fw-bold text-dark">${item.id}</td>
+                <td class="small">${item.oldLoc || '無'}</td>
+                <td class="text-danger fw-bold small">${item.status === 'not_found' ? '--' : item.newLoc}</td>
+            </tr>`;
+        });
+
+        document.getElementById('overridePreviewTableBody').innerHTML = html;
+        document.getElementById('overrideStats').innerText = `✅ 可強制校正：${validCount} 筆`;
+        document.getElementById('btnConfirmOverride').disabled = (validCount === 0);
+    }
+
+    // 💡 新增：確認執行批次強制覆寫
+    function confirmOverride() {
+        let validItems = parsedOverrideItems.filter(x => x.status === 'ok');
+        if(validItems.length === 0) return;
+
+        if (!confirm(`⚠️ 危險操作確認！\n\n系統將直接覆寫總表中這 ${validItems.length} 件文物的地點，此操作無法復原。\n\n確定要強制執行覆寫嗎？`)) {
+            return;
+        }
+
+        showMiniLoading(`正在強制寫入 ${validItems.length} 筆地點資料...`);
+        callAPI('executeLocationOverride', { items: validItems }).then(res => {
+            alert(`✅ 成功強制校正了 ${res.count} 筆文物地點！`);
+            document.getElementById('importOverrideTextarea').value = '';
+            document.getElementById('overridePreviewSection').style.display = 'none';
+            parsedOverrideItems = [];
+            hideMiniLoading();
+        }).catch(e => {
+            alert("寫入失敗：" + e.message);
+            hideMiniLoading();
+        });
     }
 
     async function submitNewProject() {
