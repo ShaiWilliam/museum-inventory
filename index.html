@@ -22,17 +22,26 @@
     ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.4); }
 
-    html, body { background-color: #212529; min-height: 100dvh; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; transition: background-color 0.5s ease; }
+    html, body { 
+        background-color: #212529; 
+        min-height: 100vh; 
+        margin: 0; padding: 0; 
+        font-family: system-ui, -apple-system, sans-serif; 
+        overflow-x: hidden; 
+        overflow-y: auto; 
+        -webkit-tap-highlight-color: transparent; 
+        transition: background-color 0.5s ease; 
+    }
     
-    #authScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; padding: 20px;}
+    #authScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; background: #212529; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; padding: 20px;}
     
-    #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
+    #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
     .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite; }
     @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
     .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
     
-    #homeMenu { padding: max(20px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    #homeMenu { padding: max(20px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; min-height: 100vh; }
     
     .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
     .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
@@ -86,11 +95,12 @@
     .print-item:last-child { border-bottom: none; }
     
     .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
+    .modal-dialog-scrollable .modal-body { overflow-y: auto; }
 
     #syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
     .sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
 
-    #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
+    #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
     #printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
     
@@ -281,7 +291,6 @@
                   <div class="row g-2 mb-2"><div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div><div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div></div>
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
-
                 <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
               </div>
             </div>
@@ -307,9 +316,7 @@
                 <div class="mb-3"><label class="form-label fw-bold text-dark">初始存放地點 <span class="text-danger">*</span></label><input type="text" id="regLocDisplay" class="form-control fake-input-btn" readonly placeholder="點此開啟地點選單..." onclick="triggerRegLoc()"><input type="hidden" id="regLoc"></div>
                 <div class="mb-4"><label class="form-label fw-bold text-dark">財產編號</label><input type="text" id="regPropNum" class="form-control bg-light" placeholder="例如：財50_40..."></div>
                 <div class="row mb-3 g-2"><div class="col-6"><label class="form-label fw-bold text-dark">入藏等級</label><input type="text" id="regAccession" class="form-control" placeholder="例如：館藏"></div><div class="col-6"><label class="form-label fw-bold text-dark">蔣元素</label><select id="regJiang" class="form-select"><option value="不相關">不相關</option><option value="相關">相關</option><option value="待確認">待確認</option></select></div></div>
-                
                 <div class="mb-4"><label class="form-label fw-bold text-dark">備註說明</label><textarea id="regDesc" class="form-control" rows="2" placeholder="選填"></textarea></div>
-                
                 <div class="alert alert-info py-2 small">💡 提示：送出後，系統將自動於資料庫建檔，並立刻同步至查詢與列印模組中。</div>
                 <button class="btn btn-info w-100 fw-bold py-3 text-white fs-5 shadow-sm" onclick="submitRegistration()">✅ 確認登錄建檔</button>
               </div>
@@ -428,12 +435,11 @@
                   </div>
                   <div class="mb-3">
                       <label class="form-label text-dark fw-bold">2. 專案名稱 <span class="text-danger">*</span></label>
-                      <input type="text" id="newMvName" class="form-control border-primary" placeholder="例：112年度A庫房漏水緊急搬遷">
+                      <input type="text" id="newMvName" class="form-control border-primary" placeholder="例：112年度A庫房漏水緊急搬遷" oninput="saveMvDraft()">
                   </div>
-                  
                   <div class="mb-4">
                       <label class="form-label text-dark fw-bold">3. 專案說明 (選填)</label>
-                      <input type="text" id="newMvDesc" class="form-control" placeholder="簡單描述本次搬運目的">
+                      <input type="text" id="newMvDesc" class="form-control" placeholder="簡單描述本次搬運目的" oninput="saveMvDraft()">
                   </div>
                   
                   <div class="mb-4 pt-3 border-top">
@@ -459,7 +465,8 @@
                       <div class="d-flex justify-content-between align-items-center bg-light p-3 border rounded shadow-sm flex-wrap gap-2">
                           <span class="fw-bold text-primary fs-5">專案待搬運：<span id="newMvSelectedCount" class="text-danger">0</span> 件</span>
                           <div>
-                              <button class="btn btn-outline-info fw-bold me-2 shadow-sm" onclick="openTempCodeModal()"><i class="fas fa-tags"></i> 批次臨時編碼</button>
+                              <button class="btn btn-outline-primary fw-bold me-1 shadow-sm" onclick="openCartModal()">🛒 檢視/精修清單</button>
+                              <button class="btn btn-outline-info fw-bold me-1 shadow-sm" onclick="openTempCodeModal()"><i class="fas fa-tags"></i> 批次編碼</button>
                               <button class="btn btn-outline-danger fw-bold shadow-sm" onclick="clearNewMvSelection()">清空選擇</button>
                           </div>
                       </div>
@@ -688,7 +695,73 @@
     </div>
   </div>
 
-  <!-- 批次設定臨時編碼 Modal -->
+  <!-- 💡 優化 4：檢視/精修已選清單 Modal (進階搜尋與批次編輯版) -->
+  <div class="modal fade" id="cartModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold text-primary">🛒 檢視與精修已選清單</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="alert alert-info small py-2 mb-3">
+              在此可總覽您已加入專案的文物。您可以透過搜尋或前綴過濾，並進行多選批次修改或移除。
+          </div>
+          
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+                <input type="search" id="cartSearchKw" class="form-control form-control-sm border-primary" placeholder="🔍 搜尋編號/名稱/臨時編碼..." onkeyup="filterCartList()" onsearch="filterCartList()">
+            </div>
+            <div class="col-5">
+                <select id="cartPrefixFilter" class="form-select form-select-sm border-primary" onchange="filterCartList()">
+                    <option value="">所有前綴</option>
+                </select>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border">
+              <div>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="toggleCartAll(true)">全選</button>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="toggleCartAll(false)">清除</button>
+              </div>
+              <div>
+                  <button class="btn btn-sm btn-outline-info fw-bold me-1 text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#cartBatchEditArea" aria-expanded="false"><i class="fas fa-tags"></i> 批次改編碼</button>
+                  <button class="btn btn-sm btn-outline-danger fw-bold" onclick="batchRemoveCartItems()"><i class="fas fa-trash"></i> 移除勾選</button>
+              </div>
+          </div>
+
+          <!-- 批次編輯折疊面板 -->
+          <div class="collapse mb-2" id="cartBatchEditArea">
+              <div class="card card-body bg-white border-info shadow-sm">
+                  <h6 class="fw-bold text-info mb-2 small"><i class="fas fa-edit"></i> 重新配發臨時編碼至勾選項目</h6>
+                  <div class="row g-2 mb-2">
+                      <div class="col-6">
+                          <input type="text" id="cartBatchPrefix" class="form-control form-control-sm border-info" placeholder="新英文前綴 (例: L)">
+                      </div>
+                      <div class="col-6">
+                          <input type="number" id="cartBatchStart" class="form-control form-control-sm border-info" placeholder="起始流水號" value="1" min="1">
+                      </div>
+                  </div>
+                  <button class="btn btn-sm btn-info fw-bold text-white w-100" onclick="applyCartBatchEdit()">確認套用</button>
+              </div>
+          </div>
+
+          <div class="d-flex justify-content-between mb-1 small text-muted px-1">
+              <span>顯示項目：<span id="cartCountText" class="fw-bold text-dark">0</span></span>
+          </div>
+          
+          <div id="cartItemList" class="bg-white border rounded shadow-sm p-1" style="max-height: 350px; overflow-y: auto;">
+             <!-- 動態生成已選清單 -->
+          </div>
+        </div>
+        <div class="modal-footer bg-light p-2 d-flex justify-content-end">
+           <button class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">完成精修</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批次設定臨時編碼 Modal (原版重構，加入僅選未編碼) -->
   <div class="modal fade" id="tempCodeModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg">
@@ -708,9 +781,10 @@
               <input type="number" id="tcStartNum" class="form-control border-info" value="1" min="1">
             </div>
           </div>
-          <div class="d-flex justify-content-between mb-2 align-items-center">
-            <span class="fw-bold text-dark">請勾選要套用流水號的項目：</span>
+          <div class="d-flex justify-content-between mb-2 align-items-center flex-wrap gap-2">
+            <span class="fw-bold text-dark">請勾選要套用的項目：</span>
             <div>
+              <button class="btn btn-sm btn-outline-primary fw-bold" onclick="toggleTcUncoded()"><i class="fas fa-search"></i> 僅選未編碼</button>
               <button class="btn btn-sm btn-outline-secondary" onclick="toggleTcAll(true)">全選</button>
               <button class="btn btn-sm btn-outline-secondary" onclick="toggleTcAll(false)">清除</button>
             </div>
@@ -820,6 +894,49 @@
             icon.className = "fas fa-circle-notch fa-spin text-info me-2";
             toast.style.display = 'block';
             setTimeout(() => toast.style.opacity = '1', 10);
+        }
+    }
+
+    // 💡 優化 5：本機自動暫存草稿功能 (Local Storage Auto-Save)
+    function saveMvDraft() {
+        const action = document.getElementById('newMvActionSelect').value;
+        if(action !== 'NEW') return; 
+        const draft = {
+            name: document.getElementById('newMvName').value,
+            desc: document.getElementById('newMvDesc').value,
+            cart: Array.from(newMvCart.entries())
+        };
+        localStorage.setItem('mvProjectDraft', JSON.stringify(draft));
+    }
+
+    function clearMvDraft() {
+        localStorage.removeItem('mvProjectDraft');
+    }
+
+    function checkMvDraft() {
+        const draftStr = localStorage.getItem('mvProjectDraft');
+        if(draftStr) {
+            try {
+                const draft = JSON.parse(draftStr);
+                if((draft.cart && draft.cart.length > 0) || draft.name) {
+                    if(confirm('💡 系統偵測到您有尚未儲存的「建立專案草稿」，是否恢復？\n\n(按「確定」恢復進度，按「取消」捨棄草稿)')) {
+                        document.getElementById('newMvName').value = draft.name || '';
+                        document.getElementById('newMvDesc').value = draft.desc || '';
+                        newMvCart = new Map(draft.cart);
+                        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+                        
+                        // 將草稿內的雜物資料補回 allMvItems 內
+                        newMvCart.forEach((val, id) => {
+                            if(val.isMisc && !allMvItems.find(x => x.id === id)) {
+                                allMvItems.unshift({ id: id, name: val.name, loc: val.loc, isMisc: true, tempCode: val.tempCode });
+                            }
+                        });
+                        filterNewMvList();
+                    } else {
+                        clearMvDraft();
+                    }
+                }
+            } catch(e) { clearMvDraft(); }
         }
     }
 
@@ -975,7 +1092,10 @@
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none'; document.getElementById('mainApp').style.display = 'block'; document.body.style.overflowY = 'auto'; 
       if(sysId === 'inv') { document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
-      if(sysId === 'move') { loadNewMvList(); } 
+      if(sysId === 'move') { 
+          loadNewMvList(); 
+          checkMvDraft(); 
+      } 
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
       document.getElementById('sysTitle').innerText = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' }[sysId];
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -988,7 +1108,7 @@
       showMiniLoading('正在安全關閉模組...');
       if (document.getElementById('step2').style.display === 'block') { await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; }
       if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; }
-      window.scrollTo(0, 0); document.body.style.overflowY = 'hidden'; document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block'; 
+      window.scrollTo(0, 0); document.body.style.overflowY = 'auto'; document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block'; 
       
       try { 
         if (window.location.protocol !== 'blob:' && window.location.origin !== 'null') {
@@ -1085,7 +1205,6 @@
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
       const res = globalCatalog[cleanId];
-      
       if(res) { renderQueryUI(res); } else {
         showMiniLoading('🔍 查詢雲端最新狀態中...');
         try { const freshRes = await callAPI('queryItem', { qrStr: cleanId }); globalCatalog[cleanId] = freshRes; renderQueryUI(freshRes); } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); }
@@ -1276,6 +1395,7 @@
           document.getElementById('newMvName').value = '';
           document.getElementById('newMvDesc').value = '';
           clearNewMvSelection();
+          clearMvDraft();
        } else {
           showMiniLoading('讀取專案資料中...');
           try {
@@ -1294,6 +1414,7 @@
              });
              document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
              filterNewMvList();
+             clearMvDraft(); 
           } catch(e) { alert("讀取失敗: " + e.message); } finally { hideMiniLoading(); }
        }
     }
@@ -1311,17 +1432,14 @@
        document.getElementById('locModalTitle').innerText = "選擇「雜物所在地點」";
        document.getElementById('modalLocSearch').value = ''; filterModalTree();
        renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
-       
-       // 💡 修正：先隱藏雜物視窗，再呼叫地點視窗，避免圖層打架 (Z-index 衝突)
        bootstrap.Modal.getInstance(document.getElementById('miscModal')).hide();
        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
     }
 
-    // 💡 修正：監聽地點視窗關閉事件，如果是從雜物視窗來的，選完地點後就自動恢復雜物視窗
     document.getElementById('locModal').addEventListener('hidden.bs.modal', function () {
         if (currentModalTarget === 'miscLoc') {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
-            currentModalTarget = ''; // 重置目標，避免影響其他功能
+            currentModalTarget = ''; 
         }
     });
     
@@ -1339,6 +1457,7 @@
        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
        
        document.getElementById('newMvSearch').value = name;
+       saveMvDraft();
        filterNewMvList();
        showSyncToast("✅ 雜物已加入清單", true);
     }
@@ -1391,6 +1510,7 @@
       } else {
           newMvCart.delete(cb.value);
       }
+      saveMvDraft();
       document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
     }
 
@@ -1401,19 +1521,191 @@
 
     function clearNewMvSelection() {
       newMvCart.clear();
+      saveMvDraft();
       document.getElementById('newMvSelectedCount').innerText = 0;
       filterNewMvList();
     }
 
+    // --- 💡 優化 4: 輔助函數：提取英文前綴 ---
+    function getPrefix(tc) {
+        if (!tc) return "未編碼";
+        const match = tc.match(/^([A-Za-z\-_]+)/);
+        return match ? match[1].toUpperCase() : "無英文前綴";
+    }
+
+    // 💡 新增：統一更新購物車前綴下拉選單的函數
+    function refreshCartPrefixDropdown(targetPrefix) {
+        let prefixes = new Set();
+        newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode)));
+        
+        let currentFilter = document.getElementById('cartPrefixFilter').value;
+        let selectHtml = '<option value="">所有前綴</option>';
+        
+        Array.from(prefixes).sort().forEach(p => {
+            selectHtml += `<option value="${p}">${p}</option>`;
+        });
+        
+        document.getElementById('cartPrefixFilter').innerHTML = selectHtml;
+
+        if (targetPrefix !== undefined && prefixes.has(targetPrefix)) {
+            document.getElementById('cartPrefixFilter').value = targetPrefix;
+        } else if (currentFilter && prefixes.has(currentFilter)) {
+            document.getElementById('cartPrefixFilter').value = currentFilter;
+        } else {
+            document.getElementById('cartPrefixFilter').value = '';
+        }
+    }
+
+    // 💡 優化 4：開啟檢視與精修購物車 Modal (進階搜尋與批次編輯版)
+    function openCartModal() {
+        refreshCartPrefixDropdown();
+        document.getElementById('cartSearchKw').value = '';
+        
+        // 隱藏批次編輯面板
+        const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea'));
+        if(bsCollapse) bsCollapse.hide();
+
+        filterCartList(); // 渲染清單
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show();
+    }
+
+    // 💡 優化 4：精修清單的搜尋與渲染邏輯
+    function filterCartList() {
+        const kw = document.getElementById('cartSearchKw').value.toLowerCase().trim();
+        const prefixFilter = document.getElementById('cartPrefixFilter').value;
+        
+        let html = '';
+        let count = 0;
+
+        newMvCart.forEach((val, id) => {
+            let isMisc = val.isMisc;
+            let tc = val.tempCode || '';
+            let itemPrefix = getPrefix(tc);
+
+            // 過濾邏輯
+            if (prefixFilter && itemPrefix !== prefixFilter) return;
+            if (kw && !(id.toLowerCase().includes(kw) || val.name.toLowerCase().includes(kw) || tc.toLowerCase().includes(kw))) return;
+
+            html += `
+            <div class="d-flex align-items-center p-2 border-bottom">
+                <div class="me-2">
+                    <input class="form-check-input cart-item-cb" type="checkbox" value="${id}">
+                </div>
+                <div style="width: 45%;">
+                    <div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+id : id}</div>
+                    <div class="small text-muted text-truncate" style="max-width: 150px;">${val.name}</div>
+                </div>
+                <div style="width: 30%;" class="px-1">
+                    <input type="text" class="form-control form-control-sm border-info" placeholder="臨時編碼" value="${tc}" onchange="updateCartItemTc('${id}', this.value)">
+                </div>
+                <div style="width: 15%; text-align: right;">
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeCartItem('${id}')">❌</button>
+                </div>
+            </div>`;
+            count++;
+        });
+
+        if (count === 0) {
+            html = '<div class="text-center text-muted p-4">查無符合條件的項目</div>';
+        }
+
+        document.getElementById('cartItemList').innerHTML = html;
+        document.getElementById('cartCountText').innerText = count + ' / ' + newMvCart.size;
+    }
+
+    // 💡 優化 4：精修清單全選控制
+    function toggleCartAll(state) {
+        document.querySelectorAll('.cart-item-cb').forEach(cb => cb.checked = state);
+    }
+
+    // 💡 優化 4：批次移除勾選項目
+    function batchRemoveCartItems() {
+        const cbs = document.querySelectorAll('.cart-item-cb:checked');
+        if(cbs.length === 0) return alert('請先勾選要移除的項目！');
+        if(!confirm(`確定要移除這 ${cbs.length} 個項目嗎？`)) return;
+
+        cbs.forEach(cb => newMvCart.delete(cb.value));
+        
+        saveMvDraft();
+        filterNewMvList(); // 更新底層專案清單
+        
+        refreshCartPrefixDropdown(); // 💡 統一更新下拉選單
+
+        filterCartList(); // 重新渲染當前畫面
+        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+    }
+
+    // 💡 優化 4：於精修清單內直接套用批次編碼
+    function applyCartBatchEdit() {
+        const cbs = document.querySelectorAll('.cart-item-cb:checked');
+        if(cbs.length === 0) return alert('請先勾選要修改編碼的項目！');
+
+        let prefix = document.getElementById('cartBatchPrefix').value.trim();
+        let startNum = parseInt(document.getElementById('cartBatchStart').value.trim());
+        if(isNaN(startNum)) startNum = 1;
+
+        let currentNum = startNum;
+        cbs.forEach(cb => {
+            let id = cb.value;
+            let item = newMvCart.get(id);
+            if(item) {
+                item.tempCode = prefix + currentNum;
+                newMvCart.set(id, item);
+                
+                let inAllList = allMvItems.find(x => x.id === id);
+                if(inAllList) inAllList.tempCode = item.tempCode;
+
+                currentNum++;
+            }
+        });
+        
+        saveMvDraft();
+        filterNewMvList(); // 更新底層專案清單
+        
+        let targetPrefix = getPrefix(prefix + "1");
+        refreshCartPrefixDropdown(targetPrefix); // 💡 統一更新下拉選單並切換到新前綴
+
+        filterCartList();
+        showSyncToast("✅ 批次修改已套用", true);
+        
+        // 隱藏編輯區
+        const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea'));
+        if(bsCollapse) bsCollapse.hide();
+    }
+
+    function updateCartItemTc(id, val) {
+        let item = newMvCart.get(id);
+        if(item) {
+            item.tempCode = val;
+            newMvCart.set(id, item);
+            saveMvDraft();
+            filterNewMvList(); 
+            refreshCartPrefixDropdown(); // 💡 單筆修改後也靜默更新下拉選單
+        }
+    }
+
+    function removeCartItem(id) {
+        newMvCart.delete(id);
+        saveMvDraft();
+        filterNewMvList();
+        
+        refreshCartPrefixDropdown(); // 💡 統一更新下拉選單
+
+        filterCartList();
+        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+    }
+
+    // 批次設定臨時編碼 Modal (原主介面的按鈕)
     function openTempCodeModal() {
         if(newMvCart.size === 0) return alert("請先挑選文物加入清單！");
         let html = '';
         let idx = 0;
         newMvCart.forEach((val, id) => {
             let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${val.tempCode}</span>` : '';
+            // 預設全不勾，並打上 data-has-tc 標籤供智慧選擇
             html += `
             <div class="form-check mb-2 pb-2 border-bottom">
-                <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" checked>
+                <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
                 <label class="form-check-label w-100 fs-6" for="tc_${idx}">
                     <span class="fw-bold text-dark">${id}</span> ${tcBadge}<br>
                     <small class="text-muted">${val.name}</small>
@@ -1429,6 +1721,12 @@
 
     function toggleTcAll(state) {
         document.querySelectorAll('.tc-item-cb').forEach(cb => cb.checked = state);
+    }
+
+    function toggleTcUncoded() {
+        document.querySelectorAll('.tc-item-cb').forEach(cb => {
+            cb.checked = (cb.getAttribute('data-has-tc') === 'false');
+        });
     }
 
     function applyTempCodes() {
@@ -1454,11 +1752,13 @@
             }
         });
         
+        saveMvDraft();
         bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide();
         filterNewMvList(); 
         showSyncToast("✅ 臨時編碼已成功套用，請記得點擊儲存專案！", true);
     }
 
+    // 💡 優化 2：智慧匯入 Modal (加入衝突警示機制)
     function openImportModal() {
         document.getElementById('importTextarea').value = '';
         document.getElementById('importPreviewSection').style.display = 'none';
@@ -1489,11 +1789,22 @@
 
             let status = 'match'; 
             let loc = '未知';
+            let oldTc = '';
 
             if (existing) {
                 parsedName = parsedName || existing.name;
                 loc = existing.loc;
-                if (inCart) status = 'duplicate';
+                
+                // 💡 優化 2：衝突偵測邏輯
+                if (inCart) {
+                    let cartItem = newMvCart.get(parsedId);
+                    oldTc = cartItem.tempCode || '';
+                    if (parsedTempCode && oldTc && oldTc !== parsedTempCode) {
+                        status = 'conflict';
+                    } else {
+                        status = 'duplicate';
+                    }
+                }
             } else {
                 status = 'unmatched';
             }
@@ -1504,6 +1815,7 @@
                 name: parsedName || '未知名稱',
                 loc: loc,
                 tempCode: parsedTempCode,
+                oldTc: oldTc,
                 status: status,
                 isMisc: false
             });
@@ -1520,14 +1832,24 @@
         parsedImportItems.forEach(item => {
             let statusBadge = '';
             let trClass = '';
+            let tcHtml = '';
 
             if (item.status === 'match') {
                 statusBadge = '<span class="badge bg-success">✅ 成功</span>';
                 matchCount++;
+                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
             } else if (item.status === 'duplicate') {
                 statusBadge = '<span class="badge bg-secondary">🔄 已在清單</span>';
                 trClass = 'table-secondary text-muted';
                 dupCount++;
+                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
+            } else if (item.status === 'conflict') {
+                // 💡 衝突顯示介面
+                statusBadge = '<span class="badge bg-warning text-dark">⚠️ 編碼衝突</span>';
+                trClass = 'table-warning';
+                dupCount++;
+                tcHtml = `<br><small class="text-danger fw-bold">原: [${item.oldTc}] ➔ 匯入: [${item.tempCode}]</small>
+                          <br><input type="text" class="form-control form-control-sm mt-1 conflict-tc-input" data-id="${item.finalId}" value="${item.oldTc}" placeholder="確認編碼">`;
             } else if (item.status === 'unmatched') {
                 statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>';
                 trClass = 'table-danger';
@@ -1536,9 +1858,8 @@
                 statusBadge = '<span class="badge bg-warning text-dark">📦 轉為雜物</span>';
                 trClass = 'table-warning';
                 matchCount++; 
+                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
             }
-
-            let tcHtml = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
 
             html += `
             <tr class="${trClass}">
@@ -1550,7 +1871,7 @@
         });
 
         document.getElementById('importPreviewTableBody').innerHTML = html || '<tr><td colspan="4" class="text-center">無有效資料</td></tr>';
-        document.getElementById('importStats').innerHTML = `共 ${parsedImportItems.length} 筆資料 (✅ 可匯入: ${matchCount} | ❌ 未知: ${unmatchedCount} | 🔄 重複: ${dupCount})`;
+        document.getElementById('importStats').innerHTML = `共 ${parsedImportItems.length} 筆資料 (✅ 可匯入: ${matchCount} | ❌ 未知: ${unmatchedCount} | 🔄 重複/衝突: ${dupCount})`;
 
         const btnMisc = document.getElementById('btnConvertMisc');
         const warnMsg = document.getElementById('importWarningMsg');
@@ -1563,7 +1884,7 @@
             warnMsg.style.display = 'none';
         }
 
-        document.getElementById('btnConfirmImport').disabled = (matchCount === 0);
+        document.getElementById('btnConfirmImport').disabled = (matchCount === 0 && document.querySelectorAll('.conflict-tc-input').length === 0);
     }
 
     function convertUnmatchedToMisc() {
@@ -1583,6 +1904,17 @@
 
     function confirmImport() {
         let importCount = 0;
+        
+        // 讀取所有手動選擇的衝突編碼
+        document.querySelectorAll('.conflict-tc-input').forEach(input => {
+            let id = input.getAttribute('data-id');
+            let item = parsedImportItems.find(x => x.finalId === id);
+            if(item) {
+                item.tempCode = input.value;
+                item.status = 'match'; // 將狀態改回 match 準備匯入更新
+            }
+        });
+
         parsedImportItems.forEach(item => {
             if (item.status === 'match' || item.status === 'misc') {
                 
@@ -1605,10 +1937,11 @@
             }
         });
 
+        saveMvDraft();
         bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
         document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
         filterNewMvList();
-        showSyncToast(`✅ 成功匯入 ${importCount} 筆項目！`, true);
+        showSyncToast(`✅ 成功匯入/更新 ${importCount} 筆項目！`, true);
     }
 
     async function submitNewProject() {
@@ -1639,6 +1972,7 @@
           manager: currentManager
         });
         
+        clearMvDraft(); // 成功儲存，清除草稿
         alert('✅ 專案資料儲存成功！');
         refreshSystem('move'); 
         
