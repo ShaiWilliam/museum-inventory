@@ -1709,6 +1709,99 @@
         });
         
         saveMvDraft();
+        filterNewMvList(); // 更新底層專案清單
+        
+        let targetPrefix = getPrefix(prefix + "1");
+        refreshCartPrefixDropdown(targetPrefix); // 💡 統一更新下拉選單並切換到新前綴
+
+        filterCartList();
+        showSyncToast("✅ 批次修改已套用", true);
+        
+        // 隱藏編輯區
+        const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea'));
+        if(bsCollapse) bsCollapse.hide();
+    }
+
+    function updateCartItemTc(id, val) {
+        let item = newMvCart.get(id);
+        if(item) {
+            item.tempCode = val;
+            newMvCart.set(id, item);
+            saveMvDraft();
+            filterNewMvList(); 
+            refreshCartPrefixDropdown(); // 💡 單筆修改後也靜默更新下拉選單
+        }
+    }
+
+    function removeCartItem(id) {
+        newMvCart.delete(id);
+        saveMvDraft();
+        filterNewMvList();
+        
+        refreshCartPrefixDropdown(); // 💡 統一更新下拉選單
+
+        filterCartList();
+        document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
+    }
+
+    // 💡 批次設定臨時編碼 Modal 相關函數
+    function openTempCodeModal() {
+        if(newMvCart.size === 0) return alert("請先挑選文物加入清單！");
+        let html = '';
+        let idx = 0;
+        newMvCart.forEach((val, id) => {
+            let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${val.tempCode}</span>` : '';
+            // 預設全不勾，並打上 data-has-tc 標籤供智慧選擇
+            html += `
+            <div class="form-check mb-2 pb-2 border-bottom">
+                <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
+                <label class="form-check-label w-100 fs-6" for="tc_${idx}">
+                    <span class="fw-bold text-dark">${id}</span> ${tcBadge}<br>
+                    <small class="text-muted">${val.name}</small>
+                </label>
+            </div>`;
+            idx++;
+        });
+        document.getElementById('tcItemList').innerHTML = html;
+        document.getElementById('tcPrefix').value = '';
+        document.getElementById('tcStartNum').value = '1';
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('tempCodeModal')).show();
+    }
+
+    function toggleTcAll(state) {
+        document.querySelectorAll('.tc-item-cb').forEach(cb => cb.checked = state);
+    }
+
+    function toggleTcUncoded() {
+        document.querySelectorAll('.tc-item-cb').forEach(cb => {
+            cb.checked = (cb.getAttribute('data-has-tc') === 'false');
+        });
+    }
+
+    function applyTempCodes() {
+        let prefix = document.getElementById('tcPrefix').value.trim();
+        let startNum = parseInt(document.getElementById('tcStartNum').value.trim());
+        if(isNaN(startNum)) startNum = 1;
+        
+        let cbs = document.querySelectorAll('.tc-item-cb:checked');
+        if(cbs.length === 0) return alert("請勾選要配發臨時編碼的項目！");
+
+        let currentNum = startNum;
+        cbs.forEach(cb => {
+            let id = cb.value;
+            let item = newMvCart.get(id);
+            if(item) {
+                item.tempCode = prefix + currentNum;
+                newMvCart.set(id, item);
+                
+                let inAllList = allMvItems.find(x => x.id === id);
+                if(inAllList) inAllList.tempCode = item.tempCode;
+
+                currentNum++;
+            }
+        });
+        
+        saveMvDraft();
         bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide();
         filterNewMvList(); 
         showSyncToast("✅ 臨時編碼已成功套用，請記得點擊儲存專案！", true);
@@ -2237,7 +2330,24 @@
       } 
     }
 
-    async function syncToMaster() { if(!confirm("確定要結案同步嗎？(注意：系統將自動略過「MISC-」開頭的雜物項目)")) return; showMiniLoading('寫入總表中...'); try { await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); alert('✅ 結案成功！'); loadManagerData(); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
+    async function syncToMaster() { 
+        if(!confirm("確定要結案同步嗎？(注意：系統將自動略過「MISC-」開頭的雜物項目)")) return; 
+        showMiniLoading('寫入總表中...'); 
+        try { 
+            let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); 
+            if (res && typeof res.count !== 'undefined') {
+                alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); 
+            } else {
+                alert('✅ 結案指令已送出，但無更新紀錄。');
+            }
+            loadManagerData(); 
+            refreshSystem('mgr'); 
+        } catch(e) { 
+            alert("失敗：" + e.message); 
+            hideMiniLoading(); 
+        } 
+    }
+    
     function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
     
     function exportReport() { 
