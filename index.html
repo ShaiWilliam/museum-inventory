@@ -74,7 +74,6 @@
     .letter-spacing-2 { letter-spacing: 2px; }
     
     #reader-container, #query-reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
-    /* 💡 新增：確保 #loc-reader 和原本的 scanner CSS 保持一致 */
     #reader, #query-reader, #loc-reader { width: 100% !important; border: none !important; }
     
     #resultOverlay { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 100; display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); border-radius: 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); border: 2px solid #198754; animation: slideIn 0.3s; }
@@ -106,8 +105,8 @@
     #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
     
     .preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
-    .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; }
-    .label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; }
+    .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; justify-content: flex-start; }
+    .label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; background: white;}
     .title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; }
     .qr-img { width: 3cm; height: 3cm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
     .id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
@@ -134,12 +133,12 @@
 </head>
 <body>
 
-  <!-- 💡 新增：全螢幕地點 QR Code 掃描器 -->
+  <!-- 全螢幕地點 QR Code 掃描器 -->
   <div id="loc-reader-container" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:10600; flex-direction:column; justify-content:center; align-items:center;">
       <div style="width:100%; max-width:500px; padding:20px;">
           <h5 class="text-white text-center mb-3 fw-bold" id="locScannerTitle">掃描地點 QR Code</h5>
           <div id="loc-reader" style="width:100%; border-radius:15px; overflow:hidden;"></div>
-          <button class="btn btn-danger w-100 mt-4 fw-bold py-3 fs-5" onclick="stopLocScanner()">取消掃描</button>
+          <button class="btn btn-danger w-100 mt-4 fw-bold py-3 fs-5" onclick="cancelLocScanner()">取消掃描</button>
       </div>
   </div>
 
@@ -273,7 +272,7 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query">查詢</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#register">建檔</button></li>
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">盤點</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異動</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異居</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理</button></li>
       </ul>
 
@@ -509,7 +508,6 @@
                     </div>
                   </div>
 
-                  <!-- 💡 優化：加入地點掃描按鈕 (雙向條碼) -->
                   <div class="mb-3" id="mvLocSelector" style="display:none;">
                     <label class="form-label text-success fw-bold">2. 選擇原典藏地點</label>
                     <div class="input-group shadow-sm">
@@ -530,7 +528,6 @@
                 </div>
                 
                 <div id="mvPhase3" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
-                  <!-- 💡 優化：加入地點掃描按鈕 (雙向條碼) -->
                   <div class="mb-3">
                     <label class="form-label text-primary fw-bold">4. 移往暫存地點</label>
                     <div class="input-group shadow-sm">
@@ -622,7 +619,6 @@
                      <div class="card-body">
                          <h6 class="fw-bold text-primary mb-3">➕ 空間架構管理</h6>
                          
-                         <!-- 💡 優化：加入列印地點 QR Code 按鈕 -->
                          <button class="btn btn-outline-primary w-100 fw-bold mb-4 shadow-sm" onclick="printLocationLabels()"><i class="fas fa-print"></i> 🖨️ 列印所有庫房地點 QR 標籤</button>
                          
                          <h6 class="fw-bold text-dark small mb-2 border-top pt-3">手動新增地點：</h6>
@@ -799,7 +795,6 @@
               </div>
           </div>
 
-          <!-- 批次編輯折疊面板 -->
           <div class="collapse mb-2" id="cartBatchEditArea">
               <div class="card card-body bg-white border-info shadow-sm">
                   <h6 class="fw-bold text-info mb-2 small"><i class="fas fa-edit"></i> 重新配發臨時編碼至勾選項目</h6>
@@ -820,7 +815,6 @@
           </div>
           
           <div id="cartItemList" class="bg-white border rounded shadow-sm p-1" style="max-height: 350px; overflow-y: auto;">
-             <!-- 動態生成已選清單 -->
           </div>
         </div>
         <div class="modal-footer bg-light p-2 d-flex justify-content-between">
@@ -906,7 +900,7 @@
               </table>
             </div>
             <div class="alert alert-warning small py-2 mt-3 mb-3" id="importWarningMsg" style="display:none;">
-              ⚠️ 尚有未知項目無法匯入！請選擇將其轉為雜物，或是手動清除。
+              ⚠️ 尚有未知項目無法匯入！請在上方單獨為每個項目設定新地點。
             </div>
             <button class="btn btn-success w-100 fw-bold py-3 fs-5 shadow-sm" id="btnConfirmImport" onclick="confirmImport()">✅ 確認匯入有效項目至清單</button>
           </div>
@@ -1254,7 +1248,7 @@
 
     function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
     
-    // 💡 優化 2：藏品狀態查詢的 Optimistic UI (先顯示本地，後台再抓新資料)
+    // 💡 藏品狀態查詢的 Optimistic UI (先顯示本地，後台再抓新資料)
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
@@ -1520,10 +1514,14 @@
        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
     }
 
+    // 💡 地點選擇 modal 隱藏時，自動判斷需要恢復的父視窗
     document.getElementById('locModal').addEventListener('hidden.bs.modal', function () {
         if (currentModalTarget === 'miscLoc') {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
             currentModalTarget = ''; 
+        } else if (currentModalTarget.startsWith('importMiscLoc_')) {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+            currentModalTarget = '';
         }
     });
     
@@ -1619,14 +1617,12 @@
       }
     }
 
-    // --- 💡 優化 4: 輔助函數：提取英文前綴 ---
     function getPrefix(tc) {
         if (!tc) return "未編碼";
         const match = tc.match(/^([A-Za-z\-_]+)/);
         return match ? match[1].toUpperCase() : "無英文前綴";
     }
 
-    // 💡 新增：統一更新購物車前綴下拉選單的函數
     function refreshCartPrefixDropdown(targetPrefix) {
         let prefixes = new Set();
         newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode)));
@@ -1649,20 +1645,17 @@
         }
     }
 
-    // 💡 優化 4：開啟檢視與精修購物車 Modal (進階搜尋與批次編輯版)
     function openCartModal() {
         refreshCartPrefixDropdown();
         document.getElementById('cartSearchKw').value = '';
         
-        // 隱藏批次編輯面板
         const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea'));
         if(bsCollapse) bsCollapse.hide();
 
-        filterCartList(); // 渲染清單
+        filterCartList(); 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show();
     }
 
-    // 💡 優化 4：精修清單的搜尋與渲染邏輯
     function filterCartList() {
         const kw = document.getElementById('cartSearchKw').value.toLowerCase().trim();
         const prefixFilter = document.getElementById('cartPrefixFilter').value;
@@ -1675,7 +1668,6 @@
             let tc = val.tempCode || '';
             let itemPrefix = getPrefix(tc);
 
-            // 過濾邏輯
             if (prefixFilter && itemPrefix !== prefixFilter) return;
             if (kw && !(id.toLowerCase().includes(kw) || val.name.toLowerCase().includes(kw) || tc.toLowerCase().includes(kw))) return;
 
@@ -1706,12 +1698,10 @@
         document.getElementById('cartCountText').innerText = count + ' / ' + newMvCart.size;
     }
 
-    // 💡 優化 4：精修清單全選控制
     function toggleCartAll(state) {
         document.querySelectorAll('.cart-item-cb').forEach(cb => cb.checked = state);
     }
 
-    // 💡 優化 4：批次移除勾選項目
     function batchRemoveCartItems() {
         const cbs = document.querySelectorAll('.cart-item-cb:checked');
         if(cbs.length === 0) return alert('請先勾選要移除的項目！');
@@ -1720,15 +1710,14 @@
         cbs.forEach(cb => newMvCart.delete(cb.value));
         
         saveMvDraft();
-        filterNewMvList(); // 更新底層專案清單
+        filterNewMvList(); 
         
-        refreshCartPrefixDropdown(); // 💡 統一更新下拉選單
+        refreshCartPrefixDropdown(); 
 
-        filterCartList(); // 重新渲染當前畫面
+        filterCartList(); 
         document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
     }
 
-    // 💡 優化 4：於精修清單內直接套用批次編碼
     function applyCartBatchEdit() {
         const cbs = document.querySelectorAll('.cart-item-cb:checked');
         if(cbs.length === 0) return alert('請先勾選要修改編碼的項目！');
@@ -1753,15 +1742,14 @@
         });
         
         saveMvDraft();
-        filterNewMvList(); // 更新底層專案清單
+        filterNewMvList(); 
         
         let targetPrefix = getPrefix(prefix + "1");
-        refreshCartPrefixDropdown(targetPrefix); // 💡 統一更新下拉選單並切換到新前綴
+        refreshCartPrefixDropdown(targetPrefix); 
 
         filterCartList();
         showSyncToast("✅ 批次修改已套用", true);
         
-        // 隱藏編輯區
         const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea'));
         if(bsCollapse) bsCollapse.hide();
     }
@@ -1773,7 +1761,7 @@
             newMvCart.set(id, item);
             saveMvDraft();
             filterNewMvList(); 
-            refreshCartPrefixDropdown(); // 💡 單筆修改後也靜默更新下拉選單
+            refreshCartPrefixDropdown(); 
         }
     }
 
@@ -1782,20 +1770,18 @@
         saveMvDraft();
         filterNewMvList();
         
-        refreshCartPrefixDropdown(); // 💡 統一更新下拉選單
+        refreshCartPrefixDropdown(); 
 
         filterCartList();
         document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
     }
 
-    // 💡 批次設定臨時編碼 Modal 相關函數
     function openTempCodeModal() {
         if(newMvCart.size === 0) return alert("請先挑選文物加入清單！");
         let html = '';
         let idx = 0;
         newMvCart.forEach((val, id) => {
             let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${val.tempCode}</span>` : '';
-            // 預設全不勾，並打上 data-has-tc 標籤供智慧選擇
             html += `
             <div class="form-check mb-2 pb-2 border-bottom">
                 <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
@@ -1851,7 +1837,6 @@
         showSyncToast("✅ 臨時編碼已成功套用，請記得點擊儲存專案！", true);
     }
 
-    // 💡 優化 2：智慧匯入 Modal (加入衝突警示機制與新欄位順序)
     function openImportModal() {
         document.getElementById('importTextarea').value = '';
         document.getElementById('importPreviewSection').style.display = 'none';
@@ -1878,16 +1863,14 @@
             let parsedName = '';
 
             if (cols.length === 1) {
-                // 如果只貼上一個欄位，為求保險預設視為「藏品編號」
                 parsedId = cols[0];
             } else {
-                // 依據新版順序：臨時編碼 -> 藏品編號 -> 名稱
                 parsedTempCode = cols[0];
                 parsedId = cols[1];
                 parsedName = cols.length > 2 ? cols[2] : '';
             }
 
-            if (!parsedId) return; // 若解析後藏品編號為空，則跳過該行
+            if (!parsedId) return; 
 
             let existing = allMvItems.find(x => x.id === parsedId);
             let inCart = newMvCart.has(parsedId);
@@ -1900,7 +1883,6 @@
                 parsedName = parsedName || existing.name;
                 loc = existing.loc;
                 
-                // 💡 優化 2：衝突偵測邏輯
                 if (inCart) {
                     let cartItem = newMvCart.get(parsedId);
                     oldTc = cartItem.tempCode || '';
@@ -1930,6 +1912,30 @@
         document.getElementById('importPreviewSection').style.display = 'block';
     }
 
+    // 💡 針對匯入預覽列表呼叫地點選擇 Modal 的專屬函數
+    function triggerImportMiscLoc(id) {
+        currentModalTarget = 'importMiscLoc_' + id;
+        document.getElementById('locModalTitle').innerText = "選擇「雜物所在地點」";
+        document.getElementById('modalLocSearch').value = '';
+        filterModalTree();
+        renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
+        // 先隱藏匯入視窗避免層疊衝突
+        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
+    }
+
+    // 💡 針對匯入預覽列表呼叫地點掃描器的專屬函數
+    function startImportLocScanner(id) {
+        locScanTarget = 'importMiscLoc_' + id;
+        document.getElementById('locScannerTitle').innerText = "掃描「雜物所在地點」條碼";
+        document.getElementById('loc-reader-container').style.display = 'flex';
+        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+        if (!locScanner) locScanner = new Html5Qrcode("loc-reader");
+        if (locScanner.getState() !== 2) {
+            locScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => handleLocScan(msg));
+        }
+    }
+
     function renderImportPreview() {
         let html = '';
         let matchCount = 0, unmatchedCount = 0, dupCount = 0;
@@ -1938,6 +1944,7 @@
             let statusBadge = '';
             let trClass = '';
             let tcHtml = '';
+            let locColumnHtml = item.loc; // 預設顯示純文字
 
             if (item.status === 'match') {
                 statusBadge = '<span class="badge bg-success">✅ 成功</span>';
@@ -1949,7 +1956,6 @@
                 dupCount++;
                 if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
             } else if (item.status === 'conflict') {
-                // 💡 衝突顯示介面
                 statusBadge = '<span class="badge bg-warning text-dark">⚠️ 編碼衝突</span>';
                 trClass = 'table-warning';
                 dupCount++;
@@ -1964,6 +1970,13 @@
                 trClass = 'table-warning';
                 matchCount++; 
                 if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
+                
+                // 💡 針對轉換為雜物的項目，顯示獨立的地點選擇/掃描元件
+                locColumnHtml = `
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control bg-white text-danger fw-bold" readonly placeholder="點選或掃描..." value="${item.loc}" onclick="triggerImportMiscLoc('${item.finalId}')">
+                        <button class="btn btn-outline-danger" type="button" onclick="startImportLocScanner('${item.finalId}')"><i class="fas fa-qrcode"></i></button>
+                    </div>`;
             }
 
             html += `
@@ -1971,7 +1984,7 @@
                 <td>${statusBadge}</td>
                 <td class="fw-bold text-start">${item.finalId}${tcHtml}</td>
                 <td class="text-start">${item.name}</td>
-                <td>${item.loc}</td>
+                <td class="align-middle" style="min-width: 140px;">${locColumnHtml}</td>
             </tr>`;
         });
 
@@ -1989,19 +2002,19 @@
             warnMsg.style.display = 'none';
         }
 
-        document.getElementById('btnConfirmImport').disabled = (matchCount === 0 && document.querySelectorAll('.conflict-tc-input').length === 0);
+        // 💡 檢查是否還有任何被轉為雜物的項目「未指定地點」，如果有則禁用確認按鈕
+        let hasMissingLoc = parsedImportItems.some(i => i.status === 'misc' && !i.loc);
+        document.getElementById('btnConfirmImport').disabled = (matchCount === 0 && document.querySelectorAll('.conflict-tc-input').length === 0) || hasMissingLoc;
     }
 
     function convertUnmatchedToMisc() {
-        let defaultLoc = prompt("即將轉換未知項目為雜物。\n請輸入這些雜物統一的「目前所在地點」：", "未指定");
-        if (defaultLoc === null) return; 
-
+        // 💡 不再統一詢問地點，直接轉換並清空地點強制個別選擇
         parsedImportItems.forEach(item => {
             if (item.status === 'unmatched') {
                 item.status = 'misc';
                 item.isMisc = true;
                 item.finalId = "MISC-" + new Date().getTime() + "-" + Math.floor(Math.random()*10000);
-                item.loc = defaultLoc.trim() || '未指定';
+                item.loc = ''; 
             }
         });
         renderImportPreview();
@@ -2009,31 +2022,31 @@
 
     function confirmImport() {
         let importCount = 0;
+        let missingLoc = false;
         
-        // 讀取所有手動選擇的衝突編碼
+        parsedImportItems.forEach(item => {
+            if (item.status === 'misc' && !item.loc) missingLoc = true;
+        });
+
+        if (missingLoc) {
+            return alert("請為所有轉換的雜物選擇或掃描「所在地點」！");
+        }
+        
         document.querySelectorAll('.conflict-tc-input').forEach(input => {
             let id = input.getAttribute('data-id');
             let item = parsedImportItems.find(x => x.finalId === id);
             if(item) {
                 item.tempCode = input.value;
-                item.status = 'match'; // 將狀態改回 match 準備匯入更新
+                item.status = 'match'; 
             }
         });
 
         parsedImportItems.forEach(item => {
             if (item.status === 'match' || item.status === 'misc') {
-                
                 if (item.isMisc && !allMvItems.find(x => x.id === item.finalId)) {
                     allMvItems.unshift({ id: item.finalId, name: item.name, loc: item.loc, isMisc: true, tempCode: item.tempCode });
                 }
-
-                newMvCart.set(item.finalId, {
-                    name: item.name,
-                    loc: item.loc,
-                    isMisc: item.isMisc,
-                    tempCode: item.tempCode
-                });
-
+                newMvCart.set(item.finalId, { name: item.name, loc: item.loc, isMisc: item.isMisc, tempCode: item.tempCode });
                 if (!item.isMisc) {
                     let existing = allMvItems.find(x => x.id === item.finalId);
                     if(existing && item.tempCode) existing.tempCode = item.tempCode;
@@ -2049,7 +2062,6 @@
         showSyncToast(`✅ 成功匯入/更新 ${importCount} 筆項目！`, true);
     }
 
-    // 💡 新增：解析批次強制校正資料
     function parseOverrideData() {
         const raw = document.getElementById('importOverrideTextarea').value.trim();
         if(!raw) return alert("請先貼上資料！");
@@ -2081,7 +2093,6 @@
         });
     }
 
-    // 💡 新增：渲染校正預覽表
     function renderOverridePreview() {
         let html = '';
         let validCount = 0;
@@ -2115,7 +2126,6 @@
         document.getElementById('btnConfirmOverride').disabled = (validCount === 0);
     }
 
-    // 💡 新增：確認執行批次強制覆寫
     function confirmOverride() {
         let validItems = parsedOverrideItems.filter(x => x.status === 'ok');
         if(validItems.length === 0) return;
@@ -2131,7 +2141,6 @@
             document.getElementById('overridePreviewSection').style.display = 'none';
             parsedOverrideItems = [];
             
-            // 背景強制刷新快取
             callAPI('getInventoryInitData').then(invData => {
                 globalCatalog = invData.catalog || {};
             });
@@ -2171,7 +2180,7 @@
           manager: currentManager
         });
         
-        clearMvDraft(); // 成功儲存，清除草稿
+        clearMvDraft(); 
         alert('✅ 專案資料儲存成功！');
         refreshSystem('move'); 
         
@@ -2182,11 +2191,16 @@
       }
     }
 
-    // 💡 雙向條碼掃描邏輯 (地點專用)
     function startLocScanner(targetId) {
         locScanTarget = targetId;
         document.getElementById('locScannerTitle').innerText = (targetId === 'mvLoc') ? "掃描「原典藏地點」條碼" : "掃描「暫存地點」條碼";
         document.getElementById('loc-reader-container').style.display = 'flex';
+        
+        // 💡 如果是匯入視窗呼叫，先隱藏
+        if (targetId.startsWith('importMiscLoc_')) {
+             bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+        }
+
         if (!locScanner) locScanner = new Html5Qrcode("loc-reader");
         if (locScanner.getState() !== 2) {
             locScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => handleLocScan(msg));
@@ -2198,23 +2212,64 @@
         await stopScannerSafe(locScanner);
         locScanner = null;
         document.getElementById('loc-reader-container').style.display = 'none';
+        
+        // 💡 若從匯入視窗開啟掃描且被自動中斷，則重新顯示匯入視窗
+        if (locScanTarget && locScanTarget.startsWith('importMiscLoc_')) {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+            locScanTarget = '';
+        }
         hideMiniLoading();
+    }
+    
+    async function cancelLocScanner() {
+        showMiniLoading("關閉相機...");
+        await stopScannerSafe(locScanner);
+        locScanner = null;
+        document.getElementById('loc-reader-container').style.display = 'none';
+        hideMiniLoading();
+        
+        // 💡 若手動取消掃描，重新顯示匯入視窗
+        if (locScanTarget && locScanTarget.startsWith('importMiscLoc_')) {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+        }
+        locScanTarget = '';
     }
 
     async function handleLocScan(msg) {
-        await stopLocScanner();
+        let target = locScanTarget; 
+        locScanTarget = ''; // 先清空，以免 stopLocScanner 自動呼叫顯示視窗
+        
+        showMiniLoading("關閉相機...");
+        await stopScannerSafe(locScanner);
+        locScanner = null;
+        document.getElementById('loc-reader-container').style.display = 'none';
+        hideMiniLoading();
+
         let cleanMsg = msg.trim();
         if (cleanMsg.startsWith("LOC:")) {
             let locName = cleanMsg.substring(4);
-            document.getElementById(locScanTarget).value = locName;
-            document.getElementById(locScanTarget + 'Display').value = locName;
-            if(locScanTarget === 'mvLoc') {
-                loadWorkerItems();
+            
+            // 💡 若為匯入的雜物掃描地點
+            if (target.startsWith('importMiscLoc_')) {
+                let id = target.split('_')[1];
+                let item = parsedImportItems.find(x => x.finalId === id);
+                if (item) item.loc = locName;
+                renderImportPreview();
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+            } else {
+                document.getElementById(target).value = locName;
+                document.getElementById(target + 'Display').value = locName;
+                if(target === 'mvLoc') {
+                    loadWorkerItems();
+                }
             }
             playSound('success');
         } else {
             alert("錯誤：這不是有效的地點條碼！\n掃描到的內容：" + cleanMsg);
             playSound('error');
+            if (target.startsWith('importMiscLoc_')) {
+                 bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+            }
         }
     }
 
@@ -2244,7 +2299,21 @@
     function triggerMvLoc() { if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！'); currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
     function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「暫存地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
     
-    function selectModalLoc(v) { document.getElementById(currentModalTarget).value=v; document.getElementById(currentModalTarget+'Display').value=v; bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); if(currentModalTarget==='mvLoc') loadWorkerItems(); }
+    // 💡 地點選擇 modal 確認功能
+    function selectModalLoc(v) { 
+        if (currentModalTarget.startsWith('importMiscLoc_')) {
+            let id = currentModalTarget.split('_')[1];
+            let item = parsedImportItems.find(x => x.finalId === id);
+            if (item) item.loc = v;
+            bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
+            renderImportPreview(); 
+        } else {
+            document.getElementById(currentModalTarget).value=v; 
+            document.getElementById(currentModalTarget+'Display').value=v; 
+            bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
+            if(currentModalTarget==='mvLoc') loadWorkerItems(); 
+        }
+    }
 
     async function loadWorkerItems() {
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value; if (!eid || !loc) return;
@@ -2426,7 +2495,7 @@
                 alert('✅ 結案指令已送出，但無更新紀錄。');
             }
             loadManagerData(); 
-            // 💡 結案後背景強制刷新快取
+            
             callAPI('getInventoryInitData').then(invData => {
                 globalCatalog = invData.catalog || {};
             });
@@ -2525,7 +2594,6 @@
        document.getElementById('printReportOverlay').style.display = 'flex';
     }
 
-    // 💡 雙向條碼：地點 QR Code 列印功能
     function printLocationLabels() {
         let activeLocs = [];
         mgrLocTree.forEach(m => {
@@ -2543,7 +2611,6 @@
             try {
                 let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`;
                 activeLocs.sort().forEach(loc => {
-                    // 加上 LOC: 前綴讓系統辨識
                     let qrData = "LOC:" + loc;
                     const qr = new QRious({ value: qrData, size: 150, level: 'M' });
                     const base64Img = qr.toDataURL('image/png');
