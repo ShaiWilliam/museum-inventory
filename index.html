@@ -74,7 +74,8 @@
     .letter-spacing-2 { letter-spacing: 2px; }
     
     #reader-container, #query-reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
-    #reader, #query-reader { width: 100% !important; border: none !important; }
+    /* 💡 新增：確保 #loc-reader 和原本的 scanner CSS 保持一致 */
+    #reader, #query-reader, #loc-reader { width: 100% !important; border: none !important; }
     
     #resultOverlay { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 100; display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); border-radius: 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); border: 2px solid #198754; animation: slideIn 0.3s; }
     @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -132,6 +133,15 @@
   </style>
 </head>
 <body>
+
+  <!-- 💡 新增：全螢幕地點 QR Code 掃描器 -->
+  <div id="loc-reader-container" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:10600; flex-direction:column; justify-content:center; align-items:center;">
+      <div style="width:100%; max-width:500px; padding:20px;">
+          <h5 class="text-white text-center mb-3 fw-bold" id="locScannerTitle">掃描地點 QR Code</h5>
+          <div id="loc-reader" style="width:100%; border-radius:15px; overflow:hidden;"></div>
+          <button class="btn btn-danger w-100 mt-4 fw-bold py-3 fs-5" onclick="stopLocScanner()">取消掃描</button>
+      </div>
+  </div>
 
   <div id="syncToast">
     <div class="sync-badge" id="syncToastContent">
@@ -499,7 +509,15 @@
                     </div>
                   </div>
 
-                  <div class="mb-3" id="mvLocSelector" style="display:none;"><label class="form-label text-success fw-bold">2. 選擇原典藏地點</label><input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="請點此選擇..." onclick="triggerMvLoc()"><input type="hidden" id="mvLoc"></div>
+                  <!-- 💡 優化：加入地點掃描按鈕 (雙向條碼) -->
+                  <div class="mb-3" id="mvLocSelector" style="display:none;">
+                    <label class="form-label text-success fw-bold">2. 選擇原典藏地點</label>
+                    <div class="input-group shadow-sm">
+                      <input type="text" id="mvLocDisplay" class="form-control fake-input-btn border-success" readonly placeholder="點此選擇或掃描..." onclick="triggerMvLoc()">
+                      <button class="btn btn-success fw-bold" type="button" onclick="startLocScanner('mvLoc')"><i class="fas fa-qrcode"></i> 掃描</button>
+                    </div>
+                    <input type="hidden" id="mvLoc">
+                  </div>
                 </div>
 
                 <div id="mvPhase2" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
@@ -510,8 +528,17 @@
                   </div>
                   <div id="mvItemList" class="border rounded p-2 bg-light mb-2" style="max-height: 250px; overflow-y: auto;"></div>
                 </div>
+                
                 <div id="mvPhase3" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
-                  <div class="mb-3"><label class="form-label text-primary fw-bold">4. 移往暫存地點</label><input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-primary" readonly placeholder="請點此選擇..." onclick="triggerMvNewLoc()"><input type="hidden" id="mvNewLoc"></div>
+                  <!-- 💡 優化：加入地點掃描按鈕 (雙向條碼) -->
+                  <div class="mb-3">
+                    <label class="form-label text-primary fw-bold">4. 移往暫存地點</label>
+                    <div class="input-group shadow-sm">
+                      <input type="text" id="mvNewLocDisplay" class="form-control fake-input-btn border-primary" readonly placeholder="點此選擇或掃描..." onclick="triggerMvNewLoc()">
+                      <button class="btn btn-primary fw-bold" type="button" onclick="startLocScanner('mvNewLoc')"><i class="fas fa-qrcode"></i> 掃描</button>
+                    </div>
+                    <input type="hidden" id="mvNewLoc">
+                  </div>
                   <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="mvIsBox" onchange="toggleBoxInput()"><label class="form-check-label fw-bold" for="mvIsBox">裝箱</label></div>
                   <div class="mb-3 bg-light p-3 border rounded fade-in-section" id="boxInputContainer" style="display:none;"><label class="form-label text-dark">📦 輸入箱名</label><input type="text" class="form-control" id="mvBoxName" placeholder="請填寫箱名，例如：BOX-01"></div>
                   <div class="mb-4"><label class="form-label text-dark fw-bold">5. 本處人員</label><select id="mvStaffInternal" class="form-select border-dark"></select></div>
@@ -532,7 +559,6 @@
             <ul class="nav nav-pills mb-3 border-bottom pb-2" id="mgrMainPills">
                 <li class="nav-item"><button class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabVerify">📋 異動審核</button></li>
                 <li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabLoc">📍 空間架構</button></li>
-                <!-- 💡 新增：批次校正地點頁籤 -->
                 <li class="nav-item"><button class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mgrTabOverride">🔄 批次強制校正地點</button></li>
             </ul>
 
@@ -594,7 +620,12 @@
               <div class="tab-pane fade" id="mgrTabLoc">
                  <div class="card border-primary shadow-sm mb-3">
                      <div class="card-body">
-                         <h6 class="fw-bold text-primary mb-3">➕ 新增典藏地點</h6>
+                         <h6 class="fw-bold text-primary mb-3">➕ 空間架構管理</h6>
+                         
+                         <!-- 💡 優化：加入列印地點 QR Code 按鈕 -->
+                         <button class="btn btn-outline-primary w-100 fw-bold mb-4 shadow-sm" onclick="printLocationLabels()"><i class="fas fa-print"></i> 🖨️ 列印所有庫房地點 QR 標籤</button>
+                         
+                         <h6 class="fw-bold text-dark small mb-2 border-top pt-3">手動新增地點：</h6>
                          <div class="row g-2 mb-2">
                              <div class="col-12 col-md-4"><input type="text" id="locAddMain" class="form-control" placeholder="大區 (例: 東側小庫房)"></div>
                              <div class="col-12 col-md-4"><input type="text" id="locAddMedium" class="form-control" placeholder="中區 (例: 黑櫃1)"></div>
@@ -623,7 +654,6 @@
                  </div>
               </div>
 
-              <!-- 💡 新增：批次強制校正地點的專屬介面 -->
               <div class="tab-pane fade" id="mgrTabOverride">
                  <div class="card border-danger shadow-sm mb-3">
                      <div class="card-body">
@@ -734,7 +764,7 @@
     </div>
   </div>
 
-  <!-- 💡 優化 4：檢視/精修已選清單 Modal (進階搜尋與批次編輯版) -->
+  <!-- 檢視/精修已選清單 Modal -->
   <div class="modal fade" id="cartModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
       <div class="modal-content border-0 shadow-lg">
@@ -801,7 +831,7 @@
     </div>
   </div>
 
-  <!-- 批次設定臨時編碼 Modal (原版重構，加入僅選未編碼) -->
+  <!-- 批次設定臨時編碼 Modal -->
   <div class="modal fade" id="tempCodeModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg">
@@ -898,16 +928,18 @@
     let globalLocTree = []; 
     let mgrLocTree = [];    
 
-    let audioCtx, scanner = null, queryScanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
+    let audioCtx, scanner = null, queryScanner = null, locScanner = null, lastScan = 0, sysState = { mode: 'all', locations: [], total: 0, scanned: 0 }, isProc = false;
     let localItemCache = {}, syncQueue = [], isSyncing = false;   
     let allPrintItems = [], printCartMap = new Map(), globalCatalog = {}; 
     let globalManuals = {}; 
     let currentProjectItems = [];
     let currentMvEventId = "";
+    let locScanTarget = "";
     
     let newMvCart = new Map();
     let allMvItems = [];
     let parsedImportItems = [];
+    let parsedOverrideItems = [];
 
     let locUpdateQueue = [];
     let isLocSyncing = false;
@@ -937,22 +969,13 @@
         }
     }
 
-    // 💡 優化 5：本機自動暫存草稿功能 (Local Storage Auto-Save)
     function saveMvDraft() {
         const action = document.getElementById('newMvActionSelect').value;
         if(action !== 'NEW') return; 
-        const draft = {
-            name: document.getElementById('newMvName').value,
-            desc: document.getElementById('newMvDesc').value,
-            cart: Array.from(newMvCart.entries())
-        };
+        const draft = { name: document.getElementById('newMvName').value, desc: document.getElementById('newMvDesc').value, cart: Array.from(newMvCart.entries()) };
         localStorage.setItem('mvProjectDraft', JSON.stringify(draft));
     }
-
-    function clearMvDraft() {
-        localStorage.removeItem('mvProjectDraft');
-    }
-
+    function clearMvDraft() { localStorage.removeItem('mvProjectDraft'); }
     function checkMvDraft() {
         const draftStr = localStorage.getItem('mvProjectDraft');
         if(draftStr) {
@@ -964,17 +987,9 @@
                         document.getElementById('newMvDesc').value = draft.desc || '';
                         newMvCart = new Map(draft.cart);
                         document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
-                        
-                        // 將草稿內的雜物資料補回 allMvItems 內
-                        newMvCart.forEach((val, id) => {
-                            if(val.isMisc && !allMvItems.find(x => x.id === id)) {
-                                allMvItems.unshift({ id: id, name: val.name, loc: val.loc, isMisc: true, tempCode: val.tempCode });
-                            }
-                        });
+                        newMvCart.forEach((val, id) => { if(val.isMisc && !allMvItems.find(x => x.id === id)) { allMvItems.unshift({ id: id, name: val.name, loc: val.loc, isMisc: true, tempCode: val.tempCode }); } });
                         filterNewMvList();
-                    } else {
-                        clearMvDraft();
-                    }
+                    } else { clearMvDraft(); }
                 }
             } catch(e) { clearMvDraft(); }
         }
@@ -1122,6 +1137,7 @@
         if (document.hidden) {
             if (scanner && document.getElementById('step2').style.display === 'block') { await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
             if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; }
+            if (locScanner) { await stopLocScanner(); }
         }
     });
 
@@ -1132,10 +1148,7 @@
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none'; document.getElementById('mainApp').style.display = 'block'; document.body.style.overflowY = 'auto'; 
       if(sysId === 'inv') { document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
-      if(sysId === 'move') { 
-          loadNewMvList(); 
-          checkMvDraft(); 
-      } 
+      if(sysId === 'move') { loadNewMvList(); checkMvDraft(); } 
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
       document.getElementById('sysTitle').innerText = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' }[sysId];
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -1148,6 +1161,7 @@
       showMiniLoading('正在安全關閉模組...');
       if (document.getElementById('step2').style.display === 'block') { await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; }
       if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; }
+      if (locScanner) { await stopLocScanner(); }
       window.scrollTo(0, 0); document.body.style.overflowY = 'auto'; document.getElementById('mainApp').style.display = 'none'; document.getElementById('homeMenu').style.display = 'block'; 
       
       try { 
@@ -1156,7 +1170,7 @@
             currentUrl.search = '';
             window.history.replaceState({}, document.title, currentUrl.toString()); 
         }
-      } catch(e) { console.warn("目前沙盒環境禁止覆寫 History，已自動略過", e); }
+      } catch(e) {}
       
       hideMiniLoading();
     }
@@ -1178,7 +1192,6 @@
             
             const actionSelect = document.getElementById('newMvActionSelect');
             actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (res.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
-            
             loadWorkerLocations(); 
         } 
         else if (sysId === 'mgr') { 
@@ -1241,14 +1254,45 @@
 
     function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
     
+    // 💡 優化 2：藏品狀態查詢的 Optimistic UI (先顯示本地，後台再抓新資料)
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
+      
       const res = globalCatalog[cleanId];
-      if(res) { renderQueryUI(res); } else {
+      if(res) { 
+          renderQueryUI(res); 
+          fetchFreshQueryData(cleanId); // 背景強制刷新
+      } else {
         showMiniLoading('🔍 查詢雲端最新狀態中...');
         try { const freshRes = await callAPI('queryItem', { qrStr: cleanId }); globalCatalog[cleanId] = freshRes; renderQueryUI(freshRes); } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); }
       }
+    }
+
+    async function fetchFreshQueryData(cleanId) {
+        const badge = document.getElementById('qResBadge');
+        const locText = document.getElementById('qResLoc');
+        let oldHtml = badge.innerHTML;
+        badge.innerHTML = '☁️ 雲端同步核對中...';
+        badge.classList.remove('bg-success', 'bg-danger');
+        badge.classList.add('bg-secondary');
+        
+        try {
+            const freshRes = await callAPI('queryItem', { qrStr: cleanId });
+            globalCatalog[cleanId] = freshRes; 
+            
+            if(locText.innerText !== freshRes.location && freshRes.location) {
+                locText.innerHTML = `<span class="text-danger fade-in-section">📍 ${freshRes.location} (最新)</span>`;
+                playSound('success');
+            } else {
+                locText.innerText = freshRes.location || "無地點資料";
+            }
+            
+            if(freshRes.isScanned) { badge.className = "badge bg-success position-absolute shadow-sm"; badge.innerHTML = `✅ 已盤點 (${freshRes.lastScanStr})`; } else { badge.className = "badge bg-danger position-absolute shadow-sm"; badge.innerHTML = `⚠️ ${freshRes.lastScanStr}`; }
+        } catch(e) {
+            badge.className = "badge bg-warning text-dark position-absolute shadow-sm";
+            badge.innerHTML = `⚠️ 離線快取資料`;
+        }
     }
     
     function renderQueryUI(res) {
@@ -1332,15 +1376,15 @@
               const groups = {};
               printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); });
 
-              let printHtml = `<div class="preview-paper"><div class="grid-container">`;
+              let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`;
               
               for(let loc of Object.keys(groups).sort()) {
-                 printHtml += `<div class="label-box title-label"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
+                 printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
                  for(let item of groups[loc]) {
                    const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`;
                    const qr = new QRious({ value: urlStr, size: 150, level: 'M' });
                    const base64Img = qr.toDataURL('image/png');
-                   printHtml += `<div class="label-box"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
+                   printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
                  }
               }
               
@@ -2006,7 +2050,6 @@
     }
 
     // 💡 新增：解析批次強制校正資料
-    let parsedOverrideItems = [];
     function parseOverrideData() {
         const raw = document.getElementById('importOverrideTextarea').value.trim();
         if(!raw) return alert("請先貼上資料！");
@@ -2087,6 +2130,12 @@
             document.getElementById('importOverrideTextarea').value = '';
             document.getElementById('overridePreviewSection').style.display = 'none';
             parsedOverrideItems = [];
+            
+            // 背景強制刷新快取
+            callAPI('getInventoryInitData').then(invData => {
+                globalCatalog = invData.catalog || {};
+            });
+            
             hideMiniLoading();
         }).catch(e => {
             alert("寫入失敗：" + e.message);
@@ -2133,6 +2182,42 @@
       }
     }
 
+    // 💡 雙向條碼掃描邏輯 (地點專用)
+    function startLocScanner(targetId) {
+        locScanTarget = targetId;
+        document.getElementById('locScannerTitle').innerText = (targetId === 'mvLoc') ? "掃描「原典藏地點」條碼" : "掃描「暫存地點」條碼";
+        document.getElementById('loc-reader-container').style.display = 'flex';
+        if (!locScanner) locScanner = new Html5Qrcode("loc-reader");
+        if (locScanner.getState() !== 2) {
+            locScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => handleLocScan(msg));
+        }
+    }
+
+    async function stopLocScanner() {
+        showMiniLoading("關閉相機...");
+        await stopScannerSafe(locScanner);
+        locScanner = null;
+        document.getElementById('loc-reader-container').style.display = 'none';
+        hideMiniLoading();
+    }
+
+    async function handleLocScan(msg) {
+        await stopLocScanner();
+        let cleanMsg = msg.trim();
+        if (cleanMsg.startsWith("LOC:")) {
+            let locName = cleanMsg.substring(4);
+            document.getElementById(locScanTarget).value = locName;
+            document.getElementById(locScanTarget + 'Display').value = locName;
+            if(locScanTarget === 'mvLoc') {
+                loadWorkerItems();
+            }
+            playSound('success');
+        } else {
+            alert("錯誤：這不是有效的地點條碼！\n掃描到的內容：" + cleanMsg);
+            playSound('error');
+        }
+    }
+
     async function loadWorkerLocations() {
       const eid = document.getElementById('mvEvent').value; currentMvEventId = eid;
       const d = document.getElementById('mvLocDisplay'); document.getElementById('mvLoc').value = ""; d.value = ""; 
@@ -2145,7 +2230,7 @@
         const res = await callAPI('getProjectPendingData', { eventId: eid }); 
         currentProjectItems = res.items || []; 
         pendingLocTree = res.locTree || []; 
-        d.placeholder = "請點此選擇..."; 
+        d.placeholder = "點此選擇或掃描..."; 
         
         document.getElementById('mvLocSelector').style.display = 'block';
         document.getElementById('mvProgressBox').style.display = 'block';
@@ -2341,6 +2426,10 @@
                 alert('✅ 結案指令已送出，但無更新紀錄。');
             }
             loadManagerData(); 
+            // 💡 結案後背景強制刷新快取
+            callAPI('getInventoryInitData').then(invData => {
+                globalCatalog = invData.catalog || {};
+            });
             refreshSystem('mgr'); 
         } catch(e) { 
             alert("失敗：" + e.message); 
@@ -2434,6 +2523,47 @@
 
        document.getElementById('printReportContent').innerHTML = html;
        document.getElementById('printReportOverlay').style.display = 'flex';
+    }
+
+    // 💡 雙向條碼：地點 QR Code 列印功能
+    function printLocationLabels() {
+        let activeLocs = [];
+        mgrLocTree.forEach(m => {
+            m.subs.forEach(s => {
+                s.details.forEach(d => {
+                    if (!d.isHidden) activeLocs.push(d.val);
+                });
+            });
+        });
+
+        if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！");
+
+        showMiniLoading("生成地點標籤中...");
+        setTimeout(() => {
+            try {
+                let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`;
+                activeLocs.sort().forEach(loc => {
+                    // 加上 LOC: 前綴讓系統辨識
+                    let qrData = "LOC:" + loc;
+                    const qr = new QRious({ value: qrData, size: 150, level: 'M' });
+                    const base64Img = qr.toDataURL('image/png');
+                    printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;">
+                                    <div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div>
+                                    <img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;">
+                                    <div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${loc}</div>
+                                  </div>`;
+                });
+                printHtml += `</div></div>`;
+                
+                document.getElementById('printOverlayContent').innerHTML = printHtml;
+                document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽";
+                document.getElementById('printOverlay').style.display = 'flex';
+                hideMiniLoading();
+            } catch (e) {
+                hideMiniLoading();
+                alert("產生列印畫面時發生錯誤：" + e.message);
+            }
+        }, 50);
     }
 
     function renderLocationsList(tree) {
