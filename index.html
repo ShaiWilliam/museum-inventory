@@ -59,10 +59,8 @@
     .home-card.c-mgr { border-bottom-color: #dc3545; }
     .home-icon { font-size: 2.2rem; margin-bottom: 8px; }
     
-    #mainApp { display: none; padding-bottom: 60px; animation: fadeIn 0.3s; }
-    
     .navbar { position: fixed !important; top: 0; left: 0; right: 0; z-index: 1040; padding-top: max(15px, env(safe-area-inset-top)) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-    #mainApp .container { padding-top: calc(max(15px, env(safe-area-inset-top)) + 65px); }
+    #mainApp { display: none; padding-top: calc(max(15px, env(safe-area-inset-top)) + 65px); padding-bottom: 60px; animation: fadeIn 0.3s; }
 
     .nav-tabs { display: none; }
     .step-card { display: none; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 15px;}
@@ -133,7 +131,7 @@
 </head>
 <body>
 
-  <!-- 全螢幕地點 QR Code 掃描器 -->
+  <!-- 💡 全螢幕地點 QR Code 掃描器 -->
   <div id="loc-reader-container" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:10600; flex-direction:column; justify-content:center; align-items:center;">
       <div style="width:100%; max-width:500px; padding:20px;">
           <h5 class="text-white text-center mb-3 fw-bold" id="locScannerTitle">掃描地點 QR Code</h5>
@@ -272,7 +270,7 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query">查詢</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#register">建檔</button></li>
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">盤點</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異居</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異動</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理</button></li>
       </ul>
 
@@ -428,26 +426,24 @@
         <!-- 異動模組 -->
         <div class="tab-pane fade" id="move">
           <ul class="nav nav-pills nav-fill mb-3" id="mvPills">
-            <!-- 💡 新增：專案總覽頁籤 (設為預設開啟) -->
+            <!-- 💡 新增：專案總覽頁籤 -->
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveOverviewTab" onclick="loadAllProjects()">📊 專案總覽</button></li>
             <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveCreateTab">📝 專案管理</button></li>
             <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveExecuteTab" onclick="refreshSystem('move')">🚚 執行搬運</button></li>
           </ul>
 
           <div class="tab-content">
-            <!-- 💡 新增：專案總覽介面 -->
+            <!-- 💡 專案總覽介面 -->
             <div class="tab-pane fade show active" id="moveOverviewTab">
               <div class="step-card active border-info border-top border-4">
                   <div class="d-flex justify-content-between align-items-center mb-3">
                       <h5 class="mb-0 fw-bold text-info" style="color: #0dcaf0 !important;">📊 專案總覽與查詢</h5>
                       <button class="btn btn-sm btn-outline-secondary" onclick="loadAllProjects()">🔄 刷新</button>
                   </div>
-                  <!-- 💡 優化：複合下拉式選單過濾機制 -->
                   <div class="row g-2 mb-3">
                       <div class="col-12 col-md-7">
                           <select id="projectSelectFilter" class="form-select border-info fw-bold" onchange="filterProjectCards()">
                               <option value="">📁 所有專案名稱</option>
-                              <!-- 選項將由程式動態載入 -->
                           </select>
                       </div>
                       <div class="col-12 col-md-5">
@@ -468,7 +464,11 @@
             <div class="tab-pane fade" id="moveCreateTab">
               <div class="step-card active border-primary border-top border-4">
                   <div class="mb-3">
-                      <label class="form-label text-dark fw-bold">1. 選擇專案操作 <span class="text-danger">*</span></label>
+                      <!-- 💡 新增：返回總覽按鈕 -->
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                          <label class="form-label text-dark fw-bold mb-0">1. 選擇專案操作 <span class="text-danger">*</span></label>
+                          <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="backToOverviewTab()">🔙 返回總覽</button>
+                      </div>
                       <select id="newMvActionSelect" class="form-select border-primary fw-bold text-primary" onchange="switchMoveProjectAction()">
                          <option value="NEW">➕ 建立全新專案</option>
                       </select>
@@ -527,7 +527,14 @@
                 </div>
                 
                 <div id="mvPhase1">
-                  <div class="mb-3"><label class="form-label text-success fw-bold">1. 選擇異動專案事件</label><select id="mvEvent" class="form-select border-success" onchange="loadWorkerLocations()"><option value="">請選擇專案...</option></select></div>
+                  <div class="mb-3">
+                      <!-- 💡 新增：返回總覽按鈕 -->
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                          <label class="form-label text-success fw-bold mb-0">1. 選擇異動專案事件</label>
+                          <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="backToOverviewTab()">🔙 返回總覽</button>
+                      </div>
+                      <select id="mvEvent" class="form-select border-success" onchange="loadWorkerLocations()"><option value="">請選擇專案...</option></select>
+                  </div>
                   
                   <div class="mb-4 fade-in-section" id="mvProgressBox" style="display:none;">
                     <div class="d-flex justify-content-between small fw-bold text-secondary mb-1">
@@ -791,6 +798,53 @@
     </div>
   </div>
 
+  <!-- 💡 專案明細檢視 Modal (加入複合篩選介面) -->
+  <div class="modal fade" id="projectDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold text-info" style="color: #0dcaf0 !important;" id="pdModalTitle">專案明細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="row mb-3 bg-light rounded p-2 mx-0 border">
+              <div class="col-sm-6 mb-2 mb-sm-0"><small class="text-muted d-block">專案代號</small><div class="fw-bold" id="pdId" style="word-break: break-all;"></div></div>
+              <div class="col-sm-6"><small class="text-muted d-block">目前狀態</small><div class="fw-bold" id="pdStatus"></div></div>
+          </div>
+          <div class="mb-3 px-2"><small class="text-muted d-block">專案說明</small><div class="fw-bold text-secondary" id="pdDesc"></div></div>
+          
+          <!-- 💡 新增：複合過濾區塊 -->
+          <div class="row g-2 mb-2 px-2 fade-in-section">
+            <div class="col-12 col-md-6"><input type="search" id="pdSearchKw" class="form-control form-control-sm border-info" placeholder="🔍 模糊搜尋編號/名稱/臨時編碼..." onkeyup="renderPdTable()" onsearch="renderPdTable()"></div>
+            <div class="col-12 col-md-6"><select id="pdPrefixFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">🏷️ 所有前綴</option></select></div>
+            <div class="col-12 col-md-6"><select id="pdOldLocFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">📍 所有原地點</option></select></div>
+            <div class="col-12 col-md-6"><select id="pdNewLocFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">📍 所有新地點</option></select></div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border">
+              <span class="fw-bold text-dark">顯示項目：<span id="pdCount" class="text-danger fs-5">0</span> 件</span>
+          </div>
+          <div class="table-responsive border rounded" style="max-height: 350px; overflow-y: auto;">
+              <table class="table table-bordered table-sm table-striped text-center align-middle mb-0" style="font-size: 0.9rem;">
+                  <thead class="table-light sticky-top">
+                      <tr>
+                          <th width="25%">編號 / 臨時碼</th>
+                          <th width="30%">名稱</th>
+                          <th width="20%">原地點</th>
+                          <th width="25%">新地點</th>
+                      </tr>
+                  </thead>
+                  <tbody id="pdTableBody"></tbody>
+              </table>
+          </div>
+        </div>
+        <div class="modal-footer bg-light p-2 d-flex justify-content-end">
+           <button class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">關閉</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 檢視/精修已選清單 Modal -->
   <div class="modal fade" id="cartModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
@@ -846,50 +900,11 @@
           </div>
           
           <div id="cartItemList" class="bg-white border rounded shadow-sm p-1" style="max-height: 350px; overflow-y: auto;">
-             <!-- 動態生成已選清單 -->
           </div>
         </div>
         <div class="modal-footer bg-light p-2 d-flex justify-content-between">
            <button class="btn btn-outline-danger fw-bold" onclick="clearNewMvSelection(true, 'cartModal')">清空全部</button>
            <button class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">完成精修</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 💡 新增：專案明細檢視 Modal -->
-  <div class="modal fade" id="projectDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-      <div class="modal-content border-0 shadow-lg">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold text-info" style="color: #0dcaf0 !important;" id="pdModalTitle">專案明細</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-3">
-          <div class="row mb-3 bg-light rounded p-2 mx-0 border">
-              <div class="col-sm-6 mb-2 mb-sm-0"><small class="text-muted d-block">專案代號</small><div class="fw-bold" id="pdId" style="word-break: break-all;"></div></div>
-              <div class="col-sm-6"><small class="text-muted d-block">目前狀態</small><div class="fw-bold" id="pdStatus"></div></div>
-          </div>
-          <div class="mb-3 px-2"><small class="text-muted d-block">專案說明</small><div class="fw-bold text-secondary" id="pdDesc"></div></div>
-          <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border">
-              <span class="fw-bold text-dark">包含項目：<span id="pdCount" class="text-danger fs-5">0</span> 件</span>
-          </div>
-          <div class="table-responsive border rounded" style="max-height: 400px; overflow-y: auto;">
-              <table class="table table-bordered table-sm table-striped text-center align-middle mb-0" style="font-size: 0.9rem;">
-                  <thead class="table-light sticky-top">
-                      <tr>
-                          <th width="25%">編號 / 臨時碼</th>
-                          <th width="30%">名稱</th>
-                          <th width="20%">原地點</th>
-                          <th width="25%">新地點</th>
-                      </tr>
-                  </thead>
-                  <tbody id="pdTableBody"></tbody>
-              </table>
-          </div>
-        </div>
-        <div class="modal-footer bg-light p-2 d-flex justify-content-end">
-           <button class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">關閉</button>
         </div>
       </div>
     </div>
@@ -1213,7 +1228,7 @@
       document.getElementById('homeMenu').style.display = 'none'; document.getElementById('mainApp').style.display = 'block'; document.body.style.overflowY = 'auto'; 
       if(sysId === 'inv') { document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
       if(sysId === 'move') { 
-          loadAllProjects(); // 💡 載入總覽清單
+          loadAllProjects(); // 載入總覽清單
           loadNewMvList(); 
           checkMvDraft(); 
       } 
@@ -1261,6 +1276,7 @@
             const actionSelect = document.getElementById('newMvActionSelect');
             actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (res.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
             loadWorkerLocations(); 
+            loadAllProjects(); // 更新總覽
         } 
         else if (sysId === 'mgr') { 
             const res = await callAPI('getWorkerInitData'); 
@@ -1483,8 +1499,63 @@
     async function resumeInventorySession() { try { const saved = JSON.parse(localStorage.getItem('invSession')); if(!saved) return; sysState.mode = saved.mode; sysState.locations = saved.locations; } catch(e) {} await executeInventoryStart(); }
     function clearInventorySession() { try { localStorage.removeItem('invSession'); } catch(e) {} document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
 
-    // ================= 💡 新增：專案總覽模組邏輯 =================
+    async function executeInventoryStart() {
+      showMiniLoading('下載名單，準備極速盤點...');
+      try {
+        const res = await callAPI('startInventory', sysState); sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI();
+        document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block'; hideMiniLoading();
+        if (!scanner) scanner = new Html5Qrcode("reader");
+        if (scanner.getState() !== 2) { scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); }
+      } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); }
+    }
+
+    function updateProgressUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned); document.getElementById('progressBar').style.width = (sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100)) + '%'; }
+
+    async function processScanLocal(msg) {
+      if (isProc || Date.now() - lastScan < 800) return; isProc = true; lastScan = Date.now();
+      let cleanMsg = msg.includes('?id=') ? new URL(msg).searchParams.get('id') : msg.trim().split('\n')[0]; const item = localItemCache[cleanMsg]; const overlay = document.getElementById('resultOverlay'); overlay.style.display = 'block';
+      if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在盤點範圍</span>'; document.getElementById('resName').innerText = cleanMsg; document.getElementById('resDesc').innerText = "請確認是否錯置或尚未建檔"; } 
+      else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點過</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點"; } 
+      else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = item.desc || ""; syncQueue.push(cleanMsg); triggerBackgroundSync(); }
+      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
+    }
+
+    async function triggerBackgroundSync() {
+      if (isSyncing || syncQueue.length === 0) return; 
+      isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
+      
+      while (syncQueue.length > 0) { 
+          let currentMsg = syncQueue[0]; 
+          try { 
+              await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
+              syncQueue.shift(); 
+          } catch(e) { 
+              let errStr = e.message.toLowerCase(); 
+              if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet') || errStr.includes('failed to fetch')) { 
+                  break; 
+              } else { 
+                  console.error("背景同步失敗 (非網路問題):", e);
+                  syncQueue.shift(); 
+              } 
+          } 
+      }
+      isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
+    }
+
+    async function pauseAndSave() { showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); hideMiniLoading(); }
+    async function finishInventory() { if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return; showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; hideMiniLoading(); }
+    function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
+    function playSound(k) { if (!audioCtx) return; if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = k === 'success' ? 'triangle' : 'square'; o.frequency.value = k === 'success' ? 1100 : 550; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => { o.stop(); }, 150); }
+
+    // ================= 💡 專案總覽模組邏輯 =================
     let allProjectsList = [];
+    let currentPdItems = []; // 暫存明細以便篩選
+    
+    // 返回總覽按鈕功能
+    function backToOverviewTab() {
+        document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
+        window.scrollTo(0, 0);
+    }
     
     async function loadAllProjects() {
         showMiniLoading('載入專案總覽中...');
@@ -1492,7 +1563,7 @@
             const res = await callAPI('getAllProjects');
             allProjectsList = res || [];
             
-            // 💡 動態生成「專案名稱」下拉選單
+            // 動態生成專案名稱下拉選單
             const projNames = [...new Set(allProjectsList.map(p => p.name))].sort();
             let nameHtml = '<option value="">📁 所有專案名稱</option>';
             projNames.forEach(n => nameHtml += `<option value="${n}">${n}</option>`);
@@ -1506,7 +1577,6 @@
         }
     }
 
-    // 💡 優化：複合下拉選單過濾邏輯
     function filterProjectCards() {
         const nameFilter = document.getElementById('projectSelectFilter').value;
         const statusFilter = document.getElementById('projectStatusFilter').value;
@@ -1578,31 +1648,80 @@
         showMiniLoading('讀取明細中...');
         try {
             const res = await callAPI('getProjectDetails', { eventId: id });
+            currentPdItems = res;
+            
             document.getElementById('pdId').innerText = id;
             document.getElementById('pdModalTitle').innerText = name;
             document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${status}</span>`;
             document.getElementById('pdDesc').innerText = desc || '無';
-            document.getElementById('pdCount').innerText = res.length;
             
-            document.getElementById('pdTableBody').innerHTML = res.map(item => {
-                let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
-                let destHtml = item.newLoc ? `<span class="text-success fw-bold">${item.newLoc}</span>` : `<span class="text-muted">尚未搬運</span>`;
-                if(item.boxName) destHtml += `<br><small class="text-secondary">(${item.boxName})</small>`;
-                return `
-                <tr>
-                    <td class="fw-bold text-start" style="font-size: 0.85rem;">${item.id}${tcBadge}</td>
-                    <td class="text-start small">${item.name}</td>
-                    <td class="small text-muted">${item.oldLoc}</td>
-                    <td class="small">${destHtml}</td>
-                </tr>`;
-            }).join('');
+            // 清空搜尋框
+            document.getElementById('pdSearchKw').value = '';
             
+            // 💡 動態提取不重複的地點與前綴
+            let oldLocs = new Set(), newLocs = new Set(), prefixes = new Set();
+            res.forEach(item => {
+                if(item.oldLoc) oldLocs.add(item.oldLoc);
+                if(item.newLoc) newLocs.add(item.newLoc);
+                prefixes.add(getPrefix(item.tempCode));
+            });
+            
+            let oldHtml = '<option value="">📍 所有原地點</option>';
+            Array.from(oldLocs).sort().forEach(l => oldHtml += `<option value="${l}">${l}</option>`);
+            document.getElementById('pdOldLocFilter').innerHTML = oldHtml;
+            
+            let newHtml = '<option value="">📍 所有新地點</option>';
+            Array.from(newLocs).sort().forEach(l => newHtml += `<option value="${l}">${l}</option>`);
+            document.getElementById('pdNewLocFilter').innerHTML = newHtml;
+            
+            let prefHtml = '<option value="">🏷️ 所有前綴</option>';
+            Array.from(prefixes).sort().forEach(p => prefHtml += `<option value="${p}">${p}</option>`);
+            document.getElementById('pdPrefixFilter').innerHTML = prefHtml;
+            
+            renderPdTable(); 
             bootstrap.Modal.getOrCreateInstance(document.getElementById('projectDetailsModal')).show();
         } catch(e) {
             alert("無法讀取明細：" + e.message);
         } finally {
             hideMiniLoading();
         }
+    }
+
+    // 💡 渲染明細清單 (包含多重過濾邏輯)
+    function renderPdTable() {
+        const kw = document.getElementById('pdSearchKw').value.toLowerCase().trim();
+        const oldLocFilter = document.getElementById('pdOldLocFilter').value;
+        const newLocFilter = document.getElementById('pdNewLocFilter').value;
+        const prefixFilter = document.getElementById('pdPrefixFilter').value;
+        
+        let filtered = currentPdItems.filter(item => {
+            const matchKw = !kw || item.id.toLowerCase().includes(kw) || item.name.toLowerCase().includes(kw) || (item.tempCode || '').toLowerCase().includes(kw);
+            const matchOldLoc = !oldLocFilter || item.oldLoc === oldLocFilter;
+            const matchNewLoc = !newLocFilter || item.newLoc === newLocFilter;
+            const matchPrefix = !prefixFilter || getPrefix(item.tempCode) === prefixFilter;
+            
+            return matchKw && matchOldLoc && matchNewLoc && matchPrefix;
+        });
+        
+        document.getElementById('pdCount').innerText = filtered.length;
+        
+        if(filtered.length === 0) {
+            document.getElementById('pdTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">查無符合條件的資料</td></tr>';
+            return;
+        }
+        
+        document.getElementById('pdTableBody').innerHTML = filtered.map(item => {
+            let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+            let destHtml = item.newLoc ? `<span class="text-success fw-bold">${item.newLoc}</span>` : `<span class="text-muted">尚未搬運</span>`;
+            if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${item.boxName}</small>`;
+            return `
+            <tr>
+                <td class="fw-bold text-start" style="font-size: 0.85rem;">${item.id}${tcBadge}</td>
+                <td class="text-start small">${item.name}</td>
+                <td class="small text-muted">${item.oldLoc}</td>
+                <td class="small">${destHtml}</td>
+            </tr>`;
+        }).join('');
     }
 
     function editProjectFromOverview(eventId) {
@@ -1678,55 +1797,7 @@
             hideMiniLoading();
         }
     }
-    // ================= 結束：專案總覽模組 =================
-
-    async function executeInventoryStart() {
-      showMiniLoading('下載名單，準備極速盤點...');
-      try {
-        const res = await callAPI('startInventory', sysState); sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI();
-        document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block'; hideMiniLoading();
-        if (!scanner) scanner = new Html5Qrcode("reader");
-        if (scanner.getState() !== 2) { scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); }
-      } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); }
-    }
-
-    function updateProgressUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned); document.getElementById('progressBar').style.width = (sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100)) + '%'; }
-
-    async function processScanLocal(msg) {
-      if (isProc || Date.now() - lastScan < 800) return; isProc = true; lastScan = Date.now();
-      let cleanMsg = msg.includes('?id=') ? new URL(msg).searchParams.get('id') : msg.trim().split('\n')[0]; const item = localItemCache[cleanMsg]; const overlay = document.getElementById('resultOverlay'); overlay.style.display = 'block';
-      if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在盤點範圍</span>'; document.getElementById('resName').innerText = cleanMsg; document.getElementById('resDesc').innerText = "請確認是否錯置或尚未建檔"; } 
-      else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點過</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點"; } 
-      else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = item.desc || ""; syncQueue.push(cleanMsg); triggerBackgroundSync(); }
-      setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
-    }
-
-    async function triggerBackgroundSync() {
-      if (isSyncing || syncQueue.length === 0) return; 
-      isSyncing = true; document.getElementById('syncStatus').style.display = 'block';
-      
-      while (syncQueue.length > 0) { 
-          let currentMsg = syncQueue[0]; 
-          try { 
-              await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
-              syncQueue.shift(); 
-          } catch(e) { 
-              let errStr = e.message.toLowerCase(); 
-              if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet') || errStr.includes('failed to fetch')) { 
-                  break; 
-              } else { 
-                  console.error("背景同步失敗 (非網路問題):", e);
-                  syncQueue.shift(); 
-              } 
-          } 
-      }
-      isSyncing = false; document.getElementById('syncStatus').style.display = 'none';
-    }
-
-    async function pauseAndSave() { showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); hideMiniLoading(); }
-    async function finishInventory() { if(!confirm("確定要結束本次盤點任務，並進入結算匯出畫面嗎？")) return; showMiniLoading('正在安全關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; hideMiniLoading(); }
-    function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
-    function playSound(k) { if (!audioCtx) return; if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = k === 'success' ? 'triangle' : 'square'; o.frequency.value = k === 'success' ? 1100 : 550; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => { o.stop(); }, 150); }
+    // ========================================================
 
     function loadNewMvList() {
       if(allMvItems && allMvItems.length > 0) return;
@@ -1785,7 +1856,6 @@
        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
     }
 
-    // 💡 地點選擇 modal 隱藏時，自動判斷需要恢復的父視窗
     document.getElementById('locModal').addEventListener('hidden.bs.modal', function () {
         if (currentModalTarget === 'miscLoc') {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
@@ -2183,19 +2253,16 @@
         document.getElementById('importPreviewSection').style.display = 'block';
     }
 
-    // 💡 針對匯入預覽列表呼叫地點選擇 Modal 的專屬函數
     function triggerImportMiscLoc(id) {
         currentModalTarget = 'importMiscLoc_' + id;
         document.getElementById('locModalTitle').innerText = "選擇「雜物所在地點」";
         document.getElementById('modalLocSearch').value = '';
         filterModalTree();
         renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
-        // 先隱藏匯入視窗避免層疊衝突
         bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
         bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
     }
 
-    // 💡 針對匯入預覽列表呼叫地點掃描器的專屬函數
     function startImportLocScanner(id) {
         locScanTarget = 'importMiscLoc_' + id;
         document.getElementById('locScannerTitle').innerText = "掃描「雜物所在地點」條碼";
@@ -2215,7 +2282,7 @@
             let statusBadge = '';
             let trClass = '';
             let tcHtml = '';
-            let locColumnHtml = item.loc; // 預設顯示純文字
+            let locColumnHtml = item.loc; 
 
             if (item.status === 'match') {
                 statusBadge = '<span class="badge bg-success">✅ 成功</span>';
@@ -2242,7 +2309,6 @@
                 matchCount++; 
                 if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
                 
-                // 💡 針對轉換為雜物的項目，顯示獨立的地點選擇/掃描元件
                 locColumnHtml = `
                     <div class="input-group input-group-sm">
                         <input type="text" class="form-control bg-white text-danger fw-bold" readonly placeholder="點選或掃描..." value="${item.loc}" onclick="triggerImportMiscLoc('${item.finalId}')">
@@ -2273,13 +2339,11 @@
             warnMsg.style.display = 'none';
         }
 
-        // 💡 檢查是否還有任何被轉為雜物的項目「未指定地點」，如果有則禁用確認按鈕
         let hasMissingLoc = parsedImportItems.some(i => i.status === 'misc' && !i.loc);
         document.getElementById('btnConfirmImport').disabled = (matchCount === 0 && document.querySelectorAll('.conflict-tc-input').length === 0) || hasMissingLoc;
     }
 
     function convertUnmatchedToMisc() {
-        // 💡 不再統一詢問地點，直接轉換並清空地點強制個別選擇
         parsedImportItems.forEach(item => {
             if (item.status === 'unmatched') {
                 item.status = 'misc';
@@ -2467,7 +2531,6 @@
         document.getElementById('locScannerTitle').innerText = (targetId === 'mvLoc') ? "掃描「原典藏地點」條碼" : "掃描「暫存地點」條碼";
         document.getElementById('loc-reader-container').style.display = 'flex';
         
-        // 💡 如果是匯入視窗呼叫，先隱藏
         if (targetId.startsWith('importMiscLoc_')) {
              bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
         }
@@ -2484,7 +2547,6 @@
         locScanner = null;
         document.getElementById('loc-reader-container').style.display = 'none';
         
-        // 💡 若從匯入視窗開啟掃描且被自動中斷，則重新顯示匯入視窗
         if (locScanTarget && locScanTarget.startsWith('importMiscLoc_')) {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
             locScanTarget = '';
@@ -2499,7 +2561,6 @@
         document.getElementById('loc-reader-container').style.display = 'none';
         hideMiniLoading();
         
-        // 💡 若手動取消掃描，重新顯示匯入視窗
         if (locScanTarget && locScanTarget.startsWith('importMiscLoc_')) {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
         }
@@ -2508,7 +2569,7 @@
 
     async function handleLocScan(msg) {
         let target = locScanTarget; 
-        locScanTarget = ''; // 先清空，以免 stopLocScanner 自動呼叫顯示視窗
+        locScanTarget = ''; 
         
         showMiniLoading("關閉相機...");
         await stopScannerSafe(locScanner);
@@ -2520,7 +2581,6 @@
         if (cleanMsg.startsWith("LOC:")) {
             let locName = cleanMsg.substring(4);
             
-            // 💡 若為匯入的雜物掃描地點
             if (target.startsWith('importMiscLoc_')) {
                 let id = target.split('_')[1];
                 let item = parsedImportItems.find(x => x.finalId === id);
@@ -2570,7 +2630,6 @@
     function triggerMvLoc() { if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！'); currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
     function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「暫存地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
     
-    // 💡 地點選擇 modal 確認功能
     function selectModalLoc(v) { 
         if (currentModalTarget.startsWith('importMiscLoc_')) {
             let id = currentModalTarget.split('_')[1];
