@@ -428,13 +428,44 @@
         <!-- 異動模組 -->
         <div class="tab-pane fade" id="move">
           <ul class="nav nav-pills nav-fill mb-3" id="mvPills">
-            <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveCreateTab">📝 專案管理</button></li>
+            <!-- 💡 新增：專案總覽頁籤 (設為預設開啟) -->
+            <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveOverviewTab" onclick="loadAllProjects()">📊 專案總覽</button></li>
+            <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveCreateTab">📝 專案管理</button></li>
             <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveExecuteTab" onclick="refreshSystem('move')">🚚 執行搬運</button></li>
           </ul>
 
           <div class="tab-content">
+            <!-- 💡 新增：專案總覽介面 -->
+            <div class="tab-pane fade show active" id="moveOverviewTab">
+              <div class="step-card active border-info border-top border-4">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                      <h5 class="mb-0 fw-bold text-info" style="color: #0dcaf0 !important;">📊 專案總覽與查詢</h5>
+                      <button class="btn btn-sm btn-outline-secondary" onclick="loadAllProjects()">🔄 刷新</button>
+                  </div>
+                  <!-- 💡 優化：複合下拉式選單過濾機制 -->
+                  <div class="row g-2 mb-3">
+                      <div class="col-12 col-md-7">
+                          <select id="projectSelectFilter" class="form-select border-info fw-bold" onchange="filterProjectCards()">
+                              <option value="">📁 所有專案名稱</option>
+                              <!-- 選項將由程式動態載入 -->
+                          </select>
+                      </div>
+                      <div class="col-12 col-md-5">
+                          <select id="projectStatusFilter" class="form-select border-info fw-bold" onchange="filterProjectCards()">
+                              <option value="">📌 所有狀態</option>
+                              <option value="進行中">🚀 進行中</option>
+                              <option value="已結案">✅ 已結案</option>
+                          </select>
+                      </div>
+                  </div>
+                  <div id="projectCardsContainer" class="row g-3" style="max-height: 60vh; overflow-y: auto; overflow-x: hidden;">
+                      <div class="col-12 text-center text-muted py-4">載入中...</div>
+                  </div>
+              </div>
+            </div>
+
             <!-- 專案管理 -->
-            <div class="tab-pane fade show active" id="moveCreateTab">
+            <div class="tab-pane fade" id="moveCreateTab">
               <div class="step-card active border-primary border-top border-4">
                   <div class="mb-3">
                       <label class="form-label text-dark fw-bold">1. 選擇專案操作 <span class="text-danger">*</span></label>
@@ -815,11 +846,50 @@
           </div>
           
           <div id="cartItemList" class="bg-white border rounded shadow-sm p-1" style="max-height: 350px; overflow-y: auto;">
+             <!-- 動態生成已選清單 -->
           </div>
         </div>
         <div class="modal-footer bg-light p-2 d-flex justify-content-between">
            <button class="btn btn-outline-danger fw-bold" onclick="clearNewMvSelection(true, 'cartModal')">清空全部</button>
            <button class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">完成精修</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💡 新增：專案明細檢視 Modal -->
+  <div class="modal fade" id="projectDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold text-info" style="color: #0dcaf0 !important;" id="pdModalTitle">專案明細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="row mb-3 bg-light rounded p-2 mx-0 border">
+              <div class="col-sm-6 mb-2 mb-sm-0"><small class="text-muted d-block">專案代號</small><div class="fw-bold" id="pdId" style="word-break: break-all;"></div></div>
+              <div class="col-sm-6"><small class="text-muted d-block">目前狀態</small><div class="fw-bold" id="pdStatus"></div></div>
+          </div>
+          <div class="mb-3 px-2"><small class="text-muted d-block">專案說明</small><div class="fw-bold text-secondary" id="pdDesc"></div></div>
+          <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border">
+              <span class="fw-bold text-dark">包含項目：<span id="pdCount" class="text-danger fs-5">0</span> 件</span>
+          </div>
+          <div class="table-responsive border rounded" style="max-height: 400px; overflow-y: auto;">
+              <table class="table table-bordered table-sm table-striped text-center align-middle mb-0" style="font-size: 0.9rem;">
+                  <thead class="table-light sticky-top">
+                      <tr>
+                          <th width="25%">編號 / 臨時碼</th>
+                          <th width="30%">名稱</th>
+                          <th width="20%">原地點</th>
+                          <th width="25%">新地點</th>
+                      </tr>
+                  </thead>
+                  <tbody id="pdTableBody"></tbody>
+              </table>
+          </div>
+        </div>
+        <div class="modal-footer bg-light p-2 d-flex justify-content-end">
+           <button class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">關閉</button>
         </div>
       </div>
     </div>
@@ -1142,7 +1212,11 @@
     function enterSystem(sysId) {
       document.getElementById('homeMenu').style.display = 'none'; document.getElementById('mainApp').style.display = 'block'; document.body.style.overflowY = 'auto'; 
       if(sysId === 'inv') { document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
-      if(sysId === 'move') { loadNewMvList(); checkMvDraft(); } 
+      if(sysId === 'move') { 
+          loadAllProjects(); // 💡 載入總覽清單
+          loadNewMvList(); 
+          checkMvDraft(); 
+      } 
       const tabTrigger = new bootstrap.Tab(document.querySelector(`button[data-bs-target="#${sysId}"]`)); tabTrigger.show();
       document.getElementById('sysTitle').innerText = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動系統', 'mgr': '⚙️ 管理員後台' }[sysId];
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -1408,6 +1482,203 @@
     }
     async function resumeInventorySession() { try { const saved = JSON.parse(localStorage.getItem('invSession')); if(!saved) return; sysState.mode = saved.mode; sysState.locations = saved.locations; } catch(e) {} await executeInventoryStart(); }
     function clearInventorySession() { try { localStorage.removeItem('invSession'); } catch(e) {} document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
+
+    // ================= 💡 新增：專案總覽模組邏輯 =================
+    let allProjectsList = [];
+    
+    async function loadAllProjects() {
+        showMiniLoading('載入專案總覽中...');
+        try {
+            const res = await callAPI('getAllProjects');
+            allProjectsList = res || [];
+            
+            // 💡 動態生成「專案名稱」下拉選單
+            const projNames = [...new Set(allProjectsList.map(p => p.name))].sort();
+            let nameHtml = '<option value="">📁 所有專案名稱</option>';
+            projNames.forEach(n => nameHtml += `<option value="${n}">${n}</option>`);
+            document.getElementById('projectSelectFilter').innerHTML = nameHtml;
+            
+            filterProjectCards();
+        } catch(e) {
+            alert("載入專案失敗：" + e.message);
+        } finally {
+            hideMiniLoading();
+        }
+    }
+
+    // 💡 優化：複合下拉選單過濾邏輯
+    function filterProjectCards() {
+        const nameFilter = document.getElementById('projectSelectFilter').value;
+        const statusFilter = document.getElementById('projectStatusFilter').value;
+        const container = document.getElementById('projectCardsContainer');
+        
+        const filtered = allProjectsList.filter(p => {
+            const matchName = nameFilter === "" || p.name === nameFilter;
+            const matchStatus = statusFilter === "" || p.status === statusFilter;
+            return matchName && matchStatus;
+        });
+
+        if(filtered.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center text-muted py-4">查無符合條件的專案</div>';
+            return;
+        }
+
+        container.innerHTML = filtered.map(p => {
+            let badgeClass = p.status === '進行中' ? 'bg-primary' : (p.status === '已結案' ? 'bg-secondary' : 'bg-warning text-dark');
+            let progressPct = p.total > 0 ? Math.round((p.moved / p.total) * 100) : 0;
+            
+            let actionBtns = '';
+            if(p.status === '進行中') {
+                actionBtns = `
+                    <button class="btn btn-sm btn-outline-info fw-bold w-100 mb-2" onclick="editProjectFromOverview('${p.id}')">📝 編輯專案清單</button>
+                    <button class="btn btn-sm btn-outline-success fw-bold w-100" onclick="executeProjectFromOverview('${p.id}')">🚚 執行搬運</button>
+                `;
+            } else {
+                actionBtns = `
+                    <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="printProjectFromOverview('${p.id}', '${p.name}')">🖨️ 列印清冊</button>
+                `;
+            }
+
+            return `
+            <div class="col-12 col-md-6">
+                <div class="card shadow-sm h-100 border-0 border-start border-4 ${p.status === '進行中' ? 'border-primary' : 'border-secondary'}">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${p.name}</h6>
+                            <span class="badge ${badgeClass}">${p.status}</span>
+                        </div>
+                        <small class="text-muted d-block mb-1" style="font-family: monospace;">${p.id}</small>
+                        <small class="text-secondary d-block mb-3 text-truncate">${p.desc || '無備註'}</small>
+                        
+                        <div class="mb-3 bg-light rounded p-2 border">
+                            <div class="d-flex justify-content-between small fw-bold text-secondary mb-1">
+                                <span>進度</span>
+                                <span>${p.moved} / ${p.total} 件 (${progressPct}%)</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar ${p.status === '進行中' ? 'bg-success' : 'bg-secondary'}" style="width: ${progressPct}%;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${p.id}', '${p.name}', '${p.status}', '${p.desc}')">👁️ 檢視明細</button>
+                            </div>
+                            <div class="col-12">
+                                ${actionBtns}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    async function viewProjectDetails(id, name, status, desc) {
+        showMiniLoading('讀取明細中...');
+        try {
+            const res = await callAPI('getProjectDetails', { eventId: id });
+            document.getElementById('pdId').innerText = id;
+            document.getElementById('pdModalTitle').innerText = name;
+            document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${status}</span>`;
+            document.getElementById('pdDesc').innerText = desc || '無';
+            document.getElementById('pdCount').innerText = res.length;
+            
+            document.getElementById('pdTableBody').innerHTML = res.map(item => {
+                let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+                let destHtml = item.newLoc ? `<span class="text-success fw-bold">${item.newLoc}</span>` : `<span class="text-muted">尚未搬運</span>`;
+                if(item.boxName) destHtml += `<br><small class="text-secondary">(${item.boxName})</small>`;
+                return `
+                <tr>
+                    <td class="fw-bold text-start" style="font-size: 0.85rem;">${item.id}${tcBadge}</td>
+                    <td class="text-start small">${item.name}</td>
+                    <td class="small text-muted">${item.oldLoc}</td>
+                    <td class="small">${destHtml}</td>
+                </tr>`;
+            }).join('');
+            
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('projectDetailsModal')).show();
+        } catch(e) {
+            alert("無法讀取明細：" + e.message);
+        } finally {
+            hideMiniLoading();
+        }
+    }
+
+    function editProjectFromOverview(eventId) {
+        document.querySelector('button[data-bs-target="#moveCreateTab"]').click();
+        document.getElementById('newMvActionSelect').value = eventId;
+        switchMoveProjectAction();
+    }
+
+    function executeProjectFromOverview(eventId) {
+        document.querySelector('button[data-bs-target="#moveExecuteTab"]').click();
+        document.getElementById('mvEvent').value = eventId;
+        loadWorkerLocations();
+    }
+
+    async function printProjectFromOverview(eventId, eventName) {
+        showMiniLoading('產生清冊中...');
+        try {
+            const res = await callAPI('getProjectDetails', { eventId: eventId });
+            if(res.length === 0) return alert("專案無資料！");
+            
+            let html = `
+            <div class="preview-paper">
+                <h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3>
+                <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+                    <span><strong>專案名稱：</strong> ${eventName}</span>
+                    <span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span>
+                </div>
+                <table class="table table-bordered table-sm" style="font-size: 10pt;">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="5%">項次</th>
+                            <th width="20%">文物/雜物編號</th>
+                            <th width="25%">名稱</th>
+                            <th width="20%">原典藏地點</th>
+                            <th width="20%">移往暫存地點 (箱號)</th>
+                            <th width="10%">核對簽章</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            res.forEach((item, idx) => {
+                let dest = item.newLoc ? item.newLoc : "未搬運";
+                if(item.boxName) dest += `<br><small>(${item.boxName})</small>`;
+                let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+                html += `
+                    <tr>
+                        <td class="text-center align-middle">${idx + 1}</td>
+                        <td class="align-middle">${item.id} ${tcLabel}</td>
+                        <td class="align-middle">${item.name}</td>
+                        <td class="align-middle">${item.oldLoc}</td>
+                        <td class="align-middle">${dest}</td>
+                        <td></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+                <div class="mt-5 d-flex justify-content-between px-5">
+                    <div class="text-center"><div><strong>點交人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div>
+                    <div class="text-center"><div><strong>搬運負責人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div>
+                    <div class="text-center"><div><strong>管理員審核簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div>
+                </div>
+            </div>`;
+
+            document.getElementById('printReportContent').innerHTML = html;
+            document.getElementById('printReportOverlay').style.display = 'flex';
+        } catch(e) {
+            alert("無法產生清冊：" + e.message);
+        } finally {
+            hideMiniLoading();
+        }
+    }
+    // ================= 結束：專案總覽模組 =================
 
     async function executeInventoryStart() {
       showMiniLoading('下載名單，準備極速盤點...');
