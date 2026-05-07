@@ -131,7 +131,7 @@
 </head>
 <body>
 
-  <!-- 💡 全螢幕地點 QR Code 掃描器 -->
+  <!-- 全螢幕地點 QR Code 掃描器 -->
   <div id="loc-reader-container" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:10600; flex-direction:column; justify-content:center; align-items:center;">
       <div style="width:100%; max-width:500px; padding:20px;">
           <h5 class="text-white text-center mb-3 fw-bold" id="locScannerTitle">掃描地點 QR Code</h5>
@@ -426,14 +426,13 @@
         <!-- 異動模組 -->
         <div class="tab-pane fade" id="move">
           <ul class="nav nav-pills nav-fill mb-3" id="mvPills">
-            <!-- 💡 新增：專案總覽頁籤 -->
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveOverviewTab" onclick="loadAllProjects()">📊 專案總覽</button></li>
             <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveCreateTab">📝 專案管理</button></li>
             <li class="nav-item"><button class="nav-link py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveExecuteTab" onclick="refreshSystem('move')">🚚 執行搬運</button></li>
           </ul>
 
           <div class="tab-content">
-            <!-- 💡 專案總覽介面 -->
+            <!-- 專案總覽介面 -->
             <div class="tab-pane fade show active" id="moveOverviewTab">
               <div class="step-card active border-info border-top border-4">
                   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -464,7 +463,6 @@
             <div class="tab-pane fade" id="moveCreateTab">
               <div class="step-card active border-primary border-top border-4">
                   <div class="mb-3">
-                      <!-- 💡 新增：返回總覽按鈕 -->
                       <div class="d-flex justify-content-between align-items-center mb-1">
                           <label class="form-label text-dark fw-bold mb-0">1. 選擇專案操作 <span class="text-danger">*</span></label>
                           <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="backToOverviewTab()">🔙 返回總覽</button>
@@ -528,7 +526,6 @@
                 
                 <div id="mvPhase1">
                   <div class="mb-3">
-                      <!-- 💡 新增：返回總覽按鈕 -->
                       <div class="d-flex justify-content-between align-items-center mb-1">
                           <label class="form-label text-success fw-bold mb-0">1. 選擇異動專案事件</label>
                           <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="backToOverviewTab()">🔙 返回總覽</button>
@@ -813,7 +810,6 @@
           </div>
           <div class="mb-3 px-2"><small class="text-muted d-block">專案說明</small><div class="fw-bold text-secondary" id="pdDesc"></div></div>
           
-          <!-- 💡 新增：複合過濾區塊 -->
           <div class="row g-2 mb-2 px-2 fade-in-section">
             <div class="col-12 col-md-6"><input type="search" id="pdSearchKw" class="form-control form-control-sm border-info" placeholder="🔍 模糊搜尋編號/名稱/臨時編碼..." onkeyup="renderPdTable()" onsearch="renderPdTable()"></div>
             <div class="col-12 col-md-6"><select id="pdPrefixFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">🏷️ 所有前綴</option></select></div>
@@ -1228,7 +1224,7 @@
       document.getElementById('homeMenu').style.display = 'none'; document.getElementById('mainApp').style.display = 'block'; document.body.style.overflowY = 'auto'; 
       if(sysId === 'inv') { document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); }
       if(sysId === 'move') { 
-          loadAllProjects(); // 載入總覽清單
+          loadAllProjects(); 
           loadNewMvList(); 
           checkMvDraft(); 
       } 
@@ -1276,7 +1272,7 @@
             const actionSelect = document.getElementById('newMvActionSelect');
             actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (res.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
             loadWorkerLocations(); 
-            loadAllProjects(); // 更新總覽
+            loadAllProjects(); 
         } 
         else if (sysId === 'mgr') { 
             const res = await callAPI('getWorkerInitData'); 
@@ -1338,7 +1334,7 @@
 
     function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
     
-    // 💡 藏品狀態查詢的 Optimistic UI (先顯示本地，後台再抓新資料)
+    // 💡 藏品狀態查詢的 Optimistic UI
     async function execQuery(rawStr) {
       let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0];
       if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
@@ -1346,7 +1342,7 @@
       const res = globalCatalog[cleanId];
       if(res) { 
           renderQueryUI(res); 
-          fetchFreshQueryData(cleanId); // 背景強制刷新
+          fetchFreshQueryData(cleanId); 
       } else {
         showMiniLoading('🔍 查詢雲端最新狀態中...');
         try { const freshRes = await callAPI('queryItem', { qrStr: cleanId }); globalCatalog[cleanId] = freshRes; renderQueryUI(freshRes); } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); }
@@ -1549,9 +1545,8 @@
 
     // ================= 💡 專案總覽模組邏輯 =================
     let allProjectsList = [];
-    let currentPdItems = []; // 暫存明細以便篩選
+    let currentPdItems = []; 
     
-    // 返回總覽按鈕功能
     function backToOverviewTab() {
         document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
         window.scrollTo(0, 0);
@@ -1563,7 +1558,6 @@
             const res = await callAPI('getAllProjects');
             allProjectsList = res || [];
             
-            // 動態生成專案名稱下拉選單
             const projNames = [...new Set(allProjectsList.map(p => p.name))].sort();
             let nameHtml = '<option value="">📁 所有專案名稱</option>';
             projNames.forEach(n => nameHtml += `<option value="${n}">${n}</option>`);
@@ -1655,10 +1649,8 @@
             document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${status}</span>`;
             document.getElementById('pdDesc').innerText = desc || '無';
             
-            // 清空搜尋框
             document.getElementById('pdSearchKw').value = '';
             
-            // 💡 動態提取不重複的地點與前綴
             let oldLocs = new Set(), newLocs = new Set(), prefixes = new Set();
             res.forEach(item => {
                 if(item.oldLoc) oldLocs.add(item.oldLoc);
@@ -1687,7 +1679,6 @@
         }
     }
 
-    // 💡 渲染明細清單 (包含多重過濾邏輯)
     function renderPdTable() {
         const kw = document.getElementById('pdSearchKw').value.toLowerCase().trim();
         const oldLocFilter = document.getElementById('pdOldLocFilter').value;
@@ -1714,9 +1705,13 @@
             let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
             let destHtml = item.newLoc ? `<span class="text-success fw-bold">${item.newLoc}</span>` : `<span class="text-muted">尚未搬運</span>`;
             if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${item.boxName}</small>`;
+            
+            // 💡 處理一件多物的換行顯示
+            let displayId = item.id.replace(/\n/g, ' ');
+
             return `
             <tr>
-                <td class="fw-bold text-start" style="font-size: 0.85rem;">${item.id}${tcBadge}</td>
+                <td class="fw-bold text-start" style="font-size: 0.85rem;">${displayId}${tcBadge}</td>
                 <td class="text-start small">${item.name}</td>
                 <td class="small text-muted">${item.oldLoc}</td>
                 <td class="small">${destHtml}</td>
@@ -1767,10 +1762,14 @@
                 let dest = item.newLoc ? item.newLoc : "未搬運";
                 if(item.boxName) dest += `<br><small>(${item.boxName})</small>`;
                 let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+                
+                // 💡 處理一件多物的換行顯示
+                let displayId = item.id.replace(/\n/g, ' ');
+
                 html += `
                     <tr>
                         <td class="text-center align-middle">${idx + 1}</td>
-                        <td class="align-middle">${item.id} ${tcLabel}</td>
+                        <td class="align-middle">${displayId} ${tcLabel}</td>
                         <td class="align-middle">${item.name}</td>
                         <td class="align-middle">${item.oldLoc}</td>
                         <td class="align-middle">${dest}</td>
@@ -1906,11 +1905,14 @@
         let isChecked = cartItem ? 'checked' : '';
         let tcBadge = (cartItem && cartItem.tempCode) ? `<span class="badge bg-info text-dark ms-2 shadow-sm"><i class="fas fa-tag"></i> ${cartItem.tempCode}</span>` : '';
         
+        // 💡 處理一件多物的換行顯示
+        let displayId = item.id.replace(/\n/g, ' ');
+
         return `<div class="print-item p-2 d-flex align-items-center">
           <input class="form-check-input me-2 cb-newmv" type="checkbox" value="${item.id}" data-name="${item.name}" data-loc="${item.loc}" id="nmv_${idx}" ${isChecked} onchange="updateNewMvCart(this)">
           <label class="form-check-label flex-grow-1 d-flex flex-column" for="nmv_${idx}">
              <div class="fw-bold text-dark d-flex justify-content-between">
-                <span>${item.isMisc ? '📦 ' + item.id : item.id} ${tcBadge}</span>
+                <span>${item.isMisc ? '📦 ' + displayId : displayId} ${tcBadge}</span>
                 <span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span>
              </div>
              <div class="small ${item.isMisc ? 'text-danger' : 'text-muted'} text-truncate" style="max-width: 250px;">${item.name}</div>
@@ -2012,13 +2014,16 @@
             if (prefixFilter && itemPrefix !== prefixFilter) return;
             if (kw && !(id.toLowerCase().includes(kw) || val.name.toLowerCase().includes(kw) || tc.toLowerCase().includes(kw))) return;
 
+            // 💡 處理一件多物的換行顯示
+            let displayId = id.replace(/\n/g, ' ');
+
             html += `
             <div class="d-flex align-items-center p-2 border-bottom">
                 <div class="me-2">
                     <input class="form-check-input cart-item-cb" type="checkbox" value="${id}">
                 </div>
                 <div style="width: 45%;">
-                    <div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+id : id}</div>
+                    <div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+displayId : displayId}</div>
                     <div class="small text-muted text-truncate" style="max-width: 150px;">${val.name}</div>
                 </div>
                 <div style="width: 30%;" class="px-1">
@@ -2123,11 +2128,13 @@
         let idx = 0;
         newMvCart.forEach((val, id) => {
             let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${val.tempCode}</span>` : '';
+            // 💡 處理一件多物的換行顯示
+            let displayId = id.replace(/\n/g, ' ');
             html += `
             <div class="form-check mb-2 pb-2 border-bottom">
                 <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
                 <label class="form-check-label w-100 fs-6" for="tc_${idx}">
-                    <span class="fw-bold text-dark">${id}</span> ${tcBadge}<br>
+                    <span class="fw-bold text-dark">${displayId}</span> ${tcBadge}<br>
                     <small class="text-muted">${val.name}</small>
                 </label>
             </div>`;
@@ -2213,19 +2220,30 @@
 
             if (!parsedId) return; 
 
-            let existing = allMvItems.find(x => x.id === parsedId);
-            let inCart = newMvCart.has(parsedId);
+            // 💡 尋找總表中原本的基礎資料
+            let existingBase = allMvItems.find(x => x.id === parsedId || x.id.split('\n')[0] === parsedId);
+            
+            // 💡 構建唯一的 finalId，支援「一件多物」
+            let finalId = parsedId;
+            let partDesc = [];
+            if (parsedTempCode) partDesc.push(parsedTempCode);
+            if (parsedName && (!existingBase || parsedName !== existingBase.name)) partDesc.push(parsedName);
+            
+            if (partDesc.length > 0) {
+                finalId = parsedId + "\n[" + partDesc.join(' - ') + "]";
+            }
 
+            let inCart = newMvCart.has(finalId);
             let status = 'match'; 
             let loc = '未知';
             let oldTc = '';
 
-            if (existing) {
-                parsedName = parsedName || existing.name;
-                loc = existing.loc;
+            if (existingBase) {
+                parsedName = parsedName || existingBase.name;
+                loc = existingBase.loc;
                 
                 if (inCart) {
-                    let cartItem = newMvCart.get(parsedId);
+                    let cartItem = newMvCart.get(finalId);
                     oldTc = cartItem.tempCode || '';
                     if (parsedTempCode && oldTc && oldTc !== parsedTempCode) {
                         status = 'conflict';
@@ -2239,7 +2257,7 @@
 
             parsedImportItems.push({
                 originalId: parsedId,
-                finalId: parsedId,
+                finalId: finalId,
                 name: parsedName || '未知名稱',
                 loc: loc,
                 tempCode: parsedTempCode,
@@ -2315,11 +2333,14 @@
                         <button class="btn btn-outline-danger" type="button" onclick="startImportLocScanner('${item.finalId}')"><i class="fas fa-qrcode"></i></button>
                     </div>`;
             }
+            
+            // 💡 處理一件多物的換行顯示
+            let displayId = item.finalId.replace(/\n/g, ' ');
 
             html += `
             <tr class="${trClass}">
                 <td>${statusBadge}</td>
-                <td class="fw-bold text-start">${item.finalId}${tcHtml}</td>
+                <td class="fw-bold text-start">${displayId}${tcHtml}</td>
                 <td class="text-start">${item.name}</td>
                 <td class="align-middle" style="min-width: 140px;">${locColumnHtml}</td>
             </tr>`;
@@ -2382,9 +2403,15 @@
                     allMvItems.unshift({ id: item.finalId, name: item.name, loc: item.loc, isMisc: true, tempCode: item.tempCode });
                 }
                 newMvCart.set(item.finalId, { name: item.name, loc: item.loc, isMisc: item.isMisc, tempCode: item.tempCode });
+                
+                // 💡 若為非雜物，檢查是否需加入 global 清單中
                 if (!item.isMisc) {
                     let existing = allMvItems.find(x => x.id === item.finalId);
-                    if(existing && item.tempCode) existing.tempCode = item.tempCode;
+                    if(!existing) {
+                        allMvItems.unshift({ id: item.finalId, name: item.name, loc: item.loc, isMisc: false, tempCode: item.tempCode });
+                    } else {
+                        existing.tempCode = item.tempCode;
+                    }
                 }
                 importCount++;
             }
@@ -2604,47 +2631,6 @@
         }
     }
 
-    async function loadWorkerLocations() {
-      const eid = document.getElementById('mvEvent').value; currentMvEventId = eid;
-      const d = document.getElementById('mvLocDisplay'); document.getElementById('mvLoc').value = ""; d.value = ""; 
-      document.getElementById('mvPhase2').style.display = 'none'; document.getElementById('mvPhase3').style.display = 'none';
-      document.getElementById('mvLocSelector').style.display = 'none';
-      document.getElementById('mvProgressBox').style.display = 'none';
-      
-      if(!eid) return; showMiniLoading('下載專案全資料中...'); 
-      try { 
-        const res = await callAPI('getProjectPendingData', { eventId: eid }); 
-        currentProjectItems = res.items || []; 
-        pendingLocTree = res.locTree || []; 
-        d.placeholder = "點此選擇或掃描..."; 
-        
-        document.getElementById('mvLocSelector').style.display = 'block';
-        document.getElementById('mvProgressBox').style.display = 'block';
-        let progressPct = res.total > 0 ? Math.round((res.moved / res.total) * 100) : 0;
-        document.getElementById('mvProgressText').innerText = `${res.moved} / ${res.total} 件 (${progressPct}%)`;
-        document.getElementById('mvProgressBar').style.width = `${progressPct}%`;
-        
-      } catch (e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); }
-    }
-    
-    function triggerMvLoc() { if(!document.getElementById('mvEvent').value) return alert('請先選擇事件！'); currentModalTarget='mvLoc'; document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(pendingLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
-    function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; document.getElementById('locModalTitle').innerText = "選擇「暫存地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree,'modalLocContainer','modal',false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
-    
-    function selectModalLoc(v) { 
-        if (currentModalTarget.startsWith('importMiscLoc_')) {
-            let id = currentModalTarget.split('_')[1];
-            let item = parsedImportItems.find(x => x.finalId === id);
-            if (item) item.loc = v;
-            bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
-            renderImportPreview(); 
-        } else {
-            document.getElementById(currentModalTarget).value=v; 
-            document.getElementById(currentModalTarget+'Display').value=v; 
-            bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
-            if(currentModalTarget==='mvLoc') loadWorkerItems(); 
-        }
-    }
-
     async function loadWorkerItems() {
       const eid = document.getElementById('mvEvent').value, loc = document.getElementById('mvLoc').value; if (!eid || !loc) return;
       const filteredItems = currentProjectItems.filter(x => x.loc === loc); const listDiv = document.getElementById('mvItemList');
@@ -2653,13 +2639,17 @@
           listDiv.innerHTML = filteredItems.map((x, i) => {
               let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark me-2 shadow-sm fs-6"><i class="fas fa-tag"></i> ${x.tempCode}</span>` : '';
               let isMisc = x.qrCode.startsWith('MISC');
+              
+              // 💡 處理一件多物的換行顯示
+              let displayId = x.qrCode.replace(/\n/g, ' ');
+
               return `
               <div class="form-check mb-2 pb-2 border-bottom">
                   <input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" onchange="checkPhase3Trigger()">
                   <label class="form-check-label w-100" for="mvItem_${i}">
                       <div class="d-flex align-items-center mb-1">
                           ${tcBadge}
-                          <span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.85rem;">[${x.qrCode}]</span>
+                          <span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.85rem;">[${displayId}]</span>
                       </div>
                       <div class="fs-6 text-dark">${x.name}</div>
                   </label>
@@ -2768,10 +2758,14 @@
             let safeLoc = x.newLoc.replace(/'/g, "\\'").replace(/"/g, "&quot;");
             let safeBox = x.boxName.replace(/'/g, "\\'").replace(/"/g, "&quot;");
             let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${x.tempCode}</span>` : '';
+            
+            // 💡 處理一件多物的換行顯示
+            let displayId = x.qrCode.replace(/\n/g, ' ');
+
             return `<tr>
                       <td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td>
                       <td>
-                        <b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${x.qrCode.split('\n')[0]}</b>
+                        <b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${displayId}</b>
                         ${tcBadge}<br>
                         <span class="text-primary small fw-bold">${x.name}</span><br>
                         <small class="text-muted">原: ${x.oldLoc}</small>
@@ -2889,10 +2883,14 @@
            let dest = item.newLoc ? item.newLoc : "未搬運";
            if(item.boxName) dest += `<br><small>(${item.boxName})</small>`;
            let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+           
+           // 💡 處理一件多物的換行顯示
+           let displayId = item.qrCode.replace(/\n/g, ' ');
+
            html += `
                <tr>
                    <td class="text-center align-middle">${idx + 1}</td>
-                   <td class="align-middle">${item.qrCode.split('\n')[0]} ${tcLabel}</td>
+                   <td class="align-middle">${displayId} ${tcLabel}</td>
                    <td class="align-middle">${item.name}</td>
                    <td class="align-middle">${item.oldLoc}</td>
                    <td class="align-middle">${dest}</td>
