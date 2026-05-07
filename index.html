@@ -2527,7 +2527,8 @@
       let tempCodes = {};
       
       newMvCart.forEach((val, key) => {
-         if (key.startsWith('MISC-')) miscDetails[key] = val;
+         // 💡 關鍵修正：移除 startsWith('MISC-') 的限制，將所有購物車項目的正確名稱與地點傳給後端
+         miscDetails[key] = val;
          if (val.tempCode) tempCodes[key] = val.tempCode; 
       });
 
