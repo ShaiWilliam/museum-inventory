@@ -394,7 +394,7 @@
               <div class="col-4"><div class="stat-box py-1"><div class="stat-num text-danger" id="valUnscanned" style="font-size: 1.2rem;">...</div><small>未盤</small></div></div>
             </div>
             <div class="progress mb-3" style="height: 12px;"><div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div></div>
-            <div id="syncStatus" class="text-center text-muted small mb-2" style="display: none;">☁️ 雲端背景同步中...</div>
+            <div id="syncStatus" class="text-center text-muted small mb-2" style="display: none;">☁️ 雲端背景同步中... (<span id="syncQueueCount">0</span> 筆)</div>
             <div id="reader-container">
               <div id="resultOverlay">
                 <div class="d-flex align-items-center">
@@ -1024,10 +1024,35 @@
 
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
     localStorage.setItem('myUid', myUserId);
-    
+
+    // ================= 💡 XSS 防護與安全機制 =================
+    // 避免使用者在試算表輸入 HTML 標籤導致系統跑版或遭到惡意腳本注入
+    function escapeHTML(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>'"]/g, function(tag) {
+            const charsToReplace = { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' };
+            return charsToReplace[tag] || tag;
+        });
+    }
+
+    // ================= 💡 UI 狀態防呆與進度條機制 =================
+    let miniLoadingTimeout;
     function setProgress(pct, text) { document.getElementById('splashProgress').style.width = pct + '%'; if(text) document.getElementById('splashText').innerText = text; }
-    function showMiniLoading(msg = "處理中...") { document.getElementById('miniLoadingText').innerText = msg; document.getElementById('miniLoading').style.display = 'flex'; }
-    function hideMiniLoading() { document.getElementById('miniLoading').style.display = 'none'; }
+    
+    // 加入 Timeout 防卡死機制 (30秒自動隱藏)
+    function showMiniLoading(msg = "處理中...") { 
+        document.getElementById('miniLoadingText').innerText = msg; 
+        document.getElementById('miniLoading').style.display = 'flex'; 
+        clearTimeout(miniLoadingTimeout);
+        miniLoadingTimeout = setTimeout(() => {
+            hideMiniLoading();
+            console.warn("⚠️ 系統處理逾時，自動解除防呆鎖定。");
+        }, 30000); 
+    }
+    function hideMiniLoading() { 
+        document.getElementById('miniLoading').style.display = 'none'; 
+        clearTimeout(miniLoadingTimeout);
+    }
     
     function showSyncToast(text, isSuccess = false) {
         const toast = document.getElementById('syncToast');
@@ -1042,6 +1067,20 @@
             toast.style.display = 'block';
             setTimeout(() => toast.style.opacity = '1', 10);
         }
+    }
+
+    // ================= 💡 離線同步佇列 (Offline Sync Queue) =================
+    // 系統載入時讀取是否有上次未上傳成功的掃描紀錄
+    try {
+        let savedQ = localStorage.getItem('offlineSyncQueue');
+        if (savedQ) syncQueue = JSON.parse(savedQ);
+    } catch(e) {}
+
+    function saveSyncQueue() {
+        try { localStorage.setItem('offlineSyncQueue', JSON.stringify(syncQueue)); } catch(e) {}
+        // 更新畫面上顯示的排隊數量
+        let qCount = document.getElementById('syncQueueCount');
+        if(qCount) qCount.innerText = syncQueue.length;
     }
 
     function saveMvDraft() {
@@ -1124,6 +1163,11 @@
               localStorage.removeItem('staffToken'); localStorage.removeItem('staffName'); localStorage.removeItem('tokenExpiry');
           }
       }
+      
+      // 若有未上傳完畢的資料，啟動背景同步
+      if (syncQueue.length > 0) {
+          triggerBackgroundSync();
+      }
     };
 
     async function loginAtFrontDoor() {
@@ -1172,7 +1216,7 @@
         populateSelect('mvStaffInternal', workData.staffInternal || []);
         
         const actionSelect = document.getElementById('newMvActionSelect');
-        actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (workData.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
+        actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (workData.events || []).map(x => `<option value="${escapeHTML(x.id)}">✏️ 編輯專案: ${escapeHTML(x.name)}</option>`).join('');
 
         setProgress(100, '🚀 系統啟動！');
         
@@ -1190,7 +1234,7 @@
         let activeTab = document.querySelector('.nav-link.active'); if(!activeTab) return;
         let moduleId = activeTab.getAttribute('data-bs-target').replace('#', '');
         let content = globalManuals[moduleId];
-        if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } else { document.getElementById('helpContent').innerHTML = formatHelpText(content); }
+        if (!content) { document.getElementById('helpContent').innerHTML = "管理員尚未同步此模組的操作說明。<br><br>請點擊下方按鈕查看完整版《系統操作手冊》。"; } else { document.getElementById('helpContent').innerHTML = formatHelpText(escapeHTML(content)); }
         let titles = { 'query': '🔍 藏品狀態查詢', 'register': '📝 建檔與列印中心', 'inv': '📦 文物盤點系統', 'move': '🚚 文物異動搬運', 'mgr': '⚙️ 管理員後台' };
         document.getElementById('helpOffcanvasLabel').innerText = titles[moduleId] + " 指南";
         var bsOffcanvas = new bootstrap.Offcanvas(document.getElementById('helpOffcanvas')); bsOffcanvas.show();
@@ -1233,7 +1277,17 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
     }
     
-    async function stopScannerSafe(cam) { if (cam) { try { if (cam.getState() === 2 || cam.getState() === 3) { await cam.stop(); } } catch(e) {} try { cam.clear(); } catch(e) {} } }
+    // 💡 強化相機安全釋放機制，避免黑屏
+    async function stopScannerSafe(cam) { 
+        if (cam) { 
+            try { 
+                if (cam.getState() === 2 || cam.getState() === 3) { 
+                    await cam.stop(); 
+                } 
+            } catch(e) { console.warn("相機停止發生錯誤，強制釋放資源:", e); } 
+            try { cam.clear(); } catch(e) {} 
+        } 
+    }
 
     async function backToHome() {
       let isStaff = localStorage.getItem('staffToken') === 'true'; if(!isStaff) return;
@@ -1270,7 +1324,7 @@
             populateSelect('mvEvent', res.events || [], true); 
             
             const actionSelect = document.getElementById('newMvActionSelect');
-            actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (res.events || []).map(x => `<option value="${x.id}">✏️ 編輯專案: ${x.name}</option>`).join('');
+            actionSelect.innerHTML = '<option value="NEW">➕ 建立全新專案</option>' + (res.events || []).map(x => `<option value="${escapeHTML(x.id)}">✏️ 編輯專案: ${escapeHTML(x.name)}</option>`).join('');
             loadWorkerLocations(); 
             loadAllProjects(); 
         } 
@@ -1285,27 +1339,30 @@
       } catch(e) { alert("刷新失敗：" + e.message); } finally { hideMiniLoading(); }
     }
 
-    function populateSelect(id, arr, isObj = false) { if (!arr || !Array.isArray(arr)) return; document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${x.id}">${x.name}</option>` : `<option value="${x}">${x}</option>`).join(''); }
+    function populateSelect(id, arr, isObj = false) { 
+        if (!arr || !Array.isArray(arr)) return; 
+        document.getElementById(id).innerHTML = '<option value="">請選擇...</option>' + arr.map(x => isObj ? `<option value="${escapeHTML(x.id)}">${escapeHTML(x.name)}</option>` : `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); 
+    }
 
     function renderTreeHTML(treeData, containerId, prefix, isMulti) {
       if(!treeData || treeData.length === 0) { document.getElementById(containerId).innerHTML = '<div class="alert alert-warning">無可用地點</div>'; return; }
       let html = `<div class="accordion" id="${prefix}Accordion">`;
       treeData.forEach((mainNode, mIdx) => {
         let totalLeaves = mainNode.subs.reduce((sum, subNode) => sum + subNode.details.length, 0); let badgeHtml = isMulti ? `<span class="badge bg-secondary ms-2 count-badge" data-total="${totalLeaves}">已選 0/${totalLeaves}</span>` : '';
-        html += `<div class="accordion-item main-item"><h2 class="accordion-header"><button class="accordion-button collapsed d-flex justify-content-between py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}"><div><strong class="fs-5">${mainNode.main}</strong> ${badgeHtml}</div></button></h2><div id="${prefix}Col${mIdx}" class="accordion-collapse collapse"><div class="accordion-body p-2 bg-light">`;
+        html += `<div class="accordion-item main-item"><h2 class="accordion-header"><button class="accordion-button collapsed d-flex justify-content-between py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${prefix}Col${mIdx}"><div><strong class="fs-5">${escapeHTML(mainNode.main)}</strong> ${badgeHtml}</div></button></h2><div id="${prefix}Col${mIdx}" class="accordion-collapse collapse"><div class="accordion-body p-2 bg-light">`;
         mainNode.subs.forEach((subNode, sIdx) => {
           let collapseId = `${prefix}_m${mIdx}_s${sIdx}_collapse`;
           if (subNode.details.length === 1) { 
              let det = subNode.details[0]; 
              let displayLabel = det.label === "(無)" ? subNode.sub : det.label; 
-             html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${displayLabel}</label>` : `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${det.val}')">📍 ${displayLabel}</button>`) + `</div></div>`; 
+             html += `<div class="sub-group mb-2 bg-white rounded shadow-sm"><div class="leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${escapeHTML(det.val)}" id="${prefix}_m${mIdx}_s${sIdx}_d0" onchange="updateCounts()"><label class="btn single-item-btn w-100 text-start fw-bold py-3" for="${prefix}_m${mIdx}_s${sIdx}_d0">📍 ${escapeHTML(displayLabel)}</label>` : `<button type="button" class="btn single-item-btn w-100 text-start fw-bold py-3" onclick="selectModalLoc('${escapeHTML(det.val)}')">📍 ${escapeHTML(displayLabel)}</button>`) + `</div></div>`; 
           } 
           else {
-             html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${subNode.sub}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
+             html += `<div class="sub-group mb-3 border rounded bg-white shadow-sm"><div class="d-flex justify-content-between align-items-center p-2 border-bottom"><div class="fw-bold text-primary flex-grow-1 fs-6" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}">📂 ${escapeHTML(subNode.sub)}</div>` + (isMulti ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInSub(this, true, '${collapseId}')">全選</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllInSub(this, false)">清除</button></div>` : '') + `</div><div id="${collapseId}" class="collapse"><div class="row g-2 p-2 bg-light">`;
              subNode.details.forEach((det, dIdx) => { 
                 let zebraClass = dIdx % 2 !== 0 ? 'bg-zebra-even' : 'bg-white'; 
                 let dLabel = det.label === "(無)" ? subNode.sub : det.label; 
-                html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${det.val}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${dLabel}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${det.val}')">${dLabel}</button>`) + `</div>`; 
+                html += `<div class="col-6 leaf-item">` + (isMulti ? `<input type="checkbox" class="btn-check leaf-cb" value="${escapeHTML(det.val)}" id="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}" onchange="updateCounts()"><label class="btn btn-outline-success w-100 text-center py-2 text-truncate ${zebraClass}" for="${prefix}_m${mIdx}_s${sIdx}_d${dIdx}">${escapeHTML(dLabel)}</label>` : `<button type="button" class="btn btn-outline-dark w-100 text-center py-2 text-truncate ${zebraClass}" onclick="selectModalLoc('${escapeHTML(det.val)}')">${escapeHTML(dLabel)}</button>`) + `</div>`; 
              });
              html += `</div></div></div>`;
           }
@@ -1362,7 +1419,7 @@
             globalCatalog[cleanId] = freshRes; 
             
             if(locText.innerText !== freshRes.location && freshRes.location) {
-                locText.innerHTML = `<span class="text-danger fade-in-section">📍 ${freshRes.location} (最新)</span>`;
+                locText.innerHTML = `<span class="text-danger fade-in-section">📍 ${escapeHTML(freshRes.location)} (最新)</span>`;
                 playSound('success');
             } else {
                 locText.innerText = freshRes.location || "無地點資料";
@@ -1409,7 +1466,7 @@
       allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse();
       const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); 
       let locHtml = '<option value="">所有地點</option>'; 
-      locs.forEach(l => locHtml += `<option value="${l}">${l}</option>`); 
+      locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); 
       document.getElementById('printLocFilter').innerHTML = locHtml; 
       filterPrintList(); 
     }
@@ -1419,8 +1476,8 @@
       if(items.length === 0) { container.innerHTML = '<div class="p-3 text-center text-muted">查無紀錄</div>'; return; }
       container.innerHTML = items.map((item, idx) => `
         <div class="print-item p-2 d-flex align-items-center">
-          <input class="form-check-input me-2 cb-print" type="checkbox" value="${item.id}" data-name="${item.name}" data-loc="${item.loc}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)">
-          <label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${item.id}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${item.name}</div></label>
+          <input class="form-check-input me-2 cb-print" type="checkbox" value="${escapeHTML(item.id)}" data-name="${escapeHTML(item.name)}" data-loc="${escapeHTML(item.loc)}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)">
+          <label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${escapeHTML(item.id)}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${escapeHTML(item.loc)}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${escapeHTML(item.name)}</div></label>
         </div>`).join('');
       updateCartBtn();
     }
@@ -1439,7 +1496,7 @@
     function showPrintPreview() {
       if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！");
       document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block'; let html = '';
-      printCartMap.forEach((data, id) => { html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${id}</span><span class="small text-muted text-truncate">${data.name}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${data.loc}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${id}')">❌ 移除</button></div>`; });
+      printCartMap.forEach((data, id) => { html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${escapeHTML(id)}</span><span class="small text-muted text-truncate">${escapeHTML(data.name)}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${escapeHTML(data.loc)}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${escapeHTML(id)}')">❌ 移除</button></div>`; });
       document.getElementById('printPreviewContainer').innerHTML = html;
     }
 
@@ -1459,12 +1516,12 @@
               let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`;
               
               for(let loc of Object.keys(groups).sort()) {
-                 printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${loc}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
+                 printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${escapeHTML(loc)}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`;
                  for(let item of groups[loc]) {
                    const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`;
                    const qr = new QRious({ value: urlStr, size: 150, level: 'M' });
                    const base64Img = qr.toDataURL('image/png');
-                   printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${item.id}</div><div class="name-text">${item.name}</div></div>`;
+                   printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${escapeHTML(item.id)}</div><div class="name-text">${escapeHTML(item.name)}</div></div>`;
                  }
               }
               
@@ -1512,7 +1569,12 @@
       let cleanMsg = msg.includes('?id=') ? new URL(msg).searchParams.get('id') : msg.trim().split('\n')[0]; const item = localItemCache[cleanMsg]; const overlay = document.getElementById('resultOverlay'); overlay.style.display = 'block';
       if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在盤點範圍</span>'; document.getElementById('resName').innerText = cleanMsg; document.getElementById('resDesc').innerText = "請確認是否錯置或尚未建檔"; } 
       else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點過</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = "此文物稍早已經完成盤點"; } 
-      else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = item.desc || ""; syncQueue.push(cleanMsg); triggerBackgroundSync(); }
+      else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 盤點成功</span>'; document.getElementById('resName').innerText = item.name; document.getElementById('resDesc').innerText = item.desc || ""; 
+        // 💡 離線同步保護：存入佇列後立刻寫入本機
+        syncQueue.push(cleanMsg); 
+        saveSyncQueue();
+        triggerBackgroundSync(); 
+      }
       setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
     }
 
@@ -1525,13 +1587,16 @@
           try { 
               await callAPI('submitScan', { qrStr: currentMsg, mode: sysState.mode, locations: sysState.locations }); 
               syncQueue.shift(); 
+              saveSyncQueue(); // 雲端更新成功後移除本機暫存
           } catch(e) { 
               let errStr = e.message.toLowerCase(); 
               if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet') || errStr.includes('failed to fetch')) { 
+                  // 若是網路異常，保留在 Queue 中，等下次再試
                   break; 
               } else { 
-                  console.error("背景同步失敗 (非網路問題):", e);
+                  console.error("背景同步失敗 (非網路問題，放棄該筆):", e);
                   syncQueue.shift(); 
+                  saveSyncQueue();
               } 
           } 
       }
@@ -1560,7 +1625,7 @@
             
             const projNames = [...new Set(allProjectsList.map(p => p.name))].sort();
             let nameHtml = '<option value="">📁 所有專案名稱</option>';
-            projNames.forEach(n => nameHtml += `<option value="${n}">${n}</option>`);
+            projNames.forEach(n => nameHtml += `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`);
             document.getElementById('projectSelectFilter').innerHTML = nameHtml;
             
             filterProjectCards();
@@ -1594,12 +1659,12 @@
             let actionBtns = '';
             if(p.status === '進行中') {
                 actionBtns = `
-                    <button class="btn btn-sm btn-outline-info fw-bold w-100 mb-2" onclick="editProjectFromOverview('${p.id}')">📝 編輯專案清單</button>
-                    <button class="btn btn-sm btn-outline-success fw-bold w-100" onclick="executeProjectFromOverview('${p.id}')">🚚 執行搬運</button>
+                    <button class="btn btn-sm btn-outline-info fw-bold w-100 mb-2" onclick="editProjectFromOverview('${escapeHTML(p.id)}')">📝 編輯專案清單</button>
+                    <button class="btn btn-sm btn-outline-success fw-bold w-100" onclick="executeProjectFromOverview('${escapeHTML(p.id)}')">🚚 執行搬運</button>
                 `;
             } else {
                 actionBtns = `
-                    <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="printProjectFromOverview('${p.id}', '${p.name}')">🖨️ 列印清冊</button>
+                    <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="printProjectFromOverview('${escapeHTML(p.id)}', '${escapeHTML(p.name)}')">🖨️ 列印清冊</button>
                 `;
             }
 
@@ -1608,11 +1673,11 @@
                 <div class="card shadow-sm h-100 border-0 border-start border-4 ${p.status === '進行中' ? 'border-primary' : 'border-secondary'}">
                     <div class="card-body p-3">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${p.name}</h6>
-                            <span class="badge ${badgeClass}">${p.status}</span>
+                            <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${escapeHTML(p.name)}</h6>
+                            <span class="badge ${badgeClass}">${escapeHTML(p.status)}</span>
                         </div>
-                        <small class="text-muted d-block mb-1" style="font-family: monospace;">${p.id}</small>
-                        <small class="text-secondary d-block mb-3 text-truncate">${p.desc || '無備註'}</small>
+                        <small class="text-muted d-block mb-1" style="font-family: monospace;">${escapeHTML(p.id)}</small>
+                        <small class="text-secondary d-block mb-3 text-truncate">${escapeHTML(p.desc || '無備註')}</small>
                         
                         <div class="mb-3 bg-light rounded p-2 border">
                             <div class="d-flex justify-content-between small fw-bold text-secondary mb-1">
@@ -1626,7 +1691,7 @@
                         
                         <div class="row g-2">
                             <div class="col-12">
-                                <button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${p.id}', '${p.name}', '${p.status}', '${p.desc}')">👁️ 檢視明細</button>
+                                <button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${escapeHTML(p.id)}', '${escapeHTML(p.name)}', '${escapeHTML(p.status)}', '${escapeHTML(p.desc)}')">👁️ 檢視明細</button>
                             </div>
                             <div class="col-12">
                                 ${actionBtns}
@@ -1646,7 +1711,7 @@
             
             document.getElementById('pdId').innerText = id;
             document.getElementById('pdModalTitle').innerText = name;
-            document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${status}</span>`;
+            document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${escapeHTML(status)}</span>`;
             document.getElementById('pdDesc').innerText = desc || '無';
             
             document.getElementById('pdSearchKw').value = '';
@@ -1659,15 +1724,15 @@
             });
             
             let oldHtml = '<option value="">📍 所有原地點</option>';
-            Array.from(oldLocs).sort().forEach(l => oldHtml += `<option value="${l}">${l}</option>`);
+            Array.from(oldLocs).sort().forEach(l => oldHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`);
             document.getElementById('pdOldLocFilter').innerHTML = oldHtml;
             
             let newHtml = '<option value="">📍 所有新地點</option>';
-            Array.from(newLocs).sort().forEach(l => newHtml += `<option value="${l}">${l}</option>`);
+            Array.from(newLocs).sort().forEach(l => newHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`);
             document.getElementById('pdNewLocFilter').innerHTML = newHtml;
             
             let prefHtml = '<option value="">🏷️ 所有前綴</option>';
-            Array.from(prefixes).sort().forEach(p => prefHtml += `<option value="${p}">${p}</option>`);
+            Array.from(prefixes).sort().forEach(p => prefHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`);
             document.getElementById('pdPrefixFilter').innerHTML = prefHtml;
             
             renderPdTable(); 
@@ -1702,18 +1767,18 @@
         }
         
         document.getElementById('pdTableBody').innerHTML = filtered.map(item => {
-            let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
-            let destHtml = item.newLoc ? `<span class="text-success fw-bold">${item.newLoc}</span>` : `<span class="text-muted">尚未搬運</span>`;
-            if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${item.boxName}</small>`;
+            let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : '';
+            let destHtml = item.newLoc ? `<span class="text-success fw-bold">${escapeHTML(item.newLoc)}</span>` : `<span class="text-muted">尚未搬運</span>`;
+            if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${escapeHTML(item.boxName)}</small>`;
             
             // 💡 處理一件多物的換行顯示
             let displayId = item.id.replace(/\n/g, ' ');
 
             return `
             <tr>
-                <td class="fw-bold text-start" style="font-size: 0.85rem;">${displayId}${tcBadge}</td>
-                <td class="text-start small">${item.name}</td>
-                <td class="small text-muted">${item.oldLoc}</td>
+                <td class="fw-bold text-start" style="font-size: 0.85rem;">${escapeHTML(displayId)}${tcBadge}</td>
+                <td class="text-start small">${escapeHTML(item.name)}</td>
+                <td class="small text-muted">${escapeHTML(item.oldLoc)}</td>
                 <td class="small">${destHtml}</td>
             </tr>`;
         }).join('');
@@ -1741,7 +1806,7 @@
             <div class="preview-paper">
                 <h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3>
                 <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                    <span><strong>專案名稱：</strong> ${eventName}</span>
+                    <span><strong>專案名稱：</strong> ${escapeHTML(eventName)}</span>
                     <span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span>
                 </div>
                 <table class="table table-bordered table-sm" style="font-size: 10pt;">
@@ -1759,9 +1824,9 @@
             `;
 
             res.forEach((item, idx) => {
-                let dest = item.newLoc ? item.newLoc : "未搬運";
-                if(item.boxName) dest += `<br><small>(${item.boxName})</small>`;
-                let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+                let dest = item.newLoc ? escapeHTML(item.newLoc) : "未搬運";
+                if(item.boxName) dest += `<br><small>(${escapeHTML(item.boxName)})</small>`;
+                let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : '';
                 
                 // 💡 處理一件多物的換行顯示
                 let displayId = item.id.replace(/\n/g, ' ');
@@ -1769,9 +1834,9 @@
                 html += `
                     <tr>
                         <td class="text-center align-middle">${idx + 1}</td>
-                        <td class="align-middle">${displayId} ${tcLabel}</td>
-                        <td class="align-middle">${item.name}</td>
-                        <td class="align-middle">${item.oldLoc}</td>
+                        <td class="align-middle">${escapeHTML(displayId)} ${tcLabel}</td>
+                        <td class="align-middle">${escapeHTML(item.name)}</td>
+                        <td class="align-middle">${escapeHTML(item.oldLoc)}</td>
                         <td class="align-middle">${dest}</td>
                         <td></td>
                     </tr>
@@ -1804,7 +1869,7 @@
       allMvItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse();
       const locs = [...new Set(allMvItems.map(i => i.loc))].sort(); 
       let locHtml = '<option value="">所有地點</option>'; 
-      locs.forEach(l => locHtml += `<option value="${l}">${l}</option>`); 
+      locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); 
       document.getElementById('newMvLocFilter').innerHTML = locHtml;
     }
 
@@ -1824,11 +1889,13 @@
              newMvCart.clear();
              res.items.forEach(item => {
                 newMvCart.set(item.id, { name: item.name, loc: item.loc, isMisc: item.id.startsWith('MISC-'), tempCode: item.tempCode });
-                if (item.id.startsWith('MISC-') && !allMvItems.find(x => x.id === item.id)) {
-                   allMvItems.unshift({ id: item.id, name: item.name, loc: item.loc, isMisc: true, tempCode: item.tempCode });
+                
+                // 💡 確保「一件多物」的獨立 ID 也會被加回 allMvItems 清單中供顯示與搜尋
+                let existing = allMvItems.find(x => x.id === item.id);
+                if(!existing) {
+                    allMvItems.unshift({ id: item.id, name: item.name, loc: item.loc, isMisc: item.id.startsWith('MISC-'), tempCode: item.tempCode });
                 } else {
-                   let existing = allMvItems.find(x => x.id === item.id);
-                   if(existing) existing.tempCode = item.tempCode;
+                    existing.tempCode = item.tempCode;
                 }
              });
              document.getElementById('newMvSelectedCount').innerText = newMvCart.size;
@@ -1903,19 +1970,19 @@
       let html = displayItems.map((item, idx) => {
         let cartItem = newMvCart.get(item.id);
         let isChecked = cartItem ? 'checked' : '';
-        let tcBadge = (cartItem && cartItem.tempCode) ? `<span class="badge bg-info text-dark ms-2 shadow-sm"><i class="fas fa-tag"></i> ${cartItem.tempCode}</span>` : '';
+        let tcBadge = (cartItem && cartItem.tempCode) ? `<span class="badge bg-info text-dark ms-2 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(cartItem.tempCode)}</span>` : '';
         
         // 💡 處理一件多物的換行顯示
         let displayId = item.id.replace(/\n/g, ' ');
 
         return `<div class="print-item p-2 d-flex align-items-center">
-          <input class="form-check-input me-2 cb-newmv" type="checkbox" value="${item.id}" data-name="${item.name}" data-loc="${item.loc}" id="nmv_${idx}" ${isChecked} onchange="updateNewMvCart(this)">
+          <input class="form-check-input me-2 cb-newmv" type="checkbox" value="${escapeHTML(item.id)}" data-name="${escapeHTML(item.name)}" data-loc="${escapeHTML(item.loc)}" id="nmv_${idx}" ${isChecked} onchange="updateNewMvCart(this)">
           <label class="form-check-label flex-grow-1 d-flex flex-column" for="nmv_${idx}">
              <div class="fw-bold text-dark d-flex justify-content-between">
-                <span>${item.isMisc ? '📦 ' + displayId : displayId} ${tcBadge}</span>
-                <span class="badge bg-secondary" style="font-size:0.7rem;">${item.loc}</span>
+                <span>${item.isMisc ? '📦 ' + escapeHTML(displayId) : escapeHTML(displayId)} ${tcBadge}</span>
+                <span class="badge bg-secondary" style="font-size:0.7rem;">${escapeHTML(item.loc)}</span>
              </div>
-             <div class="small ${item.isMisc ? 'text-danger' : 'text-muted'} text-truncate" style="max-width: 250px;">${item.name}</div>
+             <div class="small ${item.isMisc ? 'text-danger' : 'text-muted'} text-truncate" style="max-width: 250px;">${escapeHTML(item.name)}</div>
           </label>
         </div>`;
       }).join('');
@@ -1974,7 +2041,7 @@
         let selectHtml = '<option value="">所有前綴</option>';
         
         Array.from(prefixes).sort().forEach(p => {
-            selectHtml += `<option value="${p}">${p}</option>`;
+            selectHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`;
         });
         
         document.getElementById('cartPrefixFilter').innerHTML = selectHtml;
@@ -2020,17 +2087,17 @@
             html += `
             <div class="d-flex align-items-center p-2 border-bottom">
                 <div class="me-2">
-                    <input class="form-check-input cart-item-cb" type="checkbox" value="${id}">
+                    <input class="form-check-input cart-item-cb" type="checkbox" value="${escapeHTML(id)}">
                 </div>
                 <div style="width: 45%;">
-                    <div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+displayId : displayId}</div>
-                    <div class="small text-muted text-truncate" style="max-width: 150px;">${val.name}</div>
+                    <div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+escapeHTML(displayId) : escapeHTML(displayId)}</div>
+                    <div class="small text-muted text-truncate" style="max-width: 150px;">${escapeHTML(val.name)}</div>
                 </div>
                 <div style="width: 30%;" class="px-1">
-                    <input type="text" class="form-control form-control-sm border-info" placeholder="臨時編碼" value="${tc}" onchange="updateCartItemTc('${id}', this.value)">
+                    <input type="text" class="form-control form-control-sm border-info" placeholder="臨時編碼" value="${escapeHTML(tc)}" onchange="updateCartItemTc('${escapeHTML(id)}', this.value)">
                 </div>
                 <div style="width: 15%; text-align: right;">
-                    <button class="btn btn-sm btn-outline-danger" onclick="removeCartItem('${id}')">❌</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeCartItem('${escapeHTML(id)}')">❌</button>
                 </div>
             </div>`;
             count++;
@@ -2105,6 +2172,10 @@
         if(item) {
             item.tempCode = val;
             newMvCart.set(id, item);
+            
+            let inAllList = allMvItems.find(x => x.id === id);
+            if(inAllList) inAllList.tempCode = val;
+
             saveMvDraft();
             filterNewMvList(); 
             refreshCartPrefixDropdown(); 
@@ -2127,15 +2198,15 @@
         let html = '';
         let idx = 0;
         newMvCart.forEach((val, id) => {
-            let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${val.tempCode}</span>` : '';
+            let tcBadge = val.tempCode ? `<span class="badge bg-info text-dark ms-2"><i class="fas fa-tag"></i> ${escapeHTML(val.tempCode)}</span>` : '';
             // 💡 處理一件多物的換行顯示
             let displayId = id.replace(/\n/g, ' ');
             html += `
             <div class="form-check mb-2 pb-2 border-bottom">
-                <input class="form-check-input tc-item-cb" type="checkbox" value="${id}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
+                <input class="form-check-input tc-item-cb" type="checkbox" value="${escapeHTML(id)}" id="tc_${idx}" data-has-tc="${val.tempCode ? 'true' : 'false'}">
                 <label class="form-check-label w-100 fs-6" for="tc_${idx}">
-                    <span class="fw-bold text-dark">${displayId}</span> ${tcBadge}<br>
-                    <small class="text-muted">${val.name}</small>
+                    <span class="fw-bold text-dark">${escapeHTML(displayId)}</span> ${tcBadge}<br>
+                    <small class="text-muted">${escapeHTML(val.name)}</small>
                 </label>
             </div>`;
             idx++;
@@ -2300,23 +2371,23 @@
             let statusBadge = '';
             let trClass = '';
             let tcHtml = '';
-            let locColumnHtml = item.loc; 
+            let locColumnHtml = escapeHTML(item.loc); 
 
             if (item.status === 'match') {
                 statusBadge = '<span class="badge bg-success">✅ 成功</span>';
                 matchCount++;
-                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
+                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>`;
             } else if (item.status === 'duplicate') {
                 statusBadge = '<span class="badge bg-secondary">🔄 已在清單</span>';
                 trClass = 'table-secondary text-muted';
                 dupCount++;
-                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
+                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>`;
             } else if (item.status === 'conflict') {
                 statusBadge = '<span class="badge bg-warning text-dark">⚠️ 編碼衝突</span>';
                 trClass = 'table-warning';
                 dupCount++;
-                tcHtml = `<br><small class="text-danger fw-bold">原: [${item.oldTc}] ➔ 匯入: [${item.tempCode}]</small>
-                          <br><input type="text" class="form-control form-control-sm mt-1 conflict-tc-input" data-id="${item.finalId}" value="${item.oldTc}" placeholder="確認編碼">`;
+                tcHtml = `<br><small class="text-danger fw-bold">原: [${escapeHTML(item.oldTc)}] ➔ 匯入: [${escapeHTML(item.tempCode)}]</small>
+                          <br><input type="text" class="form-control form-control-sm mt-1 conflict-tc-input" data-id="${escapeHTML(item.finalId)}" value="${escapeHTML(item.oldTc)}" placeholder="確認編碼">`;
             } else if (item.status === 'unmatched') {
                 statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>';
                 trClass = 'table-danger';
@@ -2325,12 +2396,12 @@
                 statusBadge = '<span class="badge bg-warning text-dark">📦 轉為雜物</span>';
                 trClass = 'table-warning';
                 matchCount++; 
-                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${item.tempCode}</span>`;
+                if(item.tempCode) tcHtml = `<br><span class="badge bg-info text-dark mt-1"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>`;
                 
                 locColumnHtml = `
                     <div class="input-group input-group-sm">
-                        <input type="text" class="form-control bg-white text-danger fw-bold" readonly placeholder="點選或掃描..." value="${item.loc}" onclick="triggerImportMiscLoc('${item.finalId}')">
-                        <button class="btn btn-outline-danger" type="button" onclick="startImportLocScanner('${item.finalId}')"><i class="fas fa-qrcode"></i></button>
+                        <input type="text" class="form-control bg-white text-danger fw-bold" readonly placeholder="點選或掃描..." value="${escapeHTML(item.loc)}" onclick="triggerImportMiscLoc('${escapeHTML(item.finalId)}')">
+                        <button class="btn btn-outline-danger" type="button" onclick="startImportLocScanner('${escapeHTML(item.finalId)}')"><i class="fas fa-qrcode"></i></button>
                     </div>`;
             }
             
@@ -2340,8 +2411,8 @@
             html += `
             <tr class="${trClass}">
                 <td>${statusBadge}</td>
-                <td class="fw-bold text-start">${displayId}${tcHtml}</td>
-                <td class="text-start">${item.name}</td>
+                <td class="fw-bold text-start">${escapeHTML(displayId)}${tcHtml}</td>
+                <td class="text-start">${escapeHTML(item.name)}</td>
                 <td class="align-middle" style="min-width: 140px;">${locColumnHtml}</td>
             </tr>`;
         });
@@ -2477,9 +2548,9 @@
             html += `
             <tr class="${trClass}">
                 <td>${statusBadge}</td>
-                <td class="fw-bold text-dark">${item.id}</td>
-                <td class="small">${item.oldLoc || '無'}</td>
-                <td class="text-danger fw-bold small">${item.status === 'not_found' ? '--' : item.newLoc}</td>
+                <td class="fw-bold text-dark">${escapeHTML(item.id)}</td>
+                <td class="small">${escapeHTML(item.oldLoc || '無')}</td>
+                <td class="text-danger fw-bold small">${item.status === 'not_found' ? '--' : escapeHTML(item.newLoc)}</td>
             </tr>`;
         });
 
@@ -2527,7 +2598,6 @@
       let tempCodes = {};
       
       newMvCart.forEach((val, key) => {
-         // 💡 關鍵修正：移除 startsWith('MISC-') 的限制，將所有購物車項目的正確名稱與地點傳給後端
          miscDetails[key] = val;
          if (val.tempCode) tempCodes[key] = val.tempCode; 
       });
@@ -2552,6 +2622,87 @@
       } finally {
         hideMiniLoading();
       }
+    }
+    
+    // 💡 補回遺失的「執行搬運」核心控制與地點選單邏輯
+    async function loadWorkerLocations() {
+        const eid = document.getElementById('mvEvent').value;
+        currentMvEventId = eid; // 設定全域變數供背景同步使用
+        if (!eid) {
+            document.getElementById('mvLocSelector').style.display = 'none';
+            document.getElementById('mvProgressBox').style.display = 'none';
+            document.getElementById('mvPhase2').style.display = 'none';
+            document.getElementById('mvPhase3').style.display = 'none';
+            return;
+        }
+        showMiniLoading('載入專案資料中...');
+        try {
+            const res = await callAPI('getProjectPendingData', { eventId: eid });
+            currentProjectItems = res.items || [];
+            pendingLocTree = res.locTree || [];
+            
+            document.getElementById('mvProgressBox').style.display = 'block';
+            let total = res.total || 0;
+            let moved = res.moved || 0;
+            let pct = total > 0 ? Math.round((moved / total) * 100) : 0;
+            document.getElementById('mvProgressText').innerText = `${moved} / ${total} 件 (${pct}%)`;
+            document.getElementById('mvProgressBar').style.width = pct + '%';
+
+            document.getElementById('mvLocSelector').style.display = 'block';
+            document.getElementById('mvLoc').value = '';
+            document.getElementById('mvLocDisplay').value = '';
+            document.getElementById('mvPhase2').style.display = 'none';
+            document.getElementById('mvPhase3').style.display = 'none';
+        } catch (e) {
+            alert("載入專案資料失敗：" + e.message);
+        } finally {
+            hideMiniLoading();
+        }
+    }
+
+    function triggerMvLoc() {
+        currentModalTarget = 'mvLoc';
+        document.getElementById('locModalTitle').innerText = "選擇「原典藏地點」";
+        document.getElementById('modalLocSearch').value = '';
+        filterModalTree();
+        // 執行搬運階段，僅顯示有待搬運文物的地點
+        renderTreeHTML(pendingLocTree, 'modalLocContainer', 'modal', false);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
+    }
+
+    function triggerMvNewLoc() {
+        currentModalTarget = 'mvNewLoc';
+        document.getElementById('locModalTitle').innerText = "選擇「暫存/新地點」";
+        document.getElementById('modalLocSearch').value = '';
+        filterModalTree();
+        // 移往新地點階段，顯示全區地點
+        renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
+    }
+
+    function selectModalLoc(val) {
+        if (!currentModalTarget) return;
+        
+        if (currentModalTarget.startsWith('importMiscLoc_')) {
+            let id = currentModalTarget.split('importMiscLoc_')[1];
+            let item = parsedImportItems.find(x => x.finalId === id);
+            if (item) item.loc = val;
+            renderImportPreview();
+            bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+        } else {
+            document.getElementById(currentModalTarget).value = val;
+            let displayInput = document.getElementById(currentModalTarget + 'Display');
+            if(displayInput) displayInput.value = val;
+            bootstrap.Modal.getInstance(document.getElementById('locModal')).hide();
+            
+            if (currentModalTarget === 'mvLoc') {
+                loadWorkerItems();
+            } else if (currentModalTarget === 'miscLoc') {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show();
+            }
+        }
+        currentModalTarget = '';
     }
 
     function startLocScanner(targetId) {
@@ -2638,7 +2789,7 @@
       if (filteredItems.length === 0) { listDiv.innerHTML = '<div class="text-muted text-center py-4">此地點皆已搬運完畢！</div>'; document.getElementById('mvPhase3').style.display = 'none'; } 
       else { 
           listDiv.innerHTML = filteredItems.map((x, i) => {
-              let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark me-2 shadow-sm fs-6"><i class="fas fa-tag"></i> ${x.tempCode}</span>` : '';
+              let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark me-2 shadow-sm fs-6"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : '';
               let isMisc = x.qrCode.startsWith('MISC');
               
               // 💡 處理一件多物的換行顯示
@@ -2650,9 +2801,9 @@
                   <label class="form-check-label w-100" for="mvItem_${i}">
                       <div class="d-flex align-items-center mb-1">
                           ${tcBadge}
-                          <span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.85rem;">[${displayId}]</span>
+                          <span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.85rem;">[${escapeHTML(displayId)}]</span>
                       </div>
-                      <div class="fs-6 text-dark">${x.name}</div>
+                      <div class="fs-6 text-dark">${escapeHTML(x.name)}</div>
                   </label>
               </div>`;
           }).join(''); 
@@ -2721,9 +2872,9 @@
           const boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort();
           const staffs = [...new Set(allData.map(x => x.staff).filter(Boolean))].sort();
           
-          document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${x}">${x}</option>`).join('');
-          document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${x}">${x}</option>`).join('');
-          document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${x}">${x}</option>`).join('');
+          document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join('');
+          document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join('');
+          document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join('');
           
           document.getElementById('mgrFilterSec').style.display = 'block';
           document.getElementById('btnPrintReport').disabled = false;
@@ -2758,7 +2909,7 @@
         document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => {
             let safeLoc = x.newLoc.replace(/'/g, "\\'").replace(/"/g, "&quot;");
             let safeBox = x.boxName.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-            let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${x.tempCode}</span>` : '';
+            let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : '';
             
             // 💡 處理一件多物的換行顯示
             let displayId = x.qrCode.replace(/\n/g, ' ');
@@ -2766,22 +2917,22 @@
             return `<tr>
                       <td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td>
                       <td>
-                        <b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${displayId}</b>
+                        <b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${escapeHTML(displayId)}</b>
                         ${tcBadge}<br>
-                        <span class="text-primary small fw-bold">${x.name}</span><br>
-                        <small class="text-muted">原: ${x.oldLoc}</small>
+                        <span class="text-primary small fw-bold">${escapeHTML(x.name)}</span><br>
+                        <small class="text-muted">原: ${escapeHTML(x.oldLoc)}</small>
                       </td>
                       <td>
-                        <span class="text-success fw-bold">${x.newLoc}</span><br>
-                        <small class="badge bg-light text-dark border mt-1">${x.boxName||'未裝箱'}</small>
+                        <span class="text-success fw-bold">${escapeHTML(x.newLoc)}</span><br>
+                        <small class="badge bg-light text-dark border mt-1">${escapeHTML(x.boxName||'未裝箱')}</small>
                       </td>
                       <td>
                         ${edit ? 
-                          `<small class="text-muted d-block mb-1">搬運: ${x.staff}</small>
+                          `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small>
                            <button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` 
                           : 
-                          `<small class="text-muted d-block mb-1">搬運: ${x.staff}</small>
-                           <small class="badge bg-success">核對: ${x.manager}</small>`
+                          `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small>
+                           <small class="badge bg-success">核對: ${escapeHTML(x.manager)}</small>`
                         }
                       </td>
                     </tr>`;
@@ -2863,7 +3014,7 @@
        <div class="preview-paper">
            <h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3>
            <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-               <span><strong>專案名稱：</strong> ${eventName}</span>
+               <span><strong>專案名稱：</strong> ${escapeHTML(eventName)}</span>
                <span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span>
            </div>
            <table class="table table-bordered table-sm" style="font-size: 10pt;">
@@ -2881,9 +3032,9 @@
        `;
 
        allData.forEach((item, idx) => {
-           let dest = item.newLoc ? item.newLoc : "未搬運";
-           if(item.boxName) dest += `<br><small>(${item.boxName})</small>`;
-           let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${item.tempCode}</span>` : '';
+           let dest = item.newLoc ? escapeHTML(item.newLoc) : "未搬運";
+           if(item.boxName) dest += `<br><small>(${escapeHTML(item.boxName)})</small>`;
+           let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : '';
            
            // 💡 處理一件多物的換行顯示
            let displayId = item.qrCode.replace(/\n/g, ' ');
@@ -2891,9 +3042,9 @@
            html += `
                <tr>
                    <td class="text-center align-middle">${idx + 1}</td>
-                   <td class="align-middle">${displayId} ${tcLabel}</td>
-                   <td class="align-middle">${item.name}</td>
-                   <td class="align-middle">${item.oldLoc}</td>
+                   <td class="align-middle">${escapeHTML(displayId)} ${tcLabel}</td>
+                   <td class="align-middle">${escapeHTML(item.name)}</td>
+                   <td class="align-middle">${escapeHTML(item.oldLoc)}</td>
                    <td class="align-middle">${dest}</td>
                    <td></td>
                </tr>
@@ -2946,7 +3097,7 @@
                     printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;">
                                     <div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div>
                                     <img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;">
-                                    <div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${loc}</div>
+                                    <div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div>
                                   </div>`;
                 });
                 printHtml += `</div></div>`;
@@ -2997,8 +3148,8 @@
          <div class="loc-card-new" id="locCard_${r.rowIndex}">
            <div class="loc-card-header">
              <div>
-               <span class="badge bg-light text-dark border me-1">${r.main}</span>
-               ${displayMedium ? `<span class="badge bg-light text-dark border">${displayMedium}</span>` : ''}
+               <span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>
+               ${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}
              </div>
              <div>
                <span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" 
@@ -3009,7 +3160,7 @@
                <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>
              </div>
            </div>
-           <div class="loc-card-title">${displaySmall}</div>
+           <div class="loc-card-title">${escapeHTML(displaySmall)}</div>
          </div>`;
        };
 
@@ -3023,7 +3174,7 @@
                <div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden">
                  <h2 class="accordion-header">
                    <button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">
-                     📂 ${mainKey} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span>
+                     📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span>
                    </button>
                  </h2>
                  <div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}">
@@ -3108,8 +3259,8 @@
             card.innerHTML = `
               <div class="loc-card-header">
                  <div>
-                   <span class="badge bg-light text-dark border me-1">${m}</span>
-                   ${med ? `<span class="badge bg-light text-dark border">${med}</span>` : ''}
+                   <span class="badge bg-light text-dark border me-1">${escapeHTML(m)}</span>
+                   ${med ? `<span class="badge bg-light text-dark border">${escapeHTML(med)}</span>` : ''}
                    <span class="badge bg-warning text-dark ms-2" id="syncBadge_${rowIndex}">☁️ 同步中...</span>
                  </div>
                  <div>
@@ -3117,7 +3268,7 @@
                    <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${rowIndex})"><i class="fas fa-trash"></i></button>
                  </div>
                </div>
-               <div class="loc-card-title">${displaySmall}</div>`;
+               <div class="loc-card-title">${escapeHTML(displaySmall)}</div>`;
         }
 
         locUpdateQueue.push({ rowIndex: rowIndex, main: m, medium: med, small: s });
