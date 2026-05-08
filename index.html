@@ -3275,7 +3275,14 @@ async function processLocAddQueue() {
         globalLocTree = newTree.locTree;
         mgrLocTree = newTree.mgrLocTree;
         renderLocationsList(mgrLocTree); 
-        showSyncToast(`✅ ${itemsToProcess.length} 筆新地點背景建立完成`, true);
+        
+        // 💡 建立包含具體地點名稱的提示文字
+        let addedNames = itemsToProcess.map(q => smartConcatLoc(q.main, q.medium, q.small)).join('、');
+        // 如果一次連打太多筆導致字串太長，做個簡單的截斷防呆
+        if (addedNames.length > 40) {
+           addedNames = addedNames.substring(0, 40) + '... 等 ' + itemsToProcess.length + ' 筆';
+        }
+        showSyncToast(`✅ 已成功新增後台資料：${addedNames}`, true);
     } catch (e) {
         console.error("背景建立失敗", e);
         showSyncToast("⚠️ 部分地點建立失敗，將於下次重試", false);
