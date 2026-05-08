@@ -1077,7 +1077,7 @@
   <script>
     // ==========================================
     // ⚠️ 核心設定：請貼上您最新部署的 GAS API 網址！
-    const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbwZ1Yh2KxXgW5e9X8nS4X8nS4X8nS4X8nS4X8nS4X8nS4X8nS/exec"; 
     // ==========================================
 
     let currentManager = "", pendingLocTree = [], currentModalTarget = "", baselineTime = 0;
@@ -1109,7 +1109,6 @@
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
     localStorage.setItem('myUid', myUserId);
 
-    // ================= 💡 XSS 防護與安全機制 =================
     function escapeHTML(str) {
         if (!str && str !== 0) return '';
         return String(str).replace(/[&<>'"]/g, function(tag) {
@@ -1118,7 +1117,6 @@
         });
     }
 
-    // ================= 💡 UI 狀態防呆與進度條機制 =================
     let miniLoadingTimeout;
     function setProgress(pct, text) { document.getElementById('splashProgress').style.width = pct + '%'; if(text) document.getElementById('splashText').innerText = text; }
     
@@ -1151,7 +1149,6 @@
         }
     }
 
-    // ================= 💡 離線同步佇列 (Offline Sync Queue) =================
     try {
         let savedQ = localStorage.getItem('offlineSyncQueue');
         if (savedQ) syncQueue = JSON.parse(savedQ);
@@ -1269,7 +1266,6 @@
         document.getElementById('welcomeName').innerText = `👋 歡迎歸隊，${name}！`; document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
     }
 
-    // 💡 更新全域 Datalist 提供預覽視窗使用
     function updateAllLocsDatalist() {
        const dl = document.getElementById('allLocsDatalist');
        if(!dl) return;
