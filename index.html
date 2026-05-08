@@ -658,9 +658,9 @@
                          
                          <h6 class="fw-bold text-dark small mb-2 border-top pt-3">手動新增地點：</h6>
                          <div class="row g-2 mb-2">
-                             <div class="col-12 col-md-4"><input type="text" id="locAddMain" class="form-control" placeholder="大區 (例: 東側小庫房)"></div>
-                             <div class="col-12 col-md-4"><input type="text" id="locAddMedium" class="form-control" placeholder="中區 (例: 黑櫃1)"></div>
-                             <div class="col-12 col-md-4"><input type="text" id="locAddSmall" class="form-control" placeholder="小區 (例: -07)"></div>
+                             <div class="col-12 col-md-4"><input type="text" id="locAddMain" class="form-control" placeholder="大區 (例: 東側小庫房)" onkeypress="if(event.key === 'Enter') addNewLocation()"></div>
+                             <div class="col-12 col-md-4"><input type="text" id="locAddMedium" class="form-control" placeholder="中區 (例: 黑櫃1)" onkeypress="if(event.key === 'Enter') addNewLocation()"></div>
+                             <div class="col-12 col-md-4"><input type="text" id="locAddSmall" class="form-control" placeholder="小區 (例: -07)" onkeypress="if(event.key === 'Enter') addNewLocation()"></div>
                          </div>
                          <button class="btn btn-primary w-100 fw-bold mt-2" onclick="addNewLocation()">確認新增</button>
                      </div>
@@ -1016,10 +1016,12 @@
     let parsedImportItems = [];
     let parsedOverrideItems = [];
 
-    let locUpdateQueue = [];
-    let isLocSyncing = false;
+let locUpdateQueue = [];
+let isLocSyncing = false;
+let locAddQueue = [];
+let isLocAdding = false;
 
-    let mgrPendingData = [];
+let mgrPendingData = [];
     let mgrConfirmedData = [];
 
     let myUserId = localStorage.getItem('myUid') || Math.random().toString(36).substring(2);
@@ -3114,17 +3116,17 @@
     }
 
     function renderLocationsList(tree) {
-       let allLocs = [];
-       tree.forEach(m => { 
-         m.subs.forEach(s => { 
-           s.details.forEach(d => { 
-               allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden });
-           }); 
-         }); 
-       });
+   let allLocs = [];
+   tree.forEach(m => { 
+     m.subs.forEach(s => { 
+       s.details.forEach(d => { 
+           allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending });
+       }); 
+     }); 
+   });
 
-       let activeLocs = allLocs.filter(r => !r.isHidden);
-       let inactiveLocs = allLocs.filter(r => r.isHidden);
+   let activeLocs = allLocs.filter(r => !r.isHidden);
+   let inactiveLocs = allLocs.filter(r => r.isHidden);
 
        const groupByMain = (arr) => {
          return arr.reduce((acc, curr) => {
@@ -3141,30 +3143,36 @@
          let displaySmall = r.small === "(無)" ? r.full : r.small;
          let displayMedium = r.med === "(本區)" ? "" : r.med;
          let safeMain = r.main.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-         let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-         let safeSmall = (r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+     let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+     let safeSmall = (r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-         return `
-         <div class="loc-card-new" id="locCard_${r.rowIndex}">
-           <div class="loc-card-header">
-             <div>
-               <span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>
-               ${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}
-             </div>
-             <div>
-               <span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" 
-                     onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">
-                 ${!r.isHidden ? '已啟用' : '已停用'}
-               </span>
-               <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button>
-               <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>
-             </div>
-           </div>
-           <div class="loc-card-title">${escapeHTML(displaySmall)}</div>
-         </div>`;
-       };
+     let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : '';
+     let actionBtns = r.isPending ? 
+         `<span class="text-muted small">背景處理中...</span>` : 
+         `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" 
+                 onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">
+             ${!r.isHidden ? '已啟用' : '已停用'}
+           </span>
+           <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button>
+           <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`;
 
-       const buildAccordion = (groupedData, prefixId) => {
+     return `
+     <div class="loc-card-new" id="locCard_${r.rowIndex}">
+       <div class="loc-card-header">
+         <div>
+           <span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>
+           ${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}
+           ${pendingBadge}
+         </div>
+         <div>
+           ${actionBtns}
+         </div>
+       </div>
+       <div class="loc-card-title">${escapeHTML(displaySmall)}</div>
+     </div>`;
+   };
+
+   const buildAccordion = (groupedData, prefixId) => {
            let keys = Object.keys(groupedData).sort();
            if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`;
            return keys.map((mainKey, idx) => {
@@ -3194,43 +3202,94 @@
     }
 
     async function addNewLocation() {
-        const m = document.getElementById('locAddMain').value.trim(); 
-        const med = document.getElementById('locAddMedium').value.trim(); 
-        const s = document.getElementById('locAddSmall').value.trim();
-        if(!m) return alert("「大區」為必填欄位！");
-        
-        let fullStr = smartConcatLoc(m, med, s);
-        let flatTree = [];
-        mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d))));
-        let existing = flatTree.find(d => d.val === fullStr);
+    const m = document.getElementById('locAddMain').value.trim(); 
+    const med = document.getElementById('locAddMedium').value.trim(); 
+    const s = document.getElementById('locAddSmall').value.trim();
+    if(!m) return alert("「大區」為必填欄位！");
+    
+    let fullStr = smartConcatLoc(m, med, s);
+    let flatTree = [];
+    mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d))));
+    
+    let existing = flatTree.find(d => d.val === fullStr);
+    let existingInQueue = locAddQueue.find(q => smartConcatLoc(q.main, q.medium, q.small) === fullStr);
 
-        if (existing) {
-            document.getElementById('locAddMain').value = ''; 
-            document.getElementById('locAddMedium').value = ''; 
-            document.getElementById('locAddSmall').value = ''; 
-            
-            if (!existing.isHidden) {
-                return showToast(' ⚠️ 此地點已在啟用清單中！', true);
-            } else {
-                showToast(' ⚠️ 偵測到歷史停用地點，將為您自動喚醒...', true);
-                return toggleLocStatus(existing.rowIndex, false);
-            }
+    if (existing || existingInQueue) {
+        if (existing && !existing.isHidden) {
+            return showSyncToast('⚠️ 此地點已在啟用清單中！', false);
+        } else if (existing && existing.isHidden) {
+            showSyncToast('⚠️ 偵測到歷史停用地點，將為您自動喚醒...', false);
+            return toggleLocStatus(existing.rowIndex, false);
+        } else {
+            return showSyncToast('⚠️ 此地點已在背景排隊建立中！', false);
         }
-        
-        showMiniLoading('寫入新地點中...');
-        try { 
-            const newTree = await callAPI('addLocation', { main: m, medium: med, small: s }); 
-            globalLocTree = newTree.locTree; 
-            mgrLocTree = newTree.mgrLocTree;
-            renderLocationsList(mgrLocTree); 
-            document.getElementById('locAddMain').value = ''; 
-            document.getElementById('locAddMedium').value = ''; 
-            document.getElementById('locAddSmall').value = ''; 
-            alert("✅ 新地點已建立！"); 
-        } catch(e) { alert("新增失敗：" + e.message); } finally { hideMiniLoading(); }
     }
+    
+    // 將新地點加入背景建立排程
+    locAddQueue.push({ main: m, medium: med, small: s });
+    optimisticAddLocToTree(m, med, s, fullStr);
+    
+    showSyncToast(`✅ [${fullStr}] 已加入建立排程`, true);
+    
+    // 💡 保持輸入文字並自動全選小區，極致加快連打速度
+    const smallInput = document.getElementById('locAddSmall');
+    smallInput.focus();
+    smallInput.select();
+    
+    processLocAddQueue();
+}
 
-    function openEditLocModal(rowIndex, oldMain, oldMedium, oldSmall) {
+function optimisticAddLocToTree(m, med, s, fullStr) {
+    let targetMain = mgrLocTree.find(x => x.main === m);
+    if (!targetMain) {
+        targetMain = { main: m, subs: [] };
+        mgrLocTree.push(targetMain);
+        mgrLocTree.sort((a,b) => a.main.localeCompare(b.main));
+    }
+    let targetSub = targetMain.subs.find(x => x.sub === (med || "(本區)"));
+    if (!targetSub) {
+        targetSub = { sub: (med || "(本區)"), details: [] };
+        targetMain.subs.push(targetSub);
+        targetMain.subs.sort((a,b) => a.sub.localeCompare(b.sub));
+    }
+    targetSub.details.push({
+        label: s || "(無)",
+        val: fullStr,
+        rowIndex: 'temp_' + Date.now() + Math.random(), // 暫時 ID
+        isHidden: false,
+        isPending: true // 標記為背景寫入中
+    });
+    targetSub.details.sort((a,b) => a.label.localeCompare(b.label));
+    renderLocationsList(mgrLocTree);
+}
+
+async function processLocAddQueue() {
+    if (isLocAdding || locAddQueue.length === 0) return;
+    isLocAdding = true;
+
+    const itemsToProcess = [...locAddQueue];
+    locAddQueue = [];
+
+    try {
+        const newTree = await callAPI('batchAddLocations', { items: itemsToProcess });
+        globalLocTree = newTree.locTree;
+        mgrLocTree = newTree.mgrLocTree;
+        renderLocationsList(mgrLocTree); 
+        showSyncToast(`✅ ${itemsToProcess.length} 筆新地點背景建立完成`, true);
+    } catch (e) {
+        console.error("背景建立失敗", e);
+        showSyncToast("⚠️ 部分地點建立失敗，將於下次重試", false);
+        locAddQueue = [...itemsToProcess, ...locAddQueue];
+        renderLocationsList(mgrLocTree); 
+    } finally {
+        isLocAdding = false;
+        if (locAddQueue.length > 0) {
+            processLocAddQueue();
+        }
+    }
+}
+
+function openEditLocModal(rowIndex, oldMain, oldMedium, oldSmall) {
         document.getElementById('editLocRowIndex').value = rowIndex;
         document.getElementById('editLocMain').value = oldMain;
         document.getElementById('editLocMedium').value = oldMedium;
