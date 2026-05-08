@@ -2797,6 +2797,7 @@
     }
 
     function toggleAllItems(state) { 
+        // 只針對「目前畫面上有顯示」的項目進行全選或清除
         document.querySelectorAll('.mv-item-cb').forEach(cb => {
             if(cb.closest('.form-check').style.display !== 'none') {
                 cb.checked = state; 
@@ -2821,6 +2822,7 @@
         document.getElementById('handoverCount').innerText = checkedIndices.length;
         const qrData = "HANDOVER:" + checkedIndices.join(',');
         
+        // 生成 QR 顯示在 Modal
         const qr = new QRious({ value: qrData, size: 250, level: 'M' });
         document.getElementById('handoverQrImage').src = qr.toDataURL('image/png');
         
@@ -2830,7 +2832,7 @@
     function startHandoverScan() {
         document.getElementById('locScannerTitle').innerText = "掃描交接 QR Code";
         document.getElementById('loc-reader-container').style.display = 'flex';
-        locScanTarget = 'handover'; 
+        locScanTarget = 'handover'; // 借用地點掃描器的 UI
         
         if (!locScanner) locScanner = new Html5Qrcode("loc-reader");
         if (locScanner.getState() !== 2) {
@@ -2853,6 +2855,7 @@
         let indices = msg.substring(9).split(',');
         let successCount = 0;
         
+        // 勾選對應的 Checkbox
         indices.forEach(idx => {
             let cb = document.getElementById('mvItem_' + idx);
             if(cb) {
@@ -2869,6 +2872,7 @@
             alert("掃描成功，但清單上找不到對應的文物。\n請確認接手雙方是否選擇了【同一個專案】，並且更新到最新進度。");
         } else {
             showSyncToast(`✅ 成功接收 ${successCount} 件文物勾選狀態！`, true);
+            // 自動滾動到送出按鈕區域
             document.getElementById('mvPhase3BtnArea').scrollIntoView({ behavior: 'smooth' });
         }
     }
@@ -2878,6 +2882,7 @@
         const checkedBoxes = Array.from(document.querySelectorAll('.mv-item-cb:checked'));
         if(checkedBoxes.length === 0) return;
 
+        // 清空之前的警告與批次設定
         document.getElementById('reviewWarningMsg').innerText = '';
         document.getElementById('reviewBulkLoc').value = '';
         document.getElementById('reviewBulkBoxName').value = '';
@@ -2963,15 +2968,19 @@
         try { 
             await callAPI('submitMovement', { updates: updateData, staffInternal: staffInt }); 
             
+            // 移除畫面上的 Row
             const row = document.getElementById(`reviewRow_${rowIndex}`);
             if(row) row.remove();
             
+            // 從清單中移除
             currentProjectItems = currentProjectItems.filter(x => x.rowIndex != rowIndex);
             
+            // 如果全空了就關閉 Modal 並刷新背後
             if(document.querySelectorAll('#reviewTableBody tr').length === 0) {
                 bootstrap.Modal.getInstance(document.getElementById('moveReviewModal')).hide();
                 loadWorkerLocations();
             } else {
+                // 否則靜默更新背景
                 renderWorkerItems();
             }
             
@@ -3025,6 +3034,7 @@
             
             bootstrap.Modal.getInstance(document.getElementById('moveReviewModal')).hide();
             
+            // 全部成功後重新讀取背景
             loadWorkerLocations(); 
             silentMvSync(); 
         } catch(e) { 
