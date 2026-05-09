@@ -1,22 +1,25 @@
+/* ==========================================
+   典藏庫房管理系統 核心樣式表 (style.css)
+   包含：基礎 UI、列印排版、虛擬鍵盤、底部選單
+========================================== */
 html::-webkit-scrollbar, body::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.4); }
 
-html, body { 
-    background-color: #212529; 
-    min-height: 100vh; 
-    margin: 0; padding: 0; 
-    font-family: system-ui, -apple-system, sans-serif; 
-    overflow-x: hidden; 
-    overflow-y: auto; 
-    -webkit-tap-highlight-color: transparent; 
-    transition: background-color 0.5s ease; 
+html, body {
+    background-color: #212529;
+    min-height: 100vh;
+    margin: 0; padding: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.5s ease;
 }
 
 #authScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; background: #212529; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; padding: 20px;}
-
 #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
 .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite; }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
@@ -24,14 +27,12 @@ html, body {
 .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
 
 #homeMenu { padding: max(20px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; min-height: 100vh; }
-
 .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
 .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
 @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
 
 .home-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding-bottom: 20px; }
 @media (min-width: 768px) { .home-grid { grid-template-columns: repeat(2, 1fr); } .home-grid .home-card:last-child { grid-column: 1 / -1; } }
-
 .home-card { background: white; border-radius: 15px; padding: 22px 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; border-bottom: 4px solid transparent; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .home-card:active { transform: scale(0.97); }
 .home-card.c-query { border-bottom-color: #ffc107; }
@@ -49,7 +50,6 @@ html, body {
 .step-card.active { display: block; }
 .stat-box { text-align: center; background: #e9ecef; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
 .stat-num { font-size: 1.5rem; font-weight: bold; }
-
 .vault-card { background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); }
 .letter-spacing-2 { letter-spacing: 2px; }
 
@@ -64,7 +64,6 @@ html, body {
 .single-item-btn { background-color: #e8f5e9; border: 1px solid #198754 !important; color: #157347; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 .bg-zebra-even { background-color: #f0f4f8 !important; border-color: #dbe0e5 !important; }
 .btn-check:checked + .btn-outline-success { background-color: #198754 !important; color: white !important; border-color: #198754 !important; }
-
 .fake-input-btn { cursor: pointer; text-align: left; background-color: #f8f9fa; }
 .fade-in-section { animation: fadeIn 0.4s ease-out; }
 
@@ -73,7 +72,6 @@ html, body {
 #printListContainer { max-height: 40vh; overflow-y: auto; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; }
 .print-item { border-bottom: 1px solid #e9ecef; }
 .print-item:last-child { border-bottom: none; }
-
 .modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
 .modal-dialog-scrollable .modal-body { overflow-y: auto; }
 
@@ -83,7 +81,6 @@ html, body {
 #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
 #printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
-
 .preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
 .grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; justify-content: flex-start; }
 .label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; background: white;}
@@ -97,57 +94,36 @@ html, body {
 .loc-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .loc-card-title { font-weight: 600; font-size: 1.05rem; color: #212529; word-break: break-word; line-height: 1.4; }
 
-@media print {
-    body * { visibility: hidden; }
-    #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
-    
-    #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay * { visibility: visible; }
-    #printOverlay, #printReportOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
-    #printOverlayTopBar, #printReportTopBar { display: none !important; }
-    #printOverlayContent, #printReportContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
-    .preview-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
-    .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { margin: 1cm; size: A4 portrait; }
-}
 /* =========================================================
-   💡 搬運優化升級 (虛擬鍵盤、底部選單、浮動多選購物車) 專屬樣式
+   💡 搬運優化升級 (虛擬鍵盤、底部選單、浮動多選購物車)
 ========================================================= */
 
 /* 1. 浮動待搬運清單 (多選購物車) */
 .floating-cart-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1030;
-    border-radius: 50px;
-    padding: 12px 24px;
+    position: fixed; bottom: 20px; right: 20px; z-index: 1030;
+    border-radius: 50px; padding: 12px 24px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s, background-color 0.2s;
     display: none; /* 預設隱藏，有選東西才出現 */
 }
 .floating-cart-btn:active { transform: scale(0.95); }
 .cart-badge-count {
-    background-color: #dc3545;
-    color: white;
-    border-radius: 50%;
-    padding: 2px 8px;
-    font-size: 0.85rem;
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    font-weight: bold;
+    background-color: #dc3545; color: white; border-radius: 50%;
+    padding: 2px 8px; font-size: 0.85rem; position: absolute;
+    top: -5px; right: -5px; font-weight: bold;
 }
 
-/* 2. 客製化底部滑出選單 (Bottom Sheet) */
+/* 2. 客製化底部滑出選單 (Bottom Sheet) 
+   [修正 z-index 確保蓋過預覽 Modal (Modal 預設為 1050)] */
 .bottom-sheet-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.5); z-index: 1050;
+    background: rgba(0,0,0,0.5); z-index: 1060;
     opacity: 0; visibility: hidden; transition: opacity 0.3s;
 }
 .bottom-sheet-overlay.active { opacity: 1; visibility: visible; }
 .bottom-sheet-container {
     position: fixed; bottom: 0; left: 0; right: 0;
-    background: #f8f9fa; z-index: 1051;
+    background: #f8f9fa; z-index: 1061;
     border-radius: 20px 20px 0 0;
     transform: translateY(100%); transition: transform 0.3s ease-out;
     max-height: 85vh; display: flex; flex-direction: column;
@@ -161,17 +137,16 @@ html, body {
 .bs-loc-item:active { background-color: #e9ecef; }
 .bs-loc-main { font-weight: bold; color: #0d6efd; padding: 10px; background: #f8f9fa; border-radius: 5px; margin-top: 10px;}
 
-/* 3. 系統專屬虛擬鍵盤 (Industrial Numpad) */
+/* 3. 系統專屬虛擬鍵盤 (Morphing Keyboard) */
 .vk-container {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: #d1d5db; z-index: 1040;
     transform: translateY(100%); transition: transform 0.2s ease-out;
-    padding: 10px 5px 25px 5px; display: flex; gap: 5px;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    padding: 10px 10px 25px 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
 }
 .vk-container.active { transform: translateY(0); }
-.vk-prefix-col { flex: 1; display: flex; flex-direction: column; gap: 5px; overflow-y: auto; max-height: 220px; }
-.vk-num-col { flex: 3; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.vk-prefix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 220px; overflow-y: auto; padding: 5px; }
+.vk-num-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .vk-btn {
     background: #fff; border: none; border-radius: 8px;
     padding: 15px 0; font-size: 1.5rem; font-weight: bold; color: #333;
@@ -181,7 +156,7 @@ html, body {
 .vk-btn:active { background: #e5e7eb; transform: scale(0.98); }
 .vk-btn-action { background: #9ca3af; color: white; }
 .vk-btn-primary { background: #0d6efd; color: white; grid-column: span 3; }
-.vk-btn-prefix { background: #e0f2fe; color: #0369a1; font-size: 1rem; padding: 10px 5px; word-break: break-all;}
+.vk-btn-prefix { background: #e0f2fe; color: #0369a1; font-size: 1.1rem; padding: 15px 5px; word-break: break-all;}
 
 /* 4. 修改預覽卡片樣式 */
 .preview-card-modified { background-color: #f0fdf4 !important; border-color: #198754 !important; }
@@ -189,3 +164,15 @@ html, body {
 
 /* 防止 iOS 出現選取放大鏡 */
 .no-select { user-select: none; -webkit-user-select: none; }
+
+@media print {
+    body * { visibility: hidden; }
+    #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
+    #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay * { visibility: visible; }
+    #printOverlay, #printReportOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
+    #printOverlayTopBar, #printReportTopBar { display: none !important; }
+    #printOverlayContent, #printReportContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
+    .preview-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
+    .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 1cm; size: A4 portrait; }
+}
