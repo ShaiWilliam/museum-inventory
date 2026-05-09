@@ -10,18 +10,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- 外部套件 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
-  <!-- 引入我們拆分出去的 CSS 樣式表 -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- 全螢幕地點 QR Code 掃描器 -->
   <div id="loc-reader-container" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:10600; flex-direction:column; justify-content:center; align-items:center;">
       <div style="width:100%; max-width:500px; padding:20px;">
           <h5 class="text-white text-center mb-3 fw-bold" id="locScannerTitle">掃描地點 QR Code</h5>
@@ -165,7 +162,6 @@
       </ul>
 
       <div class="tab-content mt-3">
-        <!-- 查詢模組 -->
         <div class="tab-pane fade" id="query">
           <div class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -199,7 +195,6 @@
           </div>
         </div>
 
-        <!-- 建檔模組 -->
         <div class="tab-pane fade" id="register">
           <ul class="nav nav-pills nav-fill mb-3" id="regPills">
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regFormSec">📝 新增登錄</button></li>
@@ -246,7 +241,6 @@
           </div>
         </div>
 
-        <!-- 盤點模組 -->
         <div class="tab-pane fade" id="inv">
           <div id="step1" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -313,7 +307,6 @@
           </div>
         </div>
 
-        <!-- 異動模組 -->
         <div class="tab-pane fade" id="move">
           <ul class="nav nav-pills nav-fill mb-3" id="mvPills">
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveOverviewTab" onclick="loadAllProjects()">📊 專案總覽</button></li>
@@ -322,7 +315,6 @@
           </ul>
 
           <div class="tab-content">
-            <!-- 專案總覽介面 -->
             <div class="tab-pane fade show active" id="moveOverviewTab">
               <div class="step-card active border-info border-top border-4">
                   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -349,7 +341,6 @@
               </div>
             </div>
 
-            <!-- 專案管理 -->
             <div class="tab-pane fade" id="moveCreateTab">
               <div class="step-card active border-primary border-top border-4">
                   <div class="mb-3">
@@ -403,7 +394,6 @@
               </div>
             </div>
 
-            <!-- 執行待搬運頁籤 -->
             <div class="tab-pane fade" id="moveExecuteTab">
               <div class="step-card active border-success border-top border-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -617,7 +607,6 @@
     </div>
   </div>
 
-  <!-- 地點選擇 Modal -->
   <div class="modal fade" id="locModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
       <div class="modal-header bg-light"><h5 class="modal-title fw-bold" id="locModalTitle">選擇地點</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -628,7 +617,6 @@
     </div></div>
   </div>
 
-  <!-- 修改地點 Modal -->
   <div class="modal fade" id="editLocModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg">
@@ -656,7 +644,6 @@
     </div>
   </div>
 
-  <!-- 手動新增非藏品(雜物) Modal -->
   <div class="modal fade" id="miscModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg">
@@ -685,7 +672,6 @@
     </div>
   </div>
 
-  <!-- 💡 專案明細檢視 Modal -->
   <div class="modal fade" id="projectDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
       <div class="modal-content border-0 shadow-lg">
@@ -731,7 +717,6 @@
     </div>
   </div>
 
-  <!-- 檢視/精修已選清單 Modal -->
   <div class="modal fade" id="cartModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
       <div class="modal-content border-0 shadow-lg">
@@ -796,7 +781,6 @@
     </div>
   </div>
 
-  <!-- 批次設定臨時編碼 Modal -->
   <div class="modal fade" id="tempCodeModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg">
@@ -832,57 +816,55 @@
     </div>
   </div>
 
-  <!-- 智慧匯入 Modal -->
   <div class="modal fade" id="importModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-      <div class="modal-content border-0 shadow-lg">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold text-success"><i class="fas fa-file-import"></i> 批次匯入與解析</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-4">
-          <div class="alert alert-success small py-2 mb-3">
-            💡 <strong>操作提示：</strong>請從 Excel 複製表格內容後，直接在下方貼上。系統將為您自動解析！<br>
-            📌 建議欄位順序：<strong>臨時編碼</strong> (Tab空白) <strong>藏品編號</strong> (Tab空白) <strong>名稱</strong>
-          </div>
-          <div class="mb-3">
-            <textarea id="importTextarea" class="form-control border-success" rows="6" placeholder="請在此貼上 Excel 內容..."></textarea>
-          </div>
-          <button class="btn btn-secondary w-100 fw-bold mb-4" onclick="parseImportData()">🔍 執行資料解析與比對</button>
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content border-0 shadow-lg">
+              <div class="modal-header bg-light">
+                  <h5 class="modal-title fw-bold text-dark"><i class="fas fa-file-import text-primary"></i> 批次匯入待搬運清單</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body p-3">
+                  <div class="alert alert-info small py-2 mb-3">
+                      <i class="fas fa-info-circle"></i> 支援從 Excel 直接複製貼上，請確保欄位順序為：<br>
+                      <b class="text-danger">臨時編碼 (Tab) 藏品編號 (Tab) 名稱 (Tab) 預計搬運地點</b><br>
+                      <span class="text-muted">※ 若無臨時編碼或預計地點，可以留白，系統會自動填入「待定」。</span>
+                  </div>
+                  <textarea id="importTextarea" class="form-control mb-3 border-primary" rows="6" placeholder="請將 Excel 資料貼在此處...&#10;範例：&#10;A01&#9;112-001&#9;青花瓷&#9;庫房B區&#10;A02&#9;112-002&#9;木雕神像&#9;庫房C區&#10;&#9;112-003&#9;無臨時碼範例&#9;庫房A區"></textarea>
+                  <button class="btn btn-primary w-100 fw-bold shadow-sm" onclick="parseImportData()">🔍 預覽解析結果</button>
 
-          <div id="importPreviewSection" class="fade-in-section" style="display:none;">
-            <h6 class="fw-bold mb-2 text-dark">解析預覽結果：</h6>
-            <div class="d-flex justify-content-between mb-2 align-items-end flex-wrap gap-2">
-               <span class="small text-muted" id="importStats"></span>
-               <button class="btn btn-sm btn-warning fw-bold shadow-sm" id="btnConvertMisc" onclick="convertUnmatchedToMisc()" style="display:none;"><i class="fas fa-magic"></i> 批次將未知項目轉為雜物</button>
-            </div>
-            <div class="table-responsive border rounded" style="max-height: 300px; overflow-y: auto;">
-              <table class="table table-bordered table-sm text-center align-middle mb-0" style="font-size: 0.9rem;">
-                <thead class="table-light sticky-top">
-                  <tr>
-                    <th width="15%">狀態</th>
-                    <th width="30%">編號 / 臨時編碼</th>
-                    <th width="30%">名稱</th>
-                    <th width="25%">目前地點</th>
-                  </tr>
-                </thead>
-                <tbody id="importPreviewTableBody">
-                </tbody>
-              </table>
-            </div>
-            <div class="alert alert-warning small py-2 mt-3 mb-3" id="importWarningMsg" style="display:none;">
-              ⚠️ 尚有未知項目無法匯入！請在上方單獨為每個項目設定新地點。
-            </div>
-            <button class="btn btn-success w-100 fw-bold py-3 fs-5 shadow-sm" id="btnConfirmImport" onclick="confirmImport()">✅ 確認匯入有效項目至清單</button>
+                  <div id="importPreviewSection" style="display: none;" class="mt-4 pt-3 border-top fade-in-section">
+                      <div class="d-flex justify-content-between align-items-end mb-2">
+                          <h6 class="fw-bold mb-0 text-success">📋 解析預覽</h6>
+                          <span class="badge bg-light text-dark border" id="importStats"></span>
+                      </div>
+                      <div class="table-responsive border rounded bg-white shadow-sm mb-3">
+                          <table class="table table-hover table-sm mb-0 align-middle">
+                              <thead class="table-light text-muted small">
+                                  <tr>
+                                      <th width="20%">狀態</th>
+                                      <th width="30%">編號</th>
+                                      <th width="25%">名稱 / 預計地點</th>
+                                      <th width="25%">原典藏地點</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="importPreviewTableBody" style="font-size: 0.9rem;"></tbody>
+                          </table>
+                      </div>
+                      <div id="importWarningMsg" class="alert alert-warning small py-2 mb-3" style="display: none;">
+                          ⚠️ 發現部分編號在總表中查無資料。您可以將這些未知項目轉為「雜物」強行搬運。
+                      </div>
+                      <div class="d-flex gap-2">
+                          <button class="btn btn-warning fw-bold text-dark flex-grow-1" id="btnConvertMisc" style="display: none;" onclick="convertUnmatchedToMisc()">📦 將未知轉為雜物</button>
+                          <button class="btn btn-success fw-bold flex-grow-1" id="btnConfirmImport" onclick="confirmImport()" disabled>✅ 確認匯入</button>
+                      </div>
+                  </div>
+              </div>
           </div>
-        </div>
       </div>
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
-  <!-- 引入我們拆分出去的 JS 邏輯 -->
   <script src="app_core.js"></script>
   <script src="app_modules.js"></script>
 
