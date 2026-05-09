@@ -826,10 +826,10 @@
               <div class="modal-body p-3">
                   <div class="alert alert-info small py-2 mb-3">
                       <i class="fas fa-info-circle"></i> 支援從 Excel 直接複製貼上，請確保欄位順序為：<br>
-                      <b class="text-danger">臨時編碼 (Tab) 藏品編號 (Tab) 名稱 (Tab) 預計搬運地點</b><br>
-                      <span class="text-muted">※ 若無臨時編碼或預計地點，可以留白，系統會自動填入「待定」。</span>
+                      <b class="text-danger">臨時編碼 (Tab) 藏品編號 (Tab) 名稱 (Tab) 數量 (Tab) 預計搬運地點</b><br>
+                      <span class="text-muted">※ 若無臨時編碼、數量或預計地點，可以留白，系統會自動預設數量為 1 及地點待定。</span>
                   </div>
-                  <textarea id="importTextarea" class="form-control mb-3 border-primary" rows="6" placeholder="請將 Excel 資料貼在此處...&#10;範例：&#10;A01&#9;112-001&#9;青花瓷&#9;庫房B區&#10;A02&#9;112-002&#9;木雕神像&#9;庫房C區&#10;&#9;112-003&#9;無臨時碼範例&#9;庫房A區"></textarea>
+                  <textarea id="importTextarea" class="form-control mb-3 border-primary" rows="6" placeholder="請將 Excel 資料貼在此處...&#10;範例：&#10;A01&#9;112-001&#9;青花瓷&#9;3&#9;庫房B區&#10;A02&#9;112-002&#9;木雕神像&#9;1&#9;庫房C區&#10;&#9;112-003&#9;無臨時碼範例&#9;1&#9;庫房A區"></textarea>
                   <button class="btn btn-primary w-100 fw-bold shadow-sm" onclick="parseImportData()">🔍 預覽解析結果</button>
 
                   <div id="importPreviewSection" style="display: none;" class="mt-4 pt-3 border-top fade-in-section">
@@ -841,9 +841,9 @@
                           <table class="table table-hover table-sm mb-0 align-middle">
                               <thead class="table-light text-muted small">
                                   <tr>
-                                      <th width="20%">狀態</th>
+                                      <th width="15%">狀態</th>
                                       <th width="30%">編號</th>
-                                      <th width="25%">名稱 / 預計地點</th>
+                                      <th width="30%">名稱 / 數量 / 預計地點</th>
                                       <th width="25%">原典藏地點</th>
                                   </tr>
                               </thead>
