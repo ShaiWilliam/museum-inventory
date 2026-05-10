@@ -9,7 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-2">
-                    <div class="alert alert-success small py-2 mb-2">💡 點擊「實際放置」框框可滑出專屬地點選單。若與預設不同，系統會自動標示。</div>
+                    <div class="alert alert-success small py-2 mb-2">
+                        💡 點擊「實際放置」框框可滑出專屬地點選單。若與預設不同，系統會自動標示。
+                    </div>
                     <div id="mvPreviewList" class="d-flex flex-column gap-2"></div>
                 </div>
                 <div class="modal-footer bg-white d-flex justify-content-between p-2">
@@ -39,7 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="bottom-sheet-container" id="bsContainer">
         <div class="bs-header"><div class="bs-drag-handle"></div>選擇實際放置地點</div>
         <div class="bs-body" id="bsBody"></div>
-        <div class="p-3 border-top bg-light"><button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button></div>
+        <div class="p-3 border-top bg-light">
+            <button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button>
+        </div>
     </div>
 
     <div class="vk-container" id="vkContainer">
@@ -58,7 +62,8 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
 
     <button class="floating-cart-btn btn-primary border-0" id="floatingCartBtn" onclick="openSubmitPreviewModal()">
-        <i class="fas fa-box-open fs-4"></i><span class="cart-badge-count" id="floatingCartCount">0</span>
+        <i class="fas fa-box-open fs-4"></i>
+        <span class="cart-badge-count" id="floatingCartCount">0</span>
     </button>
     `;
     document.body.insertAdjacentHTML('beforeend', dynamicModals);
@@ -83,16 +88,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// ================= 💡 核心全域變數 (修復變數重複宣告造成的卡死) =================
+// ================= 💡 核心全域變數 =================
 let workerCart = new Set();
 let useVK = true;
 let currentBsTargetRow = null;
 
-// 專案管理與匯入所需變數 (已在 app_core.js 宣告的變數不重複宣告)
+let newMvCart = new Map();
+let allMvItems = [];
+let parsedImportItems = [];
+let parsedOverrideItems = [];
+let locAddQueue = [];
+let locUpdateQueue = [];
+let isLocAdding = false;
+let isLocSyncing = false;
 let allProjectsList = [];
 let currentPdItems = [];
 
-// 儲存專案管理草稿 (避免切換頁面資料消失)
 function saveMvDraft() {
     const action = document.getElementById('newMvActionSelect').value; 
     if(action !== 'NEW') return;
@@ -100,6 +111,32 @@ function saveMvDraft() {
     localStorage.setItem('mvProjectDraft', JSON.stringify(draft));
 }
 function clearMvDraft() { localStorage.removeItem('mvProjectDraft'); }
+
+// ================= 💡 解決 Modal 地點點選無反應的關鍵還原 =================
+function selectModalLoc(val) {
+    if (!currentModalTarget) return;
+    
+    // 如果是批次匯入雜物
+    if (currentModalTarget.startsWith('importMiscLoc_')) { 
+        let id = currentModalTarget.split('importMiscLoc_')[1]; 
+        let item = parsedImportItems.find(x => x.finalId === id); 
+        if (item) item.loc = val; 
+        renderImportPreview(); 
+        bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show(); 
+    } 
+    // 其他一般地點填寫
+    else { 
+        document.getElementById(currentModalTarget).value = val; 
+        let displayInput = document.getElementById(currentModalTarget + 'Display'); 
+        if(displayInput) displayInput.value = val; 
+        bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
+        
+        if (currentModalTarget === 'mvLoc') { loadWorkerItems(); } 
+        else if (currentModalTarget === 'miscLoc') { bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show(); } 
+    } 
+    currentModalTarget = '';
+}
 
 
 // ================= 💡 虛擬鍵盤 (VK) 與 Bottom Sheet 控制 =================
@@ -157,8 +194,31 @@ async function pauseAndSave() { showMiniLoading('關閉相機...'); await stopSc
 async function finishInventory() { if(!confirm("確定結束進入結算？")) return; showMiniLoading('關閉相機...'); await stopScannerSafe(scanner); scanner = null; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; hideMiniLoading(); }
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
 
-// ================= 💡 異動搬運模組 (專案總覽與執行搬運、跨域多選、接手) =================
+// ================= 💡 異動搬運模組 (解決編輯重複專案問題、跨域多選、接手) =================
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
+
+async function loadAllProjects() { 
+    showMiniLoading('載入專案總覽中...'); 
+    try { 
+        const res = await callAPI('getAllProjects'); allProjectsList = res || []; 
+        const projNames = [...new Set(allProjectsList.map(p => p.name))].sort(); 
+        
+        let nameHtml = '<option value="">📁 所有專案名稱</option>'; 
+        projNames.forEach(n => nameHtml += `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`); 
+        document.getElementById('projectSelectFilter').innerHTML = nameHtml; 
+        
+        // 🔥 解決多用戶編輯重複建立專案的核心修復
+        let actionHtml = '<option value="NEW">➕ 建立全新專案</option>';
+        allProjectsList.forEach(p => {
+            if(p.status === '進行中') {
+                actionHtml += `<option value="${escapeHTML(p.id)}">✏️ 編輯: ${escapeHTML(p.name)}</option>`;
+            }
+        });
+        document.getElementById('newMvActionSelect').innerHTML = actionHtml;
+
+        filterProjectCards(); 
+    } catch(e) { alert("載入專案失敗：" + e.message); } finally { hideMiniLoading(); } 
+}
 
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
@@ -263,9 +323,9 @@ async function handleLocScan(msg) { let target = locScanTarget; locScanTarget = 
 function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state); document.querySelectorAll('.mv-item-cb').forEach(cb => toggleWorkerCart(cb, parseInt(cb.value))); }
 async function silentMvSync() { if(!currentMvEventId) return; try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {} }
 
-// ================= 💡 專案匯入與管理功能 (5欄解析：臨時碼, ID, 名稱, 數量, 預計地點) =================
+// ================= 💡 專案匯入與管理功能 =================
 function openImportModal() { 
-    loadNewMvList(); // 🔥 確保清單有被載入
+    loadNewMvList(); 
     document.getElementById('importTextarea').value = ''; document.getElementById('importPreviewSection').style.display = 'none'; parsedImportItems = []; 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show(); 
 }
@@ -336,23 +396,6 @@ async function submitNewProject() {
 }
 
 // ================= 💡 保留其餘 UI 管理員邏輯 =================
-function triggerRegLoc() { currentModalTarget='regLoc'; document.getElementById('locModalTitle').innerText = "選擇「初始存放地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
-async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
-async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
-function renderPrintList(items) { const container = document.getElementById('printListContainer'); if(items.length === 0) { container.innerHTML = '<div class="p-3 text-center text-muted">查無紀錄</div>'; return; } container.innerHTML = items.map((item, idx) => `<div class="print-item p-2 d-flex align-items-center"><input class="form-check-input me-2 cb-print" type="checkbox" value="${escapeHTML(item.id)}" data-name="${escapeHTML(item.name)}" data-loc="${escapeHTML(item.loc)}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)"><label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${escapeHTML(item.id)}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${escapeHTML(item.loc)}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${escapeHTML(item.name)}</div></label></div>`).join(''); updateCartBtn(); }
-function filterPrintList() { const term = document.getElementById('printSearch').value.toLowerCase(), locFilter = document.getElementById('printLocFilter').value; const filtered = allPrintItems.filter(item => { return (item.id.toLowerCase().includes(term) || item.name.toLowerCase().includes(term)) && (locFilter === "" || item.loc === locFilter); }); renderPrintList(filtered); }
-function updateCart(cb) { if(cb.checked) { printCartMap.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc') }); } else { printCartMap.delete(cb.value); } updateCartBtn(); }
-function togglePrintAll(isCheck) { document.querySelectorAll('.cb-print').forEach(cb => { cb.checked = isCheck; updateCart(cb); }); }
-function selectTop10Print() { togglePrintAll(false); const cbs = document.querySelectorAll('.cb-print'); for(let i=0; i<Math.min(10, cbs.length); i++) { cbs[i].checked = true; updateCart(cbs[i]); } }
-function updateCartBtn() { document.getElementById('btnGoPreview').innerText = `🏷️ 檢視已選標籤 (共 ${printCartMap.size} 件)`; }
-function showPrintPreview() { if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！"); document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block'; let html = ''; printCartMap.forEach((data, id) => { html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${escapeHTML(id)}</span><span class="small text-muted text-truncate">${escapeHTML(data.name)}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${escapeHTML(data.loc)}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${escapeHTML(id)}')">❌ 移除</button></div>`; }); document.getElementById('printPreviewContainer').innerHTML = html; }
-function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
-function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
-function generatePrintPage() { if(printCartMap.size === 0) return alert("請至少選擇一筆項目！"); showMiniLoading("生成本機高品質 QR Code 中..."); setTimeout(() => { try { const groups = {}; printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); }); let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; for(let loc of Object.keys(groups).sort()) { printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${escapeHTML(loc)}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`; for(let item of groups[loc]) { const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${escapeHTML(item.id)}</div><div class="name-text">${escapeHTML(item.name)}</div></div>`; } } printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch(e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
-function closePrintOverlay() { document.getElementById('printOverlay').style.display = 'none'; document.getElementById('printOverlayContent').innerHTML = ''; }
-function closePrintReport() { document.getElementById('printReportOverlay').style.display = 'none'; document.getElementById('printReportContent').innerHTML = ''; }
-
-async function loadAllProjects() { showMiniLoading('載入專案總覽中...'); try { const res = await callAPI('getAllProjects'); allProjectsList = res || []; const projNames = [...new Set(allProjectsList.map(p => p.name))].sort(); let nameHtml = '<option value="">📁 所有專案名稱</option>'; projNames.forEach(n => nameHtml += `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`); document.getElementById('projectSelectFilter').innerHTML = nameHtml; filterProjectCards(); } catch(e) { alert("載入專案失敗：" + e.message); } finally { hideMiniLoading(); } }
 function filterProjectCards() { const nameFilter = document.getElementById('projectSelectFilter').value, statusFilter = document.getElementById('projectStatusFilter').value; const container = document.getElementById('projectCardsContainer'); const filtered = allProjectsList.filter(p => { return (nameFilter === "" || p.name === nameFilter) && (statusFilter === "" || p.status === statusFilter); }); if(filtered.length === 0) { container.innerHTML = '<div class="col-12 text-center text-muted py-4">查無符合條件的專案</div>'; return; } container.innerHTML = filtered.map(p => { let badgeClass = p.status === '進行中' ? 'bg-primary' : (p.status === '已結案' ? 'bg-secondary' : 'bg-warning text-dark'); let progressPct = p.total > 0 ? Math.round((p.moved / p.total) * 100) : 0; let actionBtns = p.status === '進行中' ? `<button class="btn btn-sm btn-outline-info fw-bold w-100 mb-2" onclick="editProjectFromOverview('${escapeHTML(p.id)}')">📝 編輯專案清單</button><button class="btn btn-sm btn-outline-success fw-bold w-100" onclick="executeProjectFromOverview('${escapeHTML(p.id)}')">🚚 執行搬運</button>` : `<button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="printProjectFromOverview('${escapeHTML(p.id)}', '${escapeHTML(p.name)}')">🖨️ 列印清冊</button>`; return `<div class="col-12 col-md-6"><div class="card shadow-sm h-100 border-0 border-start border-4 ${p.status === '進行中' ? 'border-primary' : 'border-secondary'}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start mb-2"><h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${escapeHTML(p.name)}</h6><span class="badge ${badgeClass}">${escapeHTML(p.status)}</span></div><small class="text-muted d-block mb-1" style="font-family: monospace;">${escapeHTML(p.id)}</small><small class="text-secondary d-block mb-3 text-truncate">${escapeHTML(p.desc || '無備註')}</small><div class="mb-3 bg-light rounded p-2 border"><div class="d-flex justify-content-between small fw-bold text-secondary mb-1"><span>進度</span><span>${p.moved} / ${p.total} 件 (${progressPct}%)</span></div><div class="progress" style="height: 6px;"><div class="progress-bar ${p.status === '進行中' ? 'bg-success' : 'bg-secondary'}" style="width: ${progressPct}%;"></div></div></div><div class="row g-2"><div class="col-12"><button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${escapeHTML(p.id)}', '${escapeHTML(p.name)}', '${escapeHTML(p.status)}', '${escapeHTML(p.desc)}')">👁️ 檢視明細</button></div><div class="col-12">${actionBtns}</div></div></div></div></div>`; }).join(''); }
 async function viewProjectDetails(id, name, status, desc) { showMiniLoading('讀取明細中...'); try { const res = await callAPI('getProjectDetails', { eventId: id }); currentPdItems = res; document.getElementById('pdId').innerText = id; document.getElementById('pdModalTitle').innerText = name; document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${escapeHTML(status)}</span>`; document.getElementById('pdDesc').innerText = desc || '無'; document.getElementById('pdSearchKw').value = ''; let oldLocs = new Set(), newLocs = new Set(), prefixes = new Set(); res.forEach(item => { if(item.oldLoc) oldLocs.add(item.oldLoc); if(item.newLoc) newLocs.add(item.newLoc); prefixes.add(getPrefix(item.tempCode)); }); let oldHtml = '<option value="">📍 所有原地點</option>'; Array.from(oldLocs).sort().forEach(l => oldHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('pdOldLocFilter').innerHTML = oldHtml; let newHtml = '<option value="">📍 所有新地點</option>'; Array.from(newLocs).sort().forEach(l => newHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('pdNewLocFilter').innerHTML = newHtml; let prefHtml = '<option value="">🏷️ 所有前綴</option>'; Array.from(prefixes).sort().forEach(p => prefHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`); document.getElementById('pdPrefixFilter').innerHTML = prefHtml; renderPdTable(); bootstrap.Modal.getOrCreateInstance(document.getElementById('projectDetailsModal')).show(); } catch(e) { alert("無法讀取明細：" + e.message); } finally { hideMiniLoading(); } }
 function renderPdTable() { const kw = document.getElementById('pdSearchKw').value.toLowerCase().trim(), oldLocFilter = document.getElementById('pdOldLocFilter').value, newLocFilter = document.getElementById('pdNewLocFilter').value, prefixFilter = document.getElementById('pdPrefixFilter').value; let filtered = currentPdItems.filter(item => { return (!kw || item.id.toLowerCase().includes(kw) || item.name.toLowerCase().includes(kw) || (item.tempCode || '').toLowerCase().includes(kw)) && (!oldLocFilter || item.oldLoc === oldLocFilter) && (!newLocFilter || item.newLoc === newLocFilter) && (!prefixFilter || getPrefix(item.tempCode) === prefixFilter); }); document.getElementById('pdCount').innerText = filtered.length; if(filtered.length === 0) { document.getElementById('pdTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">查無符合條件的資料</td></tr>'; return; } document.getElementById('pdTableBody').innerHTML = filtered.map(item => { let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; let destHtml = item.newLoc ? `<span class="text-success fw-bold">${escapeHTML(item.newLoc)}</span>` : `<span class="text-muted">尚未搬運</span>`; if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${escapeHTML(item.boxName)}</small>`; let displayId = item.id.replace(/\n/g, ' '); return `<tr><td class="fw-bold text-start" style="font-size: 0.85rem;">${escapeHTML(displayId)}${tcBadge}</td><td class="text-start small">${escapeHTML(item.name)} <span class="badge bg-secondary">x${escapeHTML(item.qty || '1')}</span></td><td class="small text-muted">${escapeHTML(item.oldLoc)}</td><td class="small">${destHtml}</td></tr>`; }).join(''); }
