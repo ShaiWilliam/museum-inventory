@@ -2,6 +2,7 @@
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
 // 最新優化：移除易混淆的搬運全域設定、引入購物車統一確認動線、下鑽式層級地點選單
+// 修復：補回前端丟失的 smartConcatLoc 智慧地點組合函數
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -97,11 +98,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// ================= 💡 核心全域變數 =================
+// ================= 💡 核心全域變數與共用函數 =================
 let workerCart = new Set();
 let useVK = true;
 let currentBsTargetRow = null;
-let bsState = { step: 0, main: '', med: '' }; // 新增：用來記憶層級選單目前的狀態
+let bsState = { step: 0, main: '', med: '' };
 
 let newMvCart = new Map();
 let allMvItems = [];
@@ -113,6 +114,18 @@ let isLocAdding = false;
 let isLocSyncing = false;
 let allProjectsList = [];
 let currentPdItems = [];
+
+// 🔥 修復：智慧組合地點字串 (解決「空間架構」按鈕沒反應的 Bug)
+function smartConcatLoc(main, med, small) {
+    main = main || ""; med = med || ""; small = small || "";
+    if (!small) return main + med;
+    let prefixMatch = small.match(/^([^\-]+)-/);
+    if (prefixMatch && med) {
+        let prefix = prefixMatch[1];
+        if (med.endsWith(prefix)) { return main + med + small.substring(prefix.length); }
+    }
+    return main + med + small;
+}
 
 // ================= 💡 專案草稿與下拉選單邏輯 =================
 function checkMvDraft() {
@@ -166,6 +179,7 @@ function selectModalLoc(val) {
 function triggerRegLoc() { currentModalTarget='regLoc'; openLocModal("選擇初始存放地點", globalLocTree); }
 function triggerMiscLoc() { currentModalTarget='miscLoc'; openLocModal("選擇雜物所在地點", globalLocTree); }
 function triggerMvLoc() { currentModalTarget='mvLoc'; openLocModal("選擇原地點過濾", pendingLocTree); }
+function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; openLocModal("選擇移往地點", globalLocTree); }
 
 function openLocModal(title, tree) {
     document.getElementById('locModalTitle').innerText = title;
@@ -178,7 +192,7 @@ function toggleBoxInput() {
     document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; 
 }
 
-// ================= 💡 虛擬鍵盤 =================
+// ================= 💡 虛擬鍵盤與 Bottom Sheet 控制 =================
 function toggleInputMode() {
     useVK = !useVK;
     let input = document.getElementById('mvSearchKw'), btn = document.getElementById('btnToggleInputMode');
@@ -226,12 +240,11 @@ document.addEventListener('click', function(event) {
     if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
 });
 
-// ================= 💡 🔥 全新：層疊下鑽式地點選單 (Bottom Sheet) =================
 function openBottomSheet(rIdx) {
     currentBsTargetRow = rIdx; 
     document.getElementById('bsOverlay').classList.add('active'); 
     document.getElementById('bsContainer').classList.add('active'); 
-    renderBsMain(); // 開啟時一律從「大區」開始顯示
+    renderBsMain(); 
 }
 
 function renderBsMain() {
@@ -302,7 +315,6 @@ function renderBsSmall(main, med) {
 function closeBottomSheet() { 
     document.getElementById('bsOverlay').classList.remove('active'); 
     document.getElementById('bsContainer').classList.remove('active'); 
-    // 延遲復原標題，避免關閉動畫時看到字體跳動
     setTimeout(() => {
         document.querySelector('.bs-header').innerHTML = '<div class="bs-drag-handle"></div>選擇實際放置地點';
     }, 300);
@@ -663,7 +675,7 @@ async function submitNewProject() {
 }
 
 
-// ================= 💡 執行搬運與送出 (全新極簡動線) =================
+// ================= 💡 執行搬運與送出 =================
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
@@ -702,9 +714,7 @@ function loadWorkerItems() {
     renderWorkerItems(filteredItems, !!kw);
 }
 
-function searchWorkerItems() {
-    loadWorkerItems();
-}
+function searchWorkerItems() { loadWorkerItems(); }
 
 function renderWorkerItems(items, isSearchMode) {
     const listDiv = document.getElementById('mvItemList');
@@ -748,7 +758,6 @@ function updateFloatingCartUI() {
 function openSubmitPreviewModal() {
     if(workerCart.size === 0) return alert('請先勾選要搬運的文物！');
     
-    // 檢查人員是否有選
     const staffSelect = document.getElementById('mvStaffInternal');
     if(staffSelect && !staffSelect.value) {
         alert('請先在上方「2. 本處人員 (操作者)」選擇您的名字！');
