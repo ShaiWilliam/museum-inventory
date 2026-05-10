@@ -21,7 +21,7 @@ let localItemCache = {};
 let syncQueue = []; 
 let isSyncing = false;
 let currentManager = ""; 
-let currentPermissions = {};
+let currentPermissions = {}; // 存放目前登入者的權限清單
 let currentModalTarget = ""; 
 let locScanTarget = ""; 
 let currentMvEventId = "";
@@ -148,7 +148,7 @@ function logoutSystem() {
     document.getElementById('authScreen').style.display = 'flex';
 }
 
-// 進入指定模組 (大門跳轉邏輯)
+// 進入指定模組
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
@@ -198,7 +198,6 @@ function backToHome() {
     window.scrollTo(0, 0);
 }
 
-// 🔥 修正後的背景刷新機制：不會干擾你目前正在操作的頁籤
 function refreshSystem(sys) {
     if(sys === 'inv') { clearInventorySession(); enterSystem('inv'); }
     if(sys === 'move') { 
@@ -252,7 +251,8 @@ async function stopScannerSafe(scannerObj) {
 async function stopAllScanners() {
     showMiniLoading('正在安全關閉相機...');
     if (scanner) { await stopScannerSafe(scanner); scanner = null; }
-    if (locScanner) { await stopScannerSafe(locScanner); locScanner = null document.getElementById('loc-reader-container').style.display = 'none'; }
+    // 🔥 這裡就是被修復的分號錯誤！
+    if (locScanner) { await stopScannerSafe(locScanner); locScanner = null; document.getElementById('loc-reader-container').style.display = 'none'; }
     if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
     hideMiniLoading();
 }
