@@ -27,43 +27,68 @@ let locScanTarget = "";
 let currentMvEventId = "";
 let mgrPendingData = [], mgrConfirmedData = [];
 
-// ================= 💡 系統初始化與七天免登入機制 =================
+// ================= 💡 系統初始化與開機動畫機制 =================
 document.addEventListener("DOMContentLoaded", () => {
     loadSyncQueue();
+    // 確保一開始顯示開機動畫
+    document.getElementById('splashScreen').style.display = 'flex';
+    document.getElementById('authScreen').style.display = 'none';
     checkSavedAuth();
 });
 
+// 🔥 找回靈魂的完美開機動畫與七天免登入檢查
 function checkSavedAuth() {
-    try {
-        const tokenStr = localStorage.getItem(TOKEN_KEY);
-        if (tokenStr) {
-            const token = JSON.parse(tokenStr);
-            if (Date.now() < token.expiry) {
-                currentManager = token.managerName;
-                currentPermissions = token.permissions;
-                const daysLeft = Math.ceil((token.expiry - Date.now()) / (1000 * 60 * 60 * 24));
-                
-                document.getElementById('welcomeName').innerText = '👋 歡迎歸隊，' + currentManager + '！';
-                document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
-                
-                document.getElementById('splashScreen').style.display = 'none';
-                document.getElementById('authScreen').style.display = 'none';
-                
-                applyPermissionsUI();
-                document.getElementById('homeMenu').style.display = 'block';
-                preloadBaseData();
-                return;
-            } else {
-                localStorage.removeItem(TOKEN_KEY);
-            }
-        }
-    } catch (e) { console.error("解析登入憑證失敗", e); }
+    const prog = document.getElementById('splashProgress');
+    const sText = document.getElementById('splashText');
     
-    document.getElementById('splashScreen').style.display = 'none';
-    document.getElementById('authScreen').style.display = 'flex';
-    document.getElementById('frontDoorPwd').focus();
+    // 模擬 App 載入的儀式感
+    if(prog) {
+        setTimeout(() => { prog.style.width = '30%'; if(sText) sText.innerText = '讀取本地快取...'; }, 200);
+        setTimeout(() => { prog.style.width = '70%'; if(sText) sText.innerText = '驗證授權憑證...'; }, 600);
+        setTimeout(() => { prog.style.width = '100%'; if(sText) sText.innerText = '載入完成！'; }, 1000);
+    }
+
+    // 1.2 秒後才執行跳轉，讓動畫跑完
+    setTimeout(() => {
+        try {
+            const tokenStr = localStorage.getItem(TOKEN_KEY);
+            if (tokenStr) {
+                const token = JSON.parse(tokenStr);
+                if (Date.now() < token.expiry) {
+                    currentManager = token.managerName;
+                    currentPermissions = token.permissions;
+                    const daysLeft = Math.ceil((token.expiry - Date.now()) / (1000 * 60 * 60 * 24));
+                    
+                    document.getElementById('welcomeName').innerText = '👋 歡迎歸隊，' + currentManager + '！';
+                    document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
+                    
+                    // 動畫淡出
+                    document.getElementById('splashScreen').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('splashScreen').style.display = 'none';
+                        document.getElementById('authScreen').style.display = 'none';
+                        applyPermissionsUI();
+                        document.getElementById('homeMenu').style.display = 'block';
+                        preloadBaseData();
+                    }, 500);
+                    return;
+                } else {
+                    localStorage.removeItem(TOKEN_KEY);
+                }
+            }
+        } catch (e) { console.error("解析登入憑證失敗", e); }
+        
+        // 憑證無效或首次登入：淡出動畫，顯示密碼門
+        document.getElementById('splashScreen').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('splashScreen').style.display = 'none';
+            document.getElementById('authScreen').style.display = 'flex';
+            document.getElementById('frontDoorPwd').focus();
+        }, 500);
+    }, 1200);
 }
 
+// ================= 💡 API 呼叫與後續邏輯 =================
 async function callAPI(action, payload = {}) {
     try {
         const response = await fetch(API_URL, {
@@ -148,7 +173,6 @@ function logoutSystem() {
     document.getElementById('authScreen').style.display = 'flex';
 }
 
-// 進入指定模組
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
@@ -251,7 +275,6 @@ async function stopScannerSafe(scannerObj) {
 async function stopAllScanners() {
     showMiniLoading('正在安全關閉相機...');
     if (scanner) { await stopScannerSafe(scanner); scanner = null; }
-    // 🔥 這裡就是被修復的分號錯誤！
     if (locScanner) { await stopScannerSafe(locScanner); locScanner = null; document.getElementById('loc-reader-container').style.display = 'none'; }
     if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
     hideMiniLoading();
