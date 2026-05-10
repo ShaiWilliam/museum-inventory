@@ -167,10 +167,12 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="fw-bold text-warning mb-0" style="color: #d39e00 !important;" id="queryHeaderTitle">🔍 藏品即時定位與查核</h5>
             </div>
+            
             <div class="input-group mb-3 shadow-sm" id="queryInputGrp">
               <input type="text" id="queryManualInput" class="form-control border-warning" placeholder="手動輸入藏品編號 (選填)">
               <button class="btn btn-warning fw-bold text-dark" type="button" onclick="triggerManualQuery()">查詢</button>
             </div>
+            
             <div id="queryResultBox" class="card shadow-sm border-0 mb-4" style="display:none; background-color: #fffdf5; position: relative; border-radius: 12px;">
               <span id="qResBadge" class="badge position-absolute shadow-sm" style="top: 15px; right: 15px; font-size: 0.9rem;"></span>
               <div class="card-body pt-4">
@@ -439,7 +441,7 @@
                   </div>
                   <div id="mvItemList" class="border rounded p-2 bg-light mb-2" style="max-height: 250px; overflow-y: auto;"></div>
                 </div>
-                
+
                 <div id="mvPhase3" style="display:none;" class="fade-in-section mt-4 pt-3 border-top">
                   <div class="mb-3">
                     <label class="form-label text-primary fw-bold">4. 移往暫存地點</label>
@@ -454,7 +456,6 @@
                   <div class="mb-4"><label class="form-label text-dark fw-bold">5. 本處人員</label><select id="mvStaffInternal" class="form-select border-dark"></select></div>
                   <button class="btn btn-primary w-100 fw-bold fs-5 py-3 shadow-sm" id="btnSubmitMove" onclick="submitMovement()">📤 送出搬運單</button>
                 </div>
-
               </div>
             </div>
           </div>
