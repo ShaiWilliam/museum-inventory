@@ -1,7 +1,8 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：下鑽式地點選單 (已修復隱藏地點過濾 Bug)、強化新增地點防呆
+// 最新優化：下鑽式地點選單、強化新增地點防呆
+// 修復：新增地點後保留「大區」與「中區」文字，僅清空「小區」以提升連打效率
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -177,6 +178,7 @@ function selectModalLoc(val) {
 function triggerRegLoc() { currentModalTarget='regLoc'; openLocModal("選擇初始存放地點", globalLocTree); }
 function triggerMiscLoc() { currentModalTarget='miscLoc'; openLocModal("選擇雜物所在地點", globalLocTree); }
 function triggerMvLoc() { currentModalTarget='mvLoc'; openLocModal("選擇原地點過濾", pendingLocTree); }
+function triggerMvNewLoc() { currentModalTarget='mvNewLoc'; openLocModal("選擇移往地點", globalLocTree); }
 
 function openLocModal(title, tree) {
     document.getElementById('locModalTitle').innerText = title;
@@ -237,7 +239,7 @@ document.addEventListener('click', function(event) {
     if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
 });
 
-// ================= 💡 🔥 全新修復：層疊下鑽式地點選單 (不顯示隱藏地點) =================
+// ================= 💡 層疊下鑽式地點選單 (Bottom Sheet) =================
 function openBottomSheet(rIdx) {
     currentBsTargetRow = rIdx; 
     document.getElementById('bsOverlay').classList.add('active'); 
@@ -250,7 +252,6 @@ function renderBsMain() {
     document.querySelector('.bs-header').innerHTML = '<div class="bs-drag-handle"></div>📍 選擇大區 (1/3)';
     
     let html = '<div class="list-group list-group-flush">';
-    // 🔥 修復：改為讀取 globalLocTree，自動過濾掉後台設定為「隱藏」的地點
     globalLocTree.forEach(m => {
         html += `<button class="list-group-item list-group-item-action fw-bold py-3 text-primary d-flex justify-content-between align-items-center" onclick="renderBsMedium('${escapeHTML(m.main)}')">
                     <span>📂 ${escapeHTML(m.main)}</span>
@@ -265,7 +266,6 @@ function renderBsMedium(main) {
     bsState.step = 1; bsState.main = main;
     document.querySelector('.bs-header').innerHTML = `<div class="bs-drag-handle"></div><div class="d-flex align-items-center"><button class="btn btn-sm btn-light py-0 me-2 shadow-sm" onclick="renderBsMain()"><i class="fas fa-arrow-left"></i></button><span class="fw-bold">📍 選擇中區 (2/3)</span></div>`;
     
-    // 🔥 修復：讀取 globalLocTree
     let targetMain = globalLocTree.find(m => m.main === main);
     if(!targetMain) return;
 
@@ -285,7 +285,6 @@ function renderBsSmall(main, med) {
     bsState.step = 2; bsState.med = med;
     document.querySelector('.bs-header').innerHTML = `<div class="bs-drag-handle"></div><div class="d-flex align-items-center"><button class="btn btn-sm btn-light py-0 me-2 shadow-sm" onclick="renderBsMedium('${escapeHTML(main)}')"><i class="fas fa-arrow-left"></i></button><span class="fw-bold">📍 選擇小區 (3/3)</span></div>`;
     
-    // 🔥 修復：讀取 globalLocTree
     let targetMain = globalLocTree.find(m => m.main === main);
     let targetSub = targetMain ? targetMain.subs.find(s => s.sub === med) : null;
     let html = '<div class="list-group list-group-flush">';
@@ -293,7 +292,7 @@ function renderBsSmall(main, med) {
     let validCount = 0;
     if(targetSub) {
         targetSub.details.forEach(d => {
-            if(!d.isHidden) { // 雙重保險，確保隱藏的不會顯示
+            if(!d.isHidden) {
                 validCount++;
                 let displayLabel = d.label === "(無)" ? "📍 直接放置於此區" : d.label;
                 html += `<button class="list-group-item list-group-item-action fw-bold py-3 text-dark" onclick="selectBsLoc('${escapeHTML(d.val)}')">
@@ -680,7 +679,7 @@ async function submitNewProject() {
 }
 
 
-// ================= 💡 執行搬運與送出 =================
+// ================= 💡 執行搬運與送出 (極簡動線) =================
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
@@ -914,7 +913,7 @@ function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.ch
 function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = r.main.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = (r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
 
-// 🔥 修復防呆寫入與提示邏輯
+// 🔥 修復防呆寫入與提示邏輯：新增地點後僅清空「小區」，保留「大區」與「中區」
 async function addNewLocation() { 
     try {
         const mInput = document.getElementById('locAddMain');
@@ -934,7 +933,7 @@ async function addNewLocation() {
             if (existing && !existing.isHidden) { return showSyncToast('⚠️ 此地點已在啟用清單中！', false); } 
             else if (existing && existing.isHidden) { 
                 showSyncToast('⚠️ 偵測到歷史停用地點，將為您自動喚醒...', false); 
-                mInput.value = ''; medInput.value = ''; sInput.value = '';
+                sInput.value = ''; // 喚醒後一樣清空小區方便連打
                 return toggleLocStatus(existing.rowIndex, false); 
             } 
             else { return showSyncToast('⚠️ 此地點已在背景排隊建立中！', false); } 
@@ -944,7 +943,8 @@ async function addNewLocation() {
         optimisticAddLocToTree(m, med, s, fullStr); 
         showSyncToast(`✅ [${fullStr}] 已加入建立排程`, true); 
         
-        mInput.value = ''; medInput.value = ''; sInput.value = ''; 
+        // 🔥 此處只清空小區，並將焦點自動鎖定在小區輸入框！
+        sInput.value = ''; 
         sInput.focus(); 
         processLocAddQueue(); 
     } catch(e) {
