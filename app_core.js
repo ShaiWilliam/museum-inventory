@@ -147,7 +147,7 @@ function logoutSystem() {
     if(!confirm("確定要登出系統並清除授權憑證嗎？")) return;
     currentManager = "";
     currentPermissions = {};
-    localStorage.removeItem(TOKEN_KEY); // 💡 登出時銷毀憑證
+    localStorage.removeItem(TOKEN_KEY); // 登出時銷毀憑證
     
     document.getElementById('homeMenu').style.display = 'none';
     document.getElementById('frontDoorPwd').value = '';
@@ -155,13 +155,15 @@ function logoutSystem() {
     document.getElementById('authScreen').style.display = 'flex';
 }
 
-// 進入指定模組
+// 進入指定模組 (包含頁籤修復邏輯)
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
     
+    // 先打開外層大門
     document.querySelector(`button[data-bs-target="#${sys}"]`).click();
     
+    // 再跳轉內部房間
     if(sys === 'move') {
         setTimeout(() => {
             if(currentPermissions.move_overview) document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
@@ -329,5 +331,4 @@ async function triggerBackgroundSync() {
     document.getElementById('syncStatus').style.display = 'none';
 }
 
-// 監控上網狀態自動重啟同步
 window.addEventListener('online', () => { if(syncQueue.length > 0) triggerBackgroundSync(); });
