@@ -21,7 +21,7 @@ let localItemCache = {};
 let syncQueue = []; 
 let isSyncing = false;
 let currentManager = ""; 
-let currentPermissions = {}; // 存放目前登入者的權限清單
+let currentPermissions = {};
 let currentModalTarget = ""; 
 let locScanTarget = ""; 
 let currentMvEventId = "";
@@ -30,7 +30,7 @@ let mgrPendingData = [], mgrConfirmedData = [];
 // ================= 💡 系統初始化與七天免登入機制 =================
 document.addEventListener("DOMContentLoaded", () => {
     loadSyncQueue();
-    checkSavedAuth(); // 檢查七天免登入憑證
+    checkSavedAuth();
 });
 
 function checkSavedAuth() {
@@ -39,7 +39,6 @@ function checkSavedAuth() {
         if (tokenStr) {
             const token = JSON.parse(tokenStr);
             if (Date.now() < token.expiry) {
-                // 憑證有效：還原身份與權限
                 currentManager = token.managerName;
                 currentPermissions = token.permissions;
                 const daysLeft = Math.ceil((token.expiry - Date.now()) / (1000 * 60 * 60 * 24));
@@ -55,19 +54,16 @@ function checkSavedAuth() {
                 preloadBaseData();
                 return;
             } else {
-                // 憑證過期：清除舊資料
                 localStorage.removeItem(TOKEN_KEY);
             }
         }
     } catch (e) { console.error("解析登入憑證失敗", e); }
     
-    // 無效或無憑證：顯示登入畫面
     document.getElementById('splashScreen').style.display = 'none';
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('frontDoorPwd').focus();
 }
 
-// 呼叫 Google Apps Script 封裝 (Fetch API)
 async function callAPI(action, payload = {}) {
     try {
         const response = await fetch(API_URL, {
@@ -97,7 +93,6 @@ function preloadBaseData() {
     }).catch(e => console.error("背景預載基礎資料失敗", e));
 }
 
-// 登入大門：驗證密碼、接收權限並核發 7 天憑證
 async function loginAtFrontDoor() {
     const pwd = document.getElementById('frontDoorPwd').value.trim();
     if(!pwd) return alert('請輸入密碼！');
@@ -107,7 +102,6 @@ async function loginAtFrontDoor() {
         currentManager = res.managerName;
         currentPermissions = res.permissions;
         
-        // 💡 寫入 7 天效期的登入憑證
         const token = { managerName: currentManager, permissions: currentPermissions, expiry: Date.now() + TOKEN_VALID_MS };
         localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
         
@@ -124,7 +118,6 @@ async function loginAtFrontDoor() {
     } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
 }
 
-// 核心權限控管：隱藏/顯示大廳與子模組頁籤
 function applyPermissionsUI() {
     document.querySelector('.c-query').style.display = currentPermissions.query ? 'flex' : 'none';
     document.querySelector('.c-reg').style.display = currentPermissions.register ? 'flex' : 'none';
@@ -147,7 +140,7 @@ function logoutSystem() {
     if(!confirm("確定要登出系統並清除授權憑證嗎？")) return;
     currentManager = "";
     currentPermissions = {};
-    localStorage.removeItem(TOKEN_KEY); // 登出時銷毀憑證
+    localStorage.removeItem(TOKEN_KEY);
     
     document.getElementById('homeMenu').style.display = 'none';
     document.getElementById('frontDoorPwd').value = '';
@@ -155,17 +148,16 @@ function logoutSystem() {
     document.getElementById('authScreen').style.display = 'flex';
 }
 
-// 進入指定模組 (包含頁籤修復邏輯)
+// 進入指定模組 (大門跳轉邏輯)
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
     
-    // 先打開外層大門
     document.querySelector(`button[data-bs-target="#${sys}"]`).click();
     
-    // 再跳轉內部房間
     if(sys === 'move') {
         setTimeout(() => {
+            // 💡 只有從大廳進來時，才會自動幫你點擊授權的頁籤
             if(currentPermissions.move_overview) document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
             else if(currentPermissions.move_create) document.querySelector('button[data-bs-target="#moveCreateTab"]').click();
             else if(currentPermissions.move_execute) document.querySelector('button[data-bs-target="#moveExecuteTab"]').click();
@@ -207,9 +199,31 @@ function backToHome() {
     window.scrollTo(0, 0);
 }
 
+// 🔥 修正後的背景刷新機制：不會干擾你目前正在操作的頁籤
 function refreshSystem(sys) {
     if(sys === 'inv') { clearInventorySession(); enterSystem('inv'); }
-    if(sys === 'move') { document.getElementById('mvEvent').value = ''; document.getElementById('mvLocSelector').style.display='none'; document.getElementById('mvPhase2').style.display='none'; document.getElementById('mvPhase3').style.display='none'; enterSystem('move'); }
+    if(sys === 'move') { 
+        document.getElementById('mvEvent').value = ''; 
+        document.getElementById('mvLocSelector').style.display='none'; 
+        document.getElementById('mvPhase2').style.display='none'; 
+        
+        let mvProgressBox = document.getElementById('mvProgressBox');
+        if (mvProgressBox) mvProgressBox.style.display = 'none';
+
+        showMiniLoading('更新背景資料中...');
+        callAPI('getWorkerInitData').then(initData => {
+            globalLocTree = initData.locTree; mgrLocTree = initData.mgrLocTree;
+            let evHtml = '<option value="">請選擇專案...</option>';
+            initData.events.forEach(e => evHtml += `<option value="${escapeHTML(e.id)}">${escapeHTML(e.name)}</option>`);
+            document.getElementById('mvEvent').innerHTML = evHtml;
+            hideMiniLoading();
+            
+            // 如果有總覽權限，順便在背景幫他把清單刷到最新
+            if(currentPermissions.move_overview && typeof loadAllProjects === 'function') {
+                loadAllProjects();
+            }
+        }).catch(e => { alert("資料載入失敗: " + e.message); hideMiniLoading(); });
+    }
     if(sys === 'mgr') { enterSystem('mgr'); }
 }
 
