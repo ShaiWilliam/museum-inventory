@@ -9,9 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-2">
-                    <div class="alert alert-success small py-2 mb-2">
-                        💡 點擊「實際放置」框框可滑出專屬地點選單。若與預設不同，系統會自動標示。
-                    </div>
+                    <div class="alert alert-success small py-2 mb-2">💡 點擊「實際放置」框框可滑出專屬地點選單。若與預設不同，系統會自動標示。</div>
                     <div id="mvPreviewList" class="d-flex flex-column gap-2"></div>
                 </div>
                 <div class="modal-footer bg-white d-flex justify-content-between p-2">
@@ -41,9 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="bottom-sheet-container" id="bsContainer">
         <div class="bs-header"><div class="bs-drag-handle"></div>選擇實際放置地點</div>
         <div class="bs-body" id="bsBody"></div>
-        <div class="p-3 border-top bg-light">
-            <button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button>
-        </div>
+        <div class="p-3 border-top bg-light"><button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button></div>
     </div>
 
     <div class="vk-container" id="vkContainer">
@@ -62,8 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
 
     <button class="floating-cart-btn btn-primary border-0" id="floatingCartBtn" onclick="openSubmitPreviewModal()">
-        <i class="fas fa-box-open fs-4"></i>
-        <span class="cart-badge-count" id="floatingCartCount">0</span>
+        <i class="fas fa-box-open fs-4"></i><span class="cart-badge-count" id="floatingCartCount">0</span>
     </button>
     `;
     document.body.insertAdjacentHTML('beforeend', dynamicModals);
@@ -88,85 +83,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+// ================= 💡 核心全域變數 (修復變數重複宣告造成的卡死) =================
 let workerCart = new Set();
 let useVK = true;
 let currentBsTargetRow = null;
 
+// 專案管理與匯入所需變數 (已在 app_core.js 宣告的變數不重複宣告)
+let allProjectsList = [];
+let currentPdItems = [];
+
+// 儲存專案管理草稿 (避免切換頁面資料消失)
+function saveMvDraft() {
+    const action = document.getElementById('newMvActionSelect').value; 
+    if(action !== 'NEW') return;
+    const draft = { name: document.getElementById('newMvName').value, desc: document.getElementById('newMvDesc').value, cart: Array.from(newMvCart.entries()) };
+    localStorage.setItem('mvProjectDraft', JSON.stringify(draft));
+}
+function clearMvDraft() { localStorage.removeItem('mvProjectDraft'); }
+
+
 // ================= 💡 虛擬鍵盤 (VK) 與 Bottom Sheet 控制 =================
 function toggleInputMode() {
     useVK = !useVK;
-    let input = document.getElementById('mvSearchKw');
-    let btn = document.getElementById('btnToggleInputMode');
-    if (useVK) {
-        input.setAttribute('inputmode', 'none'); input.setAttribute('readonly', 'true');
-        input.placeholder = "點擊搜尋編號(虛擬鍵盤)..."; btn.classList.replace('btn-outline-secondary', 'btn-secondary');
-        input.blur(); openVK();
-    } else {
-        input.removeAttribute('inputmode'); input.removeAttribute('readonly');
-        input.placeholder = "輸入中文名稱或編號(原生鍵盤)..."; btn.classList.replace('btn-secondary', 'btn-outline-secondary');
-        closeVK(); input.focus();
-    }
+    let input = document.getElementById('mvSearchKw'), btn = document.getElementById('btnToggleInputMode');
+    if (useVK) { input.setAttribute('inputmode', 'none'); input.setAttribute('readonly', 'true'); input.placeholder = "點擊搜尋編號(虛擬鍵盤)..."; btn.classList.replace('btn-outline-secondary', 'btn-secondary'); input.blur(); openVK(); } 
+    else { input.removeAttribute('inputmode'); input.removeAttribute('readonly'); input.placeholder = "輸入中文名稱或編號(原生鍵盤)..."; btn.classList.replace('btn-secondary', 'btn-outline-secondary'); closeVK(); input.focus(); }
 }
-
 function handleSearchClick() { if (useVK) { openVK(); } }
 function openVK() { 
     let input = document.getElementById('mvSearchKw');
-    if(input.value.trim() === '') {
-        document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); 
-    } else {
-        document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid';
-    }
+    if(input.value.trim() === '') { document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); } 
+    else { document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; }
     document.getElementById('vkContainer').classList.add('active'); 
 }
 function closeVK() { document.getElementById('vkContainer').classList.remove('active'); }
-
-function vkPressPrefix(prefix) {
-    let input = document.getElementById('mvSearchKw');
-    input.value = prefix;
-    document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid';
-    searchWorkerItems();
-}
-
+function vkPressPrefix(prefix) { let input = document.getElementById('mvSearchKw'); input.value = prefix; document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; searchWorkerItems(); }
 function vkPress(val) { let input = document.getElementById('mvSearchKw'); input.value += val; searchWorkerItems(); }
-function vkBackspace() { 
-    let input = document.getElementById('mvSearchKw'); 
-    input.value = input.value.slice(0, -1); 
-    if(input.value === '') { document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; }
-    searchWorkerItems(); 
-}
-function vkClear() { 
-    document.getElementById('mvSearchKw').value = ''; 
-    document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid';
-    searchWorkerItems(); 
-}
-
+function vkBackspace() { let input = document.getElementById('mvSearchKw'); input.value = input.value.slice(0, -1); if(input.value === '') { document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; } searchWorkerItems(); }
+function vkClear() { document.getElementById('mvSearchKw').value = ''; document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; searchWorkerItems(); }
 function renderVkPrefixes() {
     let prefixes = new Set();
-    currentProjectItems.forEach(item => {
-        let tcMatch = (item.tempCode || '').match(/^([A-Za-z\-_]+)/); if (tcMatch) prefixes.add(tcMatch[1].toUpperCase());
-        let idMatch = item.qrCode.match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase());
-    });
-    let html = '';
-    Array.from(prefixes).sort().forEach(p => { html += `<button class="vk-btn vk-btn-prefix no-select" onclick="vkPressPrefix('${p}')">${p}</button>`; });
+    currentProjectItems.forEach(item => { let tcMatch = (item.tempCode || '').match(/^([A-Za-z\-_]+)/); if (tcMatch) prefixes.add(tcMatch[1].toUpperCase()); let idMatch = item.qrCode.match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase()); });
+    let html = ''; Array.from(prefixes).sort().forEach(p => { html += `<button class="vk-btn vk-btn-prefix no-select" onclick="vkPressPrefix('${p}')">${p}</button>`; });
     document.getElementById('vkPrefixCol').innerHTML = html;
 }
-
-document.addEventListener('click', function(event) {
-    let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), toggleBtn = document.getElementById('btnToggleInputMode');
-    if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) { closeVK(); } }
-});
+document.addEventListener('click', function(event) { let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), toggleBtn = document.getElementById('btnToggleInputMode'); if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) { closeVK(); } } });
 
 function openBottomSheet(rIdx) {
-    currentBsTargetRow = rIdx;
-    document.getElementById('bsOverlay').classList.add('active'); document.getElementById('bsContainer').classList.add('active');
-    let html = '';
-    mgrLocTree.forEach(m => {
-        let mSafe = escapeHTML(m.main); html += `<div class="bs-loc-main">📂 ${mSafe}</div>`;
-        m.subs.forEach(s => s.details.forEach(d => { if(!d.isHidden) html += `<div class="bs-loc-item" onclick="selectBsLoc('${escapeHTML(d.val)}')">📍 ${escapeHTML(d.val)}</div>`; }));
-    });
+    currentBsTargetRow = rIdx; document.getElementById('bsOverlay').classList.add('active'); document.getElementById('bsContainer').classList.add('active'); let html = '';
+    mgrLocTree.forEach(m => { let mSafe = escapeHTML(m.main); html += `<div class="bs-loc-main">📂 ${mSafe}</div>`; m.subs.forEach(s => s.details.forEach(d => { if(!d.isHidden) html += `<div class="bs-loc-item" onclick="selectBsLoc('${escapeHTML(d.val)}')">📍 ${escapeHTML(d.val)}</div>`; })); });
     document.getElementById('bsBody').innerHTML = html;
 }
-
 function closeBottomSheet() { document.getElementById('bsOverlay').classList.remove('active'); document.getElementById('bsContainer').classList.remove('active'); }
 function selectBsLoc(loc) { let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.value = loc; closeBottomSheet(); checkLocModification(currentBsTargetRow); }
 function enableManualLocInput() { closeBottomSheet(); let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.removeAttribute('readonly'); input.focus(); }
@@ -191,22 +158,18 @@ async function finishInventory() { if(!confirm("確定結束進入結算？")) r
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
 
 // ================= 💡 異動搬運模組 (專案總覽與執行搬運、跨域多選、接手) =================
-let allProjectsList = [], currentPdItems = [];
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
 
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
-    showMiniLoading('載入專案資料中...');
-    workerCart.clear(); updateFloatingCartUI(); 
+    showMiniLoading('載入專案資料中...'); workerCart.clear(); updateFloatingCartUI(); 
     try {
-        const res = await callAPI('getProjectPendingData', { eventId: eid }); 
-        currentProjectItems = res.items || []; 
+        const res = await callAPI('getProjectPendingData', { eventId: eid }); currentProjectItems = res.items || []; 
         let flatOfficialLocs = new Set(); mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => flatOfficialLocs.add(d.val))));
         let invalidLocs = new Set(); currentProjectItems.forEach(item => { if(!flatOfficialLocs.has(item.loc)) invalidLocs.add(item.loc); });
         let customTree = res.locTree || []; if(invalidLocs.size > 0) { customTree.push({ main: "📁 未分類 / 舊有地點", subs: [{ sub: "(需注意)", details: Array.from(invalidLocs).sort().map(loc => ({ label: loc, val: loc })) }] }); }
         pendingLocTree = customTree; 
-
         document.getElementById('mvProgressBox').style.display = 'block';
         let total = res.total || 0, moved = res.moved || 0, pct = total > 0 ? Math.round((moved / total) * 100) : 0;
         document.getElementById('mvProgressText').innerText = `${moved} / ${total} 件 (${pct}%)`; document.getElementById('mvProgressBar').style.width = pct + '%'; 
@@ -241,17 +204,13 @@ function updateFloatingCartUI() { const btn = document.getElementById('floatingC
 
 function openSubmitPreviewModal() {
     if(workerCart.size === 0) return alert('請先勾選要搬運的文物！');
-    closeVK(); 
-    let html = '';
+    closeVK(); let html = '';
     workerCart.forEach(rIdx => {
         let item = currentProjectItems.find(x => x.rowIndex === rIdx); if(!item) return;
         let displayId = item.qrCode.replace(/\n/g, ' '); let prefillLoc = item.expectedLoc && item.expectedLoc !== '待定' ? item.expectedLoc : '';
         html += `
         <div class="card border-0 shadow-sm mb-2 preview-card" id="prevCard_${rIdx}">
-            <div class="card-header bg-light p-2 d-flex justify-content-between align-items-center">
-                <span class="fw-bold text-dark" style="font-size:0.9rem;">${escapeHTML(displayId)}</span>
-                <span class="badge bg-info text-dark">${escapeHTML(item.tempCode||'無碼')}</span>
-            </div>
+            <div class="card-header bg-light p-2 d-flex justify-content-between align-items-center"><span class="fw-bold text-dark" style="font-size:0.9rem;">${escapeHTML(displayId)}</span><span class="badge bg-info text-dark">${escapeHTML(item.tempCode||'無碼')}</span></div>
             <div class="card-body p-2">
                 <div class="small text-muted mb-2 text-truncate fw-bold">${escapeHTML(item.name)} <span class="badge bg-secondary rounded-pill">x${escapeHTML(item.qty || '1')}</span></div>
                 <div class="input-group input-group-sm">
@@ -304,8 +263,12 @@ async function handleLocScan(msg) { let target = locScanTarget; locScanTarget = 
 function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state); document.querySelectorAll('.mv-item-cb').forEach(cb => toggleWorkerCart(cb, parseInt(cb.value))); }
 async function silentMvSync() { if(!currentMvEventId) return; try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {} }
 
-// ================= 💡 專案匯入與管理功能 (修正為 5 欄解析：臨時碼, ID, 名稱, 數量, 預計地點) =================
-function openImportModal() { document.getElementById('importTextarea').value = ''; document.getElementById('importPreviewSection').style.display = 'none'; parsedImportItems = []; bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show(); }
+// ================= 💡 專案匯入與管理功能 (5欄解析：臨時碼, ID, 名稱, 數量, 預計地點) =================
+function openImportModal() { 
+    loadNewMvList(); // 🔥 確保清單有被載入
+    document.getElementById('importTextarea').value = ''; document.getElementById('importPreviewSection').style.display = 'none'; parsedImportItems = []; 
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show(); 
+}
 
 function parseImportData() { 
     const raw = document.getElementById('importTextarea').value.trim(); if(!raw) return alert("請先貼上資料！"); 
@@ -317,10 +280,8 @@ function parseImportData() {
         if (cols.length === 1) { 
             parsedId = cols[0]; 
         } else { 
-            parsedTempCode = cols[0]; 
-            parsedId = cols[1]; 
-            parsedName = cols.length > 2 ? cols[2] : ''; 
-            parsedQty = cols.length > 3 ? cols[3] : '1'; 
+            parsedTempCode = cols[0]; parsedId = cols[1]; parsedName = cols.length > 2 ? cols[2] : ''; 
+            parsedQty = cols.length > 3 && cols[3] !== '' ? cols[3] : '1'; 
             parsedExpectedLoc = cols.length > 4 ? cols[4] : ''; 
         } 
         if (!parsedId) return; 
@@ -335,7 +296,7 @@ function parseImportData() {
             if (inCart) { let cartItem = newMvCart.get(finalId); oldTc = cartItem.tempCode || ''; if (parsedTempCode && oldTc && oldTc !== parsedTempCode) { status = 'conflict'; } else { status = 'duplicate'; } } 
         } else { status = 'unmatched'; } 
         
-        parsedImportItems.push({ originalId: parsedId, finalId: finalId, name: parsedName || '未知名稱', loc: loc, tempCode: parsedTempCode, oldTc: oldTc, status: status, isMisc: false, expectedLoc: parsedExpectedLoc || '待定', qty: parsedQty || '1' }); 
+        parsedImportItems.push({ originalId: parsedId, finalId: finalId, name: parsedName || '未知名稱', loc: loc, tempCode: parsedTempCode, oldTc: oldTc, status: status, isMisc: false, expectedLoc: parsedExpectedLoc || '待定', qty: parsedQty }); 
     }); 
     renderImportPreview(); document.getElementById('importPreviewSection').style.display = 'block'; 
 }
@@ -375,7 +336,6 @@ async function submitNewProject() {
 }
 
 // ================= 💡 保留其餘 UI 管理員邏輯 =================
-// (空間架構、列印等保持不變，壓縮版)
 function triggerRegLoc() { currentModalTarget='regLoc'; document.getElementById('locModalTitle').innerText = "選擇「初始存放地點」"; document.getElementById('modalLocSearch').value = ''; filterModalTree(); renderTreeHTML(globalLocTree, 'modalLocContainer', 'modal', false); bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show(); }
 async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
@@ -395,10 +355,10 @@ function closePrintReport() { document.getElementById('printReportOverlay').styl
 async function loadAllProjects() { showMiniLoading('載入專案總覽中...'); try { const res = await callAPI('getAllProjects'); allProjectsList = res || []; const projNames = [...new Set(allProjectsList.map(p => p.name))].sort(); let nameHtml = '<option value="">📁 所有專案名稱</option>'; projNames.forEach(n => nameHtml += `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`); document.getElementById('projectSelectFilter').innerHTML = nameHtml; filterProjectCards(); } catch(e) { alert("載入專案失敗：" + e.message); } finally { hideMiniLoading(); } }
 function filterProjectCards() { const nameFilter = document.getElementById('projectSelectFilter').value, statusFilter = document.getElementById('projectStatusFilter').value; const container = document.getElementById('projectCardsContainer'); const filtered = allProjectsList.filter(p => { return (nameFilter === "" || p.name === nameFilter) && (statusFilter === "" || p.status === statusFilter); }); if(filtered.length === 0) { container.innerHTML = '<div class="col-12 text-center text-muted py-4">查無符合條件的專案</div>'; return; } container.innerHTML = filtered.map(p => { let badgeClass = p.status === '進行中' ? 'bg-primary' : (p.status === '已結案' ? 'bg-secondary' : 'bg-warning text-dark'); let progressPct = p.total > 0 ? Math.round((p.moved / p.total) * 100) : 0; let actionBtns = p.status === '進行中' ? `<button class="btn btn-sm btn-outline-info fw-bold w-100 mb-2" onclick="editProjectFromOverview('${escapeHTML(p.id)}')">📝 編輯專案清單</button><button class="btn btn-sm btn-outline-success fw-bold w-100" onclick="executeProjectFromOverview('${escapeHTML(p.id)}')">🚚 執行搬運</button>` : `<button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="printProjectFromOverview('${escapeHTML(p.id)}', '${escapeHTML(p.name)}')">🖨️ 列印清冊</button>`; return `<div class="col-12 col-md-6"><div class="card shadow-sm h-100 border-0 border-start border-4 ${p.status === '進行中' ? 'border-primary' : 'border-secondary'}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start mb-2"><h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${escapeHTML(p.name)}</h6><span class="badge ${badgeClass}">${escapeHTML(p.status)}</span></div><small class="text-muted d-block mb-1" style="font-family: monospace;">${escapeHTML(p.id)}</small><small class="text-secondary d-block mb-3 text-truncate">${escapeHTML(p.desc || '無備註')}</small><div class="mb-3 bg-light rounded p-2 border"><div class="d-flex justify-content-between small fw-bold text-secondary mb-1"><span>進度</span><span>${p.moved} / ${p.total} 件 (${progressPct}%)</span></div><div class="progress" style="height: 6px;"><div class="progress-bar ${p.status === '進行中' ? 'bg-success' : 'bg-secondary'}" style="width: ${progressPct}%;"></div></div></div><div class="row g-2"><div class="col-12"><button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${escapeHTML(p.id)}', '${escapeHTML(p.name)}', '${escapeHTML(p.status)}', '${escapeHTML(p.desc)}')">👁️ 檢視明細</button></div><div class="col-12">${actionBtns}</div></div></div></div></div>`; }).join(''); }
 async function viewProjectDetails(id, name, status, desc) { showMiniLoading('讀取明細中...'); try { const res = await callAPI('getProjectDetails', { eventId: id }); currentPdItems = res; document.getElementById('pdId').innerText = id; document.getElementById('pdModalTitle').innerText = name; document.getElementById('pdStatus').innerHTML = `<span class="badge ${status === '進行中' ? 'bg-primary' : 'bg-secondary'}">${escapeHTML(status)}</span>`; document.getElementById('pdDesc').innerText = desc || '無'; document.getElementById('pdSearchKw').value = ''; let oldLocs = new Set(), newLocs = new Set(), prefixes = new Set(); res.forEach(item => { if(item.oldLoc) oldLocs.add(item.oldLoc); if(item.newLoc) newLocs.add(item.newLoc); prefixes.add(getPrefix(item.tempCode)); }); let oldHtml = '<option value="">📍 所有原地點</option>'; Array.from(oldLocs).sort().forEach(l => oldHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('pdOldLocFilter').innerHTML = oldHtml; let newHtml = '<option value="">📍 所有新地點</option>'; Array.from(newLocs).sort().forEach(l => newHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('pdNewLocFilter').innerHTML = newHtml; let prefHtml = '<option value="">🏷️ 所有前綴</option>'; Array.from(prefixes).sort().forEach(p => prefHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`); document.getElementById('pdPrefixFilter').innerHTML = prefHtml; renderPdTable(); bootstrap.Modal.getOrCreateInstance(document.getElementById('projectDetailsModal')).show(); } catch(e) { alert("無法讀取明細：" + e.message); } finally { hideMiniLoading(); } }
-function renderPdTable() { const kw = document.getElementById('pdSearchKw').value.toLowerCase().trim(), oldLocFilter = document.getElementById('pdOldLocFilter').value, newLocFilter = document.getElementById('pdNewLocFilter').value, prefixFilter = document.getElementById('pdPrefixFilter').value; let filtered = currentPdItems.filter(item => { return (!kw || item.id.toLowerCase().includes(kw) || item.name.toLowerCase().includes(kw) || (item.tempCode || '').toLowerCase().includes(kw)) && (!oldLocFilter || item.oldLoc === oldLocFilter) && (!newLocFilter || item.newLoc === newLocFilter) && (!prefixFilter || getPrefix(item.tempCode) === prefixFilter); }); document.getElementById('pdCount').innerText = filtered.length; if(filtered.length === 0) { document.getElementById('pdTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">查無符合條件的資料</td></tr>'; return; } document.getElementById('pdTableBody').innerHTML = filtered.map(item => { let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; let destHtml = item.newLoc ? `<span class="text-success fw-bold">${escapeHTML(item.newLoc)}</span>` : `<span class="text-muted">尚未搬運</span>`; if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${escapeHTML(item.boxName)}</small>`; let displayId = item.id.replace(/\n/g, ' '); return `<tr><td class="fw-bold text-start" style="font-size: 0.85rem;">${escapeHTML(displayId)}${tcBadge}</td><td class="text-start small">${escapeHTML(item.name)}</td><td class="small text-muted">${escapeHTML(item.oldLoc)}</td><td class="small">${destHtml}</td></tr>`; }).join(''); }
+function renderPdTable() { const kw = document.getElementById('pdSearchKw').value.toLowerCase().trim(), oldLocFilter = document.getElementById('pdOldLocFilter').value, newLocFilter = document.getElementById('pdNewLocFilter').value, prefixFilter = document.getElementById('pdPrefixFilter').value; let filtered = currentPdItems.filter(item => { return (!kw || item.id.toLowerCase().includes(kw) || item.name.toLowerCase().includes(kw) || (item.tempCode || '').toLowerCase().includes(kw)) && (!oldLocFilter || item.oldLoc === oldLocFilter) && (!newLocFilter || item.newLoc === newLocFilter) && (!prefixFilter || getPrefix(item.tempCode) === prefixFilter); }); document.getElementById('pdCount').innerText = filtered.length; if(filtered.length === 0) { document.getElementById('pdTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">查無符合條件的資料</td></tr>'; return; } document.getElementById('pdTableBody').innerHTML = filtered.map(item => { let tcBadge = item.tempCode ? `<br><span class="badge bg-info text-dark mt-1 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; let destHtml = item.newLoc ? `<span class="text-success fw-bold">${escapeHTML(item.newLoc)}</span>` : `<span class="text-muted">尚未搬運</span>`; if(item.boxName) destHtml += `<br><small class="text-secondary border p-1 rounded mt-1 d-inline-block bg-white shadow-sm">📦 ${escapeHTML(item.boxName)}</small>`; let displayId = item.id.replace(/\n/g, ' '); return `<tr><td class="fw-bold text-start" style="font-size: 0.85rem;">${escapeHTML(displayId)}${tcBadge}</td><td class="text-start small">${escapeHTML(item.name)} <span class="badge bg-secondary">x${escapeHTML(item.qty || '1')}</span></td><td class="small text-muted">${escapeHTML(item.oldLoc)}</td><td class="small">${destHtml}</td></tr>`; }).join(''); }
 function editProjectFromOverview(eventId) { document.querySelector('button[data-bs-target="#moveCreateTab"]').click(); document.getElementById('newMvActionSelect').value = eventId; switchMoveProjectAction(); }
 function executeProjectFromOverview(eventId) { document.querySelector('button[data-bs-target="#moveExecuteTab"]').click(); document.getElementById('mvEvent').value = eventId; loadWorkerLocations(); }
-async function printProjectFromOverview(eventId, eventName) { showMiniLoading('產生清冊中...'); try { const res = await callAPI('getProjectDetails', { eventId: eventId }); if(res.length === 0) return alert("專案無資料！"); let html = `<div class="preview-paper"><h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3><div class="d-flex justify-content-between mb-3 border-bottom pb-2"><span><strong>專案名稱：</strong> ${escapeHTML(eventName)}</span><span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span></div><table class="table table-bordered table-sm" style="font-size: 10pt;"><thead class="table-light"><tr><th width="5%">項次</th><th width="20%">文物/雜物編號</th><th width="25%">名稱</th><th width="20%">原典藏地點</th><th width="20%">移往暫存地點 (箱號)</th><th width="10%">核對簽章</th></tr></thead><tbody>`; res.forEach((item, idx) => { let dest = item.newLoc ? escapeHTML(item.newLoc) : "未搬運"; if(item.boxName) dest += `<br><small>(${escapeHTML(item.boxName)})</small>`; let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; let displayId = item.id.replace(/\n/g, ' '); html += `<tr><td class="text-center align-middle">${idx + 1}</td><td class="align-middle">${escapeHTML(displayId)} ${tcLabel}</td><td class="align-middle">${escapeHTML(item.name)}</td><td class="align-middle">${escapeHTML(item.oldLoc)}</td><td class="align-middle">${dest}</td><td></td></tr>`; }); html += `</tbody></table><div class="mt-5 d-flex justify-content-between px-5"><div class="text-center"><div><strong>點交人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div><div class="text-center"><div><strong>搬運負責人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div><div class="text-center"><div><strong>管理員審核簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div></div></div>`; document.getElementById('printReportContent').innerHTML = html; document.getElementById('printReportOverlay').style.display = 'flex'; } catch(e) { alert("無法產生清冊：" + e.message); } finally { hideMiniLoading(); } }
+async function printProjectFromOverview(eventId, eventName) { showMiniLoading('產生清冊中...'); try { const res = await callAPI('getProjectDetails', { eventId: eventId }); if(res.length === 0) return alert("專案無資料！"); let html = `<div class="preview-paper"><h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3><div class="d-flex justify-content-between mb-3 border-bottom pb-2"><span><strong>專案名稱：</strong> ${escapeHTML(eventName)}</span><span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span></div><table class="table table-bordered table-sm" style="font-size: 10pt;"><thead class="table-light"><tr><th width="5%">項次</th><th width="20%">文物/雜物編號</th><th width="25%">名稱 (數量)</th><th width="20%">原典藏地點</th><th width="20%">移往暫存地點 (箱號)</th><th width="10%">核對簽章</th></tr></thead><tbody>`; res.forEach((item, idx) => { let dest = item.newLoc ? escapeHTML(item.newLoc) : "未搬運"; if(item.boxName) dest += `<br><small>(${escapeHTML(item.boxName)})</small>`; let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; let displayId = item.id.replace(/\n/g, ' '); html += `<tr><td class="text-center align-middle">${idx + 1}</td><td class="align-middle">${escapeHTML(displayId)} ${tcLabel}</td><td class="align-middle">${escapeHTML(item.name)} <span class="badge bg-secondary">x${escapeHTML(item.qty || '1')}</span></td><td class="align-middle">${escapeHTML(item.oldLoc)}</td><td class="align-middle">${dest}</td><td></td></tr>`; }); html += `</tbody></table><div class="mt-5 d-flex justify-content-between px-5"><div class="text-center"><div><strong>點交人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div><div class="text-center"><div><strong>搬運負責人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div><div class="text-center"><div><strong>管理員審核簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div></div></div>`; document.getElementById('printReportContent').innerHTML = html; document.getElementById('printReportOverlay').style.display = 'flex'; } catch(e) { alert("無法產生清冊：" + e.message); } finally { hideMiniLoading(); } }
 
 function loadNewMvList() { if(allMvItems && allMvItems.length > 0) return; const items = Object.values(globalCatalog); allMvItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allMvItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('newMvLocFilter').innerHTML = locHtml; }
 async function switchMoveProjectAction() { const val = document.getElementById('newMvActionSelect').value; if(val === 'NEW') { document.getElementById('newMvName').value = ''; document.getElementById('newMvDesc').value = ''; clearNewMvSelection(); clearMvDraft(); } else { showMiniLoading('讀取專案資料中...'); try { const res = await callAPI('getProjectDataForEdit', { eventId: val }); document.getElementById('newMvName').value = res.name; document.getElementById('newMvDesc').value = res.desc; newMvCart.clear(); res.items.forEach(item => { newMvCart.set(item.id, { name: item.name, loc: item.loc, isMisc: item.id.startsWith('MISC-'), tempCode: item.tempCode, expectedLoc: item.expectedLoc || '待定', qty: item.qty || '1' }); let existing = allMvItems.find(x => x.id === item.id); if(!existing) { allMvItems.unshift({ id: item.id, name: item.name, loc: item.loc, isMisc: item.id.startsWith('MISC-'), tempCode: item.tempCode, expectedLoc: item.expectedLoc || '待定', qty: item.qty || '1' }); } else { existing.tempCode = item.tempCode; } }); document.getElementById('newMvSelectedCount').innerText = newMvCart.size; filterNewMvList(); clearMvDraft(); } catch(e) { alert("讀取失敗: " + e.message); } finally { hideMiniLoading(); } } }
