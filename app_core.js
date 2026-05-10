@@ -124,18 +124,21 @@ function logoutSystem() {
     document.getElementById('authScreen').style.display = 'flex';
 }
 
-// 進入指定模組
+// 進入指定模組 (🔥 已修復頁籤錯亂問題)
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
     
-    // 如果是進入「異動搬運」，根據權限自動跳轉到他唯一能看的子模組
+    // 1. 永遠先切換主模組頁籤 (打開大門)
+    document.querySelector(`button[data-bs-target="#${sys}"]`).click();
+    
+    // 2. 如果是進入「異動搬運」，再根據權限自動跳轉到他唯一能看的子模組 (進入房間)
     if(sys === 'move') {
-        if(currentPermissions.move_overview) document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
-        else if(currentPermissions.move_create) document.querySelector('button[data-bs-target="#moveCreateTab"]').click();
-        else if(currentPermissions.move_execute) document.querySelector('button[data-bs-target="#moveExecuteTab"]').click();
-    } else {
-        document.querySelector(`button[data-bs-target="#${sys}"]`).click();
+        setTimeout(() => {
+            if(currentPermissions.move_overview) document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
+            else if(currentPermissions.move_create) document.querySelector('button[data-bs-target="#moveCreateTab"]').click();
+            else if(currentPermissions.move_execute) document.querySelector('button[data-bs-target="#moveExecuteTab"]').click();
+        }, 50); // 延遲 50 毫秒確保 Bootstrap 主頁籤動畫完成
     }
     
     document.getElementById('homeMenu').style.display = 'none';
