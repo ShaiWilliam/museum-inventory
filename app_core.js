@@ -1,9 +1,11 @@
 // ==========================================
 // 博物館系統前端核心 (app_core.js)
-// 包含：API通訊(Fetch跨網域)、全域變數、權限控管 (RBAC)、離線快取、基礎工具
+// 包含：API通訊(Fetch跨網域)、七天免登入記憶、全域變數、權限控管 (RBAC)、離線快取、基礎工具
 // ==========================================
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
+const TOKEN_KEY = "museum_auth_token";
+const TOKEN_VALID_MS = 7 * 24 * 60 * 60 * 1000; // 7天
 
 // ================= 💡 全域變數宣告 =================
 let globalCatalog = {}; 
@@ -25,42 +27,77 @@ let locScanTarget = "";
 let currentMvEventId = "";
 let mgrPendingData = [], mgrConfirmedData = [];
 
-// ================= 💡 系統初始化與登入權限機制 =================
+// ================= 💡 系統初始化與七天免登入機制 =================
 document.addEventListener("DOMContentLoaded", () => {
+    loadSyncQueue();
+    checkSavedAuth(); // 檢查七天免登入憑證
+});
+
+function checkSavedAuth() {
+    try {
+        const tokenStr = localStorage.getItem(TOKEN_KEY);
+        if (tokenStr) {
+            const token = JSON.parse(tokenStr);
+            if (Date.now() < token.expiry) {
+                // 憑證有效：還原身份與權限
+                currentManager = token.managerName;
+                currentPermissions = token.permissions;
+                const daysLeft = Math.ceil((token.expiry - Date.now()) / (1000 * 60 * 60 * 24));
+                
+                document.getElementById('welcomeName').innerText = '👋 歡迎歸隊，' + currentManager + '！';
+                document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：${daysLeft} 天`;
+                
+                document.getElementById('splashScreen').style.display = 'none';
+                document.getElementById('authScreen').style.display = 'none';
+                
+                applyPermissionsUI();
+                document.getElementById('homeMenu').style.display = 'block';
+                preloadBaseData();
+                return;
+            } else {
+                // 憑證過期：清除舊資料
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        }
+    } catch (e) { console.error("解析登入憑證失敗", e); }
+    
+    // 無效或無憑證：顯示登入畫面
     document.getElementById('splashScreen').style.display = 'none';
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('frontDoorPwd').focus();
-    loadSyncQueue();
-});
+}
 
-// 呼叫 Google Apps Script 封裝 (改用標準 Fetch API 解決跨網域與 google is not defined 問題)
+// 呼叫 Google Apps Script 封裝 (Fetch API)
 async function callAPI(action, payload = {}) {
     try {
         const response = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain;charset=utf-8',
-            },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: action, payload: payload })
         });
-        
-        if (!response.ok) {
-            throw new Error("網路連線異常，狀態碼：" + response.status);
-        }
-        
+        if (!response.ok) throw new Error("網路連線異常，狀態碼：" + response.status);
         const res = await response.json();
-        if (res.success) {
-            return res.data;
-        } else {
-            throw new Error(res.error || "後端處理發生未知錯誤");
-        }
+        if (res.success) return res.data;
+        else throw new Error(res.error || "後端處理發生未知錯誤");
     } catch (err) {
         console.error("API Call Error:", err);
         throw new Error("連線失敗：" + err.message);
     }
 }
 
-// 登入大門：驗證密碼並接收權限清單
+function preloadBaseData() {
+    callAPI('getInventoryInitData').then(res => {
+        globalCatalog = res.catalog || {};
+        globalLocTree = res.locTree || [];
+        if (res.manuals) {
+            let html = '';
+            for (let mod in res.manuals) { html += `<h6 class="fw-bold mt-3 text-dark border-bottom pb-1">${mod}</h6><p class="small text-muted" style="white-space: pre-wrap;">${res.manuals[mod]}</p>`; }
+            document.getElementById('helpContent').innerHTML = html;
+        }
+    }).catch(e => console.error("背景預載基礎資料失敗", e));
+}
+
+// 登入大門：驗證密碼、接收權限並核發 7 天憑證
 async function loginAtFrontDoor() {
     const pwd = document.getElementById('frontDoorPwd').value.trim();
     if(!pwd) return alert('請輸入密碼！');
@@ -68,43 +105,35 @@ async function loginAtFrontDoor() {
     try {
         const res = await callAPI('verifyManager', { pwd: pwd });
         currentManager = res.managerName;
-        currentPermissions = res.permissions; // 儲存專屬權限
+        currentPermissions = res.permissions;
+        
+        // 💡 寫入 7 天效期的登入憑證
+        const token = { managerName: currentManager, permissions: currentPermissions, expiry: Date.now() + TOKEN_VALID_MS };
+        localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
         
         document.getElementById('welcomeName').innerText = '👋 歡迎歸隊，' + currentManager + '！';
+        document.getElementById('tokenCountdown').innerText = `🔐 授權憑證有效期限剩餘：7 天`;
         document.getElementById('authScreen').style.opacity = '0';
         
         setTimeout(() => {
             document.getElementById('authScreen').style.display = 'none';
-            applyPermissionsUI(); // 根據權限渲染畫面
+            applyPermissionsUI();
             document.getElementById('homeMenu').style.display = 'block';
-            
-            // 背景預先載入藏品基礎資料
-            callAPI('getInventoryInitData').then(res => {
-                globalCatalog = res.catalog || {};
-                globalLocTree = res.locTree || [];
-                if (res.manuals) {
-                    let html = '';
-                    for (let mod in res.manuals) { html += `<h6 class="fw-bold mt-3 text-dark border-bottom pb-1">${mod}</h6><p class="small text-muted" style="white-space: pre-wrap;">${res.manuals[mod]}</p>`; }
-                    document.getElementById('helpContent').innerHTML = html;
-                }
-            }).catch(e => console.error("背景預載基礎資料失敗", e));
+            preloadBaseData();
         }, 500);
     } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
 }
 
 // 核心權限控管：隱藏/顯示大廳與子模組頁籤
 function applyPermissionsUI() {
-    // 1. 首頁大廳模組卡片控管
     document.querySelector('.c-query').style.display = currentPermissions.query ? 'flex' : 'none';
     document.querySelector('.c-reg').style.display = currentPermissions.register ? 'flex' : 'none';
     document.querySelector('.c-inv').style.display = currentPermissions.inv ? 'flex' : 'none';
     
     let hasAnyMovePerm = currentPermissions.move_overview || currentPermissions.move_create || currentPermissions.move_execute;
     document.querySelector('.c-move').style.display = hasAnyMovePerm ? 'flex' : 'none';
-    
     document.querySelector('.c-mgr').style.display = currentPermissions.mgr ? 'flex' : 'none';
 
-    // 2. 「文物異動搬運」內部子頁籤控管
     const btnOverview = document.querySelector('button[data-bs-target="#moveOverviewTab"]');
     const btnCreate = document.querySelector('button[data-bs-target="#moveCreateTab"]');
     const btnExecute = document.querySelector('button[data-bs-target="#moveExecuteTab"]');
@@ -115,37 +144,36 @@ function applyPermissionsUI() {
 }
 
 function logoutSystem() {
-    if(!confirm("確定要登出系統嗎？")) return;
+    if(!confirm("確定要登出系統並清除授權憑證嗎？")) return;
     currentManager = "";
     currentPermissions = {};
+    localStorage.removeItem(TOKEN_KEY); // 💡 登出時銷毀憑證
+    
     document.getElementById('homeMenu').style.display = 'none';
     document.getElementById('frontDoorPwd').value = '';
     document.getElementById('authScreen').style.opacity = '1';
     document.getElementById('authScreen').style.display = 'flex';
 }
 
-// 進入指定模組 (🔥 已修復頁籤錯亂問題)
+// 進入指定模組
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
     
-    // 1. 永遠先切換主模組頁籤 (打開大門)
     document.querySelector(`button[data-bs-target="#${sys}"]`).click();
     
-    // 2. 如果是進入「異動搬運」，再根據權限自動跳轉到他唯一能看的子模組 (進入房間)
     if(sys === 'move') {
         setTimeout(() => {
             if(currentPermissions.move_overview) document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
             else if(currentPermissions.move_create) document.querySelector('button[data-bs-target="#moveCreateTab"]').click();
             else if(currentPermissions.move_execute) document.querySelector('button[data-bs-target="#moveExecuteTab"]').click();
-        }, 50); // 延遲 50 毫秒確保 Bootstrap 主頁籤動畫完成
+        }, 50);
     }
     
     document.getElementById('homeMenu').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
     window.scrollTo(0, 0);
 
-    // 觸發特定模組的資料載入
     if (sys === 'query') { document.getElementById('queryManualInput').focus(); }
     if (sys === 'move' || sys === 'mgr') {
         showMiniLoading('載入動態資料中...');
