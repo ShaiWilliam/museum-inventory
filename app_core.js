@@ -157,7 +157,6 @@ async function enterSystem(sys) {
     
     if(sys === 'move') {
         setTimeout(() => {
-            // 💡 只有從大廳進來時，才會自動幫你點擊授權的頁籤
             if(currentPermissions.move_overview) document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
             else if(currentPermissions.move_create) document.querySelector('button[data-bs-target="#moveCreateTab"]').click();
             else if(currentPermissions.move_execute) document.querySelector('button[data-bs-target="#moveExecuteTab"]').click();
@@ -204,11 +203,11 @@ function refreshSystem(sys) {
     if(sys === 'inv') { clearInventorySession(); enterSystem('inv'); }
     if(sys === 'move') { 
         document.getElementById('mvEvent').value = ''; 
-        document.getElementById('mvLocSelector').style.display='none'; 
-        document.getElementById('mvPhase2').style.display='none'; 
         
-        let mvProgressBox = document.getElementById('mvProgressBox');
-        if (mvProgressBox) mvProgressBox.style.display = 'none';
+        let mvLocSelector = document.getElementById('mvLocSelector'); if(mvLocSelector) mvLocSelector.style.display='none';
+        let mvPhase2 = document.getElementById('mvPhase2'); if(mvPhase2) mvPhase2.style.display='none';
+        let mvPhase3 = document.getElementById('mvPhase3'); if(mvPhase3) mvPhase3.style.display='none';
+        let mvProgressBox = document.getElementById('mvProgressBox'); if(mvProgressBox) mvProgressBox.style.display='none';
 
         showMiniLoading('更新背景資料中...');
         callAPI('getWorkerInitData').then(initData => {
@@ -218,7 +217,6 @@ function refreshSystem(sys) {
             document.getElementById('mvEvent').innerHTML = evHtml;
             hideMiniLoading();
             
-            // 如果有總覽權限，順便在背景幫他把清單刷到最新
             if(currentPermissions.move_overview && typeof loadAllProjects === 'function') {
                 loadAllProjects();
             }
@@ -254,7 +252,7 @@ async function stopScannerSafe(scannerObj) {
 async function stopAllScanners() {
     showMiniLoading('正在安全關閉相機...');
     if (scanner) { await stopScannerSafe(scanner); scanner = null; }
-    if (locScanner) { await stopScannerSafe(locScanner); locScanner = null; document.getElementById('loc-reader-container').style.display = 'none'; }
+    if (locScanner) { await stopScannerSafe(locScanner); locScanner = null document.getElementById('loc-reader-container').style.display = 'none'; }
     if (queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; }
     hideMiniLoading();
 }
