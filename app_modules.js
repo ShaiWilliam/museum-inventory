@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 修復：瞬間隱藏掃描器防卡死、手動按鈕清理與地點掃描路由
+// 新增：地點與模糊搜尋「複合式篩選機制」
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -240,11 +240,11 @@ function selectBsLoc(loc) { let input = document.getElementById(`prevLoc_${curre
 function enableManualLocInput() { closeBottomSheet(); let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.removeAttribute('readonly'); input.focus(); }
 
 
-// ================= 💡 查詢、建檔、盤點 (相機修復) =================
+// ================= 💡 查詢、建檔、列印、盤點 =================
 function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
 async function execQuery(rawStr) { 
     let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0]; 
-    stopQueryScannerAndReturn(); // 🔥 瞬間關閉相機畫面
+    if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; } 
     const res = globalCatalog[cleanId]; 
     if(res) { renderQueryUI(res); fetchFreshQueryData(cleanId); } 
     else { 
@@ -276,15 +276,19 @@ function renderQueryUI(res) {
     document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('queryResultBox').style.display = 'block'; playSound('success'); 
 }
 function startQueryScanner() { document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block'; if (!queryScanner) queryScanner = new Html5Qrcode("query-reader"); if (queryScanner.getState() !== 2) { queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg)); } }
+async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...'); await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; hideMiniLoading(); }
 
-// 🔥 修復：瞬間隱藏查詢相機，背景非同步關閉
-function stopQueryScannerAndReturn() { 
-    document.getElementById('query-reader-container').style.display = 'none'; 
-    document.getElementById('btnStartQueryCam').style.display = 'block'; 
-    if (queryScanner) { queryScanner.stop().then(() => { queryScanner.clear(); queryScanner = null; }).catch(() => { queryScanner = null; }); }
+async function submitRegistration() { 
+    const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; 
+    if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); 
+    try { 
+        await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); 
+        globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; 
+        if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } 
+        ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; 
+    } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } 
 }
 
-async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
 function renderPrintList(items) { const container = document.getElementById('printListContainer'); if(items.length === 0) { container.innerHTML = '<div class="p-3 text-center text-muted">查無紀錄</div>'; return; } container.innerHTML = items.map((item, idx) => `<div class="print-item p-2 d-flex align-items-center"><input class="form-check-input me-2 cb-print" type="checkbox" value="${escapeHTML(item.id)}" data-name="${escapeHTML(item.name)}" data-loc="${escapeHTML(item.loc)}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)"><label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${escapeHTML(item.id)}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${escapeHTML(item.loc)}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${escapeHTML(item.name)}</div></label></div>`).join(''); updateCartBtn(); }
 function filterPrintList() { const term = document.getElementById('printSearch').value.toLowerCase(), locFilter = document.getElementById('printLocFilter').value; const filtered = allPrintItems.filter(item => { return (item.id.toLowerCase().includes(term) || item.name.toLowerCase().includes(term)) && (locFilter === "" || item.loc === locFilter); }); renderPrintList(filtered); }
@@ -306,21 +310,9 @@ function clearInventorySession() { try { localStorage.removeItem('invSession'); 
 async function executeInventoryStart() { showMiniLoading('準備盤點...'); try { const res = await callAPI('startInventory', sysState); sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI(); document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block'; hideMiniLoading(); if (!scanner) scanner = new Html5Qrcode("reader"); if (scanner.getState() !== 2) { scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); } } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); } }
 function updateProgressUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned); document.getElementById('progressBar').style.width = (sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100)) + '%'; }
 async function processScanLocal(msg) { if (isProc || Date.now() - lastScan < 800) return; isProc = true; lastScan = Date.now(); let cleanMsg = msg.includes('?id=') ? new URL(msg).searchParams.get('id') : msg.trim().split('\n')[0]; const item = localItemCache[cleanMsg]; const overlay = document.getElementById('resultOverlay'); overlay.style.display = 'block'; if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在範圍</span>'; document.getElementById('resName').innerText = cleanMsg; } else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點</span>'; document.getElementById('resName').innerText = item.name; } else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 成功</span>'; document.getElementById('resName').innerText = item.name; syncQueue.push(cleanMsg); saveSyncQueue(); triggerBackgroundSync(); } setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200); }
-
-// 🔥 修復：瞬間隱藏盤點相機防卡死
-function pauseAndSave() { 
-    document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; 
-    checkSavedSession(); 
-    if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); }
-}
-function finishInventory() { 
-    if(!confirm("確定結束進入結算？")) return; 
-    document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; 
-    if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); }
-}
-
+function pauseAndSave() { document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
+function finishInventory() { if(!confirm("確定結束進入結算？")) return; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
-
 
 // ================= 💡 專案異動管理 (總覽與過濾) =================
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
@@ -619,6 +611,10 @@ async function loadWorkerLocations() {
             document.getElementById('mvLocSelector').style.display = 'block';
             document.getElementById('mvPhase2').style.display = 'block';
             document.getElementById('mvPhase3').style.display = 'block';
+            
+            // 🔥 新增：進入專案時，直接預設載入「所有」未搬運文物，方便同仁搜尋
+            document.getElementById('mvLoc').value = '';
+            document.getElementById('mvLocDisplay').value = '';
             renderWorkerItems(currentProjectItems, false);
         } else {
             document.getElementById('mvLocSelector').style.display = 'none';
@@ -628,23 +624,33 @@ async function loadWorkerLocations() {
     } catch (e) { alert("載入資料失敗：" + e.message); } finally { hideMiniLoading(); }
 }
 
+// 🔥 修復：地點與關鍵字的複合式過濾器
 function loadWorkerItems() {
     const loc = document.getElementById('mvLoc').value;
-    if(!loc) return;
-    const filteredItems = currentProjectItems.filter(x => x.loc === loc);
-    renderWorkerItems(filteredItems, false);
+    const kw = document.getElementById('mvSearchKw').value.toLowerCase().trim();
+    
+    // 如果兩者皆空，預設顯示專案「所有」未搬運文物
+    let filteredItems = currentProjectItems;
+    
+    if (loc) {
+        filteredItems = filteredItems.filter(x => x.loc === loc);
+    }
+    
+    if (kw) {
+        filteredItems = filteredItems.filter(x => x.qrCode.toLowerCase().includes(kw) || x.name.toLowerCase().includes(kw) || (x.tempCode || '').toLowerCase().includes(kw));
+    }
+    
+    renderWorkerItems(filteredItems, !!kw);
 }
 
+// 🔥 修復：搜尋時直接呼叫統一過濾邏輯
 function searchWorkerItems() {
-    const kw = document.getElementById('mvSearchKw').value.toLowerCase().trim();
-    if(!kw) { document.getElementById('mvPhase2').style.display = 'none'; document.getElementById('mvPhase3').style.display = 'none'; return; }
-    const filteredItems = currentProjectItems.filter(x => x.qrCode.toLowerCase().includes(kw) || x.name.toLowerCase().includes(kw) || (x.tempCode || '').toLowerCase().includes(kw));
-    renderWorkerItems(filteredItems, true);
+    loadWorkerItems();
 }
 
 function renderWorkerItems(items, isSearchMode) {
     const listDiv = document.getElementById('mvItemList');
-    if (items.length === 0) { listDiv.innerHTML = `<div class="text-muted text-center py-4">查無待搬運項目！</div>`; document.getElementById('mvPhase2').style.display = 'block'; document.getElementById('mvPhase3').style.display = 'none'; return; }
+    if (items.length === 0) { listDiv.innerHTML = `<div class="text-muted text-center py-4">查無符合條件的待搬運項目！</div>`; document.getElementById('mvPhase2').style.display = 'block'; document.getElementById('mvPhase3').style.display = 'none'; return; }
     listDiv.innerHTML = items.map((x, i) => { 
         let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark me-2 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; 
         let isMisc = x.qrCode.startsWith('MISC'); let displayId = x.qrCode.replace(/\n/g, ' '); 
@@ -728,14 +734,12 @@ async function confirmBulkMovement() {
     } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.innerText = "全數確認送出"; }
 }
 
-// 雲端交接碼功能與相機修復
 async function generateHandoff() {
     if (workerCart.size === 0) return alert("請先勾選要交接的文物！");
     let handoffData = { eventId: document.getElementById('mvEvent').value, selectedRows: Array.from(workerCart) }; showMiniLoading('產生交接碼中...');
     try { let res = await callAPI('generateHandoff', { data: handoffData }); document.getElementById('handoffPinDisplay').innerText = res.pin; const qr = new QRious({ value: "HANDOFF:" + res.pin, size: 200, level: 'M' }); document.getElementById('handoffQrImage').src = qr.toDataURL('image/png'); bootstrap.Modal.getOrCreateInstance(document.getElementById('handoffModal')).show(); } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
 }
 
-// 🔥 修復：加入防卡死機制，並為生成的按鈕加入特定 ID 避免重複生成
 function resumeHandoffPrompt() { 
     startLocScanner('handoff'); 
     setTimeout(() => { 
@@ -750,7 +754,7 @@ function resumeHandoffPrompt() {
                 setTimeout(() => {
                     let pin = prompt("請輸入 4 位數交接碼："); 
                     if(pin && pin.trim().length === 4) processHandoff(pin.trim()); 
-                }, 300); // 等待相機畫面關閉後再彈出 prompt，避免卡死
+                }, 300); 
             }; 
             document.getElementById('loc-reader-container').querySelector('.btn-danger').before(manualBtn); 
         }
@@ -781,11 +785,10 @@ function startLocScanner(targetId) {
     } 
 }
 
-// 🔥 修復：瞬間隱藏，將掃描器關閉放入背景執行
 function stopLocScanner() { 
     document.getElementById('loc-reader-container').style.display = 'none'; 
     let hBtn = document.getElementById('manualHandoffBtn'); 
-    if(hBtn) hBtn.remove(); // 清除手動輸入按鈕
+    if(hBtn) hBtn.remove();
     
     if(locScanner) { 
         try {
@@ -800,15 +803,14 @@ function cancelLocScanner() {
 
 function handleLocScan(msg) { 
     let target = locScanTarget; locScanTarget = ''; 
-    stopLocScanner(); // 掃描到瞬間關閉 UI
+    stopLocScanner();
     
     let cleanMsg = msg.trim(); 
-    if (cleanMsg.startsWith("LOC:")) cleanMsg = cleanMsg.substring(4); // 相容地點標籤列印格式
+    if (cleanMsg.startsWith("LOC:")) cleanMsg = cleanMsg.substring(4);
     
     if (cleanMsg.startsWith("HANDOFF:")) { 
         processHandoff(cleanMsg.substring(8)); 
     } else if (target === 'mvLoc' || target === 'mvNewLoc' || target === 'regLoc' || target === 'miscLoc' || target.startsWith('importMiscLoc_')) {
-        // 🔥 修復：如果是這幾個地點目標，將掃描到的值自動帶入到對應的欄位中
         currentModalTarget = target;
         selectModalLoc(cleanMsg);
     } else if (target === 'handoff') {
@@ -820,6 +822,7 @@ function handleLocScan(msg) {
 
 function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state); document.querySelectorAll('.mv-item-cb').forEach(cb => toggleWorkerCart(cb, parseInt(cb.value))); }
 async function silentMvSync() { if(!currentMvEventId) return; try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {} }
+
 
 // ================= 💡 管理員審核與空間架構管理 =================
 function parseOverrideData() { const raw = document.getElementById('importOverrideTextarea').value.trim(); if(!raw) return alert("請先貼上資料！"); const lines = raw.split('\n'); let payload = []; lines.forEach(line => { if(!line.trim()) return; let cols = line.includes('\t') ? line.split('\t') : line.split(','); cols = cols.map(c => c.trim()); if (cols.length >= 2 && cols[0]) { payload.push({ id: cols[0], newLoc: cols[1] }); } }); if(payload.length === 0) return alert("解析失敗！請確保貼上格式為「編號 + 地點」。"); showMiniLoading("正在比對雲端總表..."); callAPI('previewLocationOverride', { items: payload }).then(res => { parsedOverrideItems = res.results; renderOverridePreview(); document.getElementById('overridePreviewSection').style.display = 'block'; hideMiniLoading(); }).catch(e => { alert("預覽失敗：" + e.message); hideMiniLoading(); }); }
