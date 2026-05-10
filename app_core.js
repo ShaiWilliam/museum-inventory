@@ -27,7 +27,7 @@ let locScanTarget = "";
 let currentMvEventId = "";
 let mgrPendingData = [], mgrConfirmedData = [];
 
-// ================= 💡 系統初始化與開機動畫機制 =================
+// ================= 💡 系統初始化與七天免登入機制 =================
 document.addEventListener("DOMContentLoaded", () => {
     loadSyncQueue();
     // 確保一開始顯示開機動畫
@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
     checkSavedAuth();
 });
 
-// 🔥 找回靈魂的完美開機動畫與七天免登入檢查
+// 開機動畫與七天免登入檢查
 function checkSavedAuth() {
     const prog = document.getElementById('splashProgress');
     const sText = document.getElementById('splashText');
@@ -88,7 +88,7 @@ function checkSavedAuth() {
     }, 1200);
 }
 
-// ================= 💡 API 呼叫與後續邏輯 =================
+// 呼叫 Google Apps Script 封裝 (Fetch API)
 async function callAPI(action, payload = {}) {
     try {
         const response = await fetch(API_URL, {
@@ -173,6 +173,7 @@ function logoutSystem() {
     document.getElementById('authScreen').style.display = 'flex';
 }
 
+// 進入指定模組 (防呆跳轉)
 async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
@@ -208,8 +209,8 @@ async function enterSystem(sys) {
             
             if (sys === 'mgr' && currentPermissions.mgr) { renderLocationsList(mgrLocTree); loadManagerData(); }
             if (sys === 'move') {
-                if(currentPermissions.move_overview) loadAllProjects();
-                else if(currentPermissions.move_create) checkMvDraft();
+                if(currentPermissions.move_overview && typeof loadAllProjects === 'function') loadAllProjects();
+                else if(currentPermissions.move_create && typeof checkMvDraft === 'function') checkMvDraft();
             }
         } catch(e) { alert("資料載入失敗: " + e.message); } finally { hideMiniLoading(); }
     }
@@ -280,7 +281,7 @@ async function stopAllScanners() {
     hideMiniLoading();
 }
 
-// ================= 💡 樹狀地點渲染工具 (模組共用) =================
+// ================= 💡 樹狀地點渲染工具 =================
 function renderTreeHTML(tree, containerId, prefix, isCheckbox) {
     const container = document.getElementById(containerId);
     if(tree.length === 0) { container.innerHTML = '<div class="text-center text-muted p-3">查無地點資料</div>'; return; }
@@ -354,7 +355,7 @@ async function triggerBackgroundSync() {
         } catch(e) { 
             let errStr = e.message.toLowerCase(); 
             if(errStr.includes('fetch') || errStr.includes('network') || errStr.includes('internet') || errStr.includes('failed to fetch')) { 
-                break; // 網路斷線，保留駐留列隊
+                break; 
             } else { 
                 console.error("背景同步失敗 (非網路問題，放棄該筆):", e);
                 syncQueue.shift(); 
