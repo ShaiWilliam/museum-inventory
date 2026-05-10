@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：移除易混淆的搬運全域設定、引入購物車統一確認動線
+// 最新優化：移除易混淆的搬運全域設定、引入購物車統一確認動線、下鑽式層級地點選單
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-2">
-                    <div class="alert alert-success small py-2 mb-2">💡 點擊「實際放置」框框可滑出專屬地點選單。若與預設不同，系統會自動標示。</div>
+                    <div class="alert alert-success small py-2 mb-2">💡 點擊「實際放置」框框，跟隨層級引導選擇正確庫房地點。</div>
                     <div id="mvPreviewList" class="d-flex flex-column gap-2"></div>
                 </div>
                 <div class="modal-footer bg-white d-flex justify-content-between p-2">
@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="bottom-sheet-overlay" id="bsOverlay" onclick="closeBottomSheet()"></div>
     <div class="bottom-sheet-container" id="bsContainer">
         <div class="bs-header"><div class="bs-drag-handle"></div>選擇實際放置地點</div>
-        <div class="bs-body" id="bsBody"></div>
+        <div class="bs-body p-0" id="bsBody"></div>
         <div class="p-3 border-top bg-light"><button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button></div>
     </div>
 
@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
 let workerCart = new Set();
 let useVK = true;
 let currentBsTargetRow = null;
+let bsState = { step: 0, main: '', med: '' }; // 新增：用來記憶層級選單目前的狀態
 
 let newMvCart = new Map();
 let allMvItems = [];
@@ -173,7 +174,11 @@ function openLocModal(title, tree) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('locModal')).show();
 }
 
-// ================= 💡 虛擬鍵盤與 Bottom Sheet 控制 =================
+function toggleBoxInput() { 
+    document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; 
+}
+
+// ================= 💡 虛擬鍵盤 =================
 function toggleInputMode() {
     useVK = !useVK;
     let input = document.getElementById('mvSearchKw'), btn = document.getElementById('btnToggleInputMode');
@@ -221,18 +226,102 @@ document.addEventListener('click', function(event) {
     if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
 });
 
+// ================= 💡 🔥 全新：層疊下鑽式地點選單 (Bottom Sheet) =================
 function openBottomSheet(rIdx) {
-    currentBsTargetRow = rIdx; document.getElementById('bsOverlay').classList.add('active'); document.getElementById('bsContainer').classList.add('active'); 
-    let html = '';
-    mgrLocTree.forEach(m => { 
-        let mSafe = escapeHTML(m.main); html += `<div class="bs-loc-main">📂 ${mSafe}</div>`; 
-        m.subs.forEach(s => s.details.forEach(d => { if(!d.isHidden) html += `<div class="bs-loc-item" onclick="selectBsLoc('${escapeHTML(d.val)}')">📍 ${escapeHTML(d.val)}</div>`; })); 
+    currentBsTargetRow = rIdx; 
+    document.getElementById('bsOverlay').classList.add('active'); 
+    document.getElementById('bsContainer').classList.add('active'); 
+    renderBsMain(); // 開啟時一律從「大區」開始顯示
+}
+
+function renderBsMain() {
+    bsState.step = 0; bsState.main = ''; bsState.med = '';
+    document.querySelector('.bs-header').innerHTML = '<div class="bs-drag-handle"></div>📍 選擇大區 (1/3)';
+    
+    let html = '<div class="list-group list-group-flush">';
+    mgrLocTree.forEach(m => {
+        html += `<button class="list-group-item list-group-item-action fw-bold py-3 text-primary d-flex justify-content-between align-items-center" onclick="renderBsMedium('${escapeHTML(m.main)}')">
+                    <span>📂 ${escapeHTML(m.main)}</span>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                 </button>`;
     });
+    html += '</div>';
     document.getElementById('bsBody').innerHTML = html;
 }
-function closeBottomSheet() { document.getElementById('bsOverlay').classList.remove('active'); document.getElementById('bsContainer').classList.remove('active'); }
-function selectBsLoc(loc) { let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.value = loc; closeBottomSheet(); checkLocModification(currentBsTargetRow); }
-function enableManualLocInput() { closeBottomSheet(); let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.removeAttribute('readonly'); input.focus(); }
+
+function renderBsMedium(main) {
+    bsState.step = 1; bsState.main = main;
+    document.querySelector('.bs-header').innerHTML = `<div class="bs-drag-handle"></div><div class="d-flex align-items-center"><button class="btn btn-sm btn-light py-0 me-2 shadow-sm" onclick="renderBsMain()"><i class="fas fa-arrow-left"></i></button><span class="fw-bold">📍 選擇中區 (2/3)</span></div>`;
+    
+    let targetMain = mgrLocTree.find(m => m.main === main);
+    let html = '<div class="list-group list-group-flush">';
+    targetMain.subs.forEach(s => {
+        let displaySub = s.sub === "(本區)" ? "(不指定中區，直接選層板)" : s.sub;
+        html += `<button class="list-group-item list-group-item-action fw-bold py-3 text-success d-flex justify-content-between align-items-center" onclick="renderBsSmall('${escapeHTML(main)}', '${escapeHTML(s.sub)}')">
+                    <span>📁 ${escapeHTML(displaySub)}</span>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                 </button>`;
+    });
+    html += '</div>';
+    document.getElementById('bsBody').innerHTML = html;
+}
+
+function renderBsSmall(main, med) {
+    bsState.step = 2; bsState.med = med;
+    document.querySelector('.bs-header').innerHTML = `<div class="bs-drag-handle"></div><div class="d-flex align-items-center"><button class="btn btn-sm btn-light py-0 me-2 shadow-sm" onclick="renderBsMedium('${escapeHTML(main)}')"><i class="fas fa-arrow-left"></i></button><span class="fw-bold">📍 選擇小區 (3/3)</span></div>`;
+    
+    let targetMain = mgrLocTree.find(m => m.main === main);
+    let targetSub = targetMain.subs.find(s => s.sub === med);
+    let html = '<div class="list-group list-group-flush">';
+    
+    let validCount = 0;
+    targetSub.details.forEach(d => {
+        if(!d.isHidden) {
+            validCount++;
+            let displayLabel = d.label === "(無)" ? "📍 直接放置於此區" : d.label;
+            html += `<button class="list-group-item list-group-item-action fw-bold py-3 text-dark" onclick="selectBsLoc('${escapeHTML(d.val)}')">
+                        <div class="d-flex align-items-center">
+                            <span class="me-2 text-info">📍</span>
+                            <div>
+                                <div class="fs-6">${escapeHTML(displayLabel)}</div>
+                                <small class="text-muted fw-normal" style="font-size:0.75rem;">完整地點: ${escapeHTML(d.val)}</small>
+                            </div>
+                        </div>
+                     </button>`;
+        }
+    });
+    
+    if(validCount === 0) {
+        html += '<div class="p-4 text-center text-muted">此區目前沒有啟用的地點可供選擇</div>';
+    }
+    
+    html += '</div>';
+    document.getElementById('bsBody').innerHTML = html;
+}
+
+function closeBottomSheet() { 
+    document.getElementById('bsOverlay').classList.remove('active'); 
+    document.getElementById('bsContainer').classList.remove('active'); 
+    // 延遲復原標題，避免關閉動畫時看到字體跳動
+    setTimeout(() => {
+        document.querySelector('.bs-header').innerHTML = '<div class="bs-drag-handle"></div>選擇實際放置地點';
+    }, 300);
+}
+
+function selectBsLoc(loc) { 
+    let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); 
+    input.value = loc; 
+    closeBottomSheet(); 
+    checkLocModification(currentBsTargetRow); 
+}
+
+function enableManualLocInput() { 
+    closeBottomSheet(); 
+    let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); 
+    input.removeAttribute('readonly'); 
+    input.focus(); 
+}
+
 
 // ================= 💡 查詢、建檔、列印、盤點 =================
 function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
@@ -633,7 +722,6 @@ function renderWorkerItems(items, isSearchMode) {
 
 function toggleWorkerCart(cb, rIdx) { if (cb.checked) workerCart.add(rIdx); else workerCart.delete(rIdx); updateFloatingCartUI(); }
 
-// 🔥 確保浮動購物車與底部實體大按鈕同步更新
 function updateFloatingCartUI() { 
     const btn = document.getElementById('floatingCartBtn'), count = document.getElementById('floatingCartCount'); 
     const btnBottom = document.getElementById('btnGoToCart');
@@ -659,6 +747,15 @@ function updateFloatingCartUI() {
 
 function openSubmitPreviewModal() {
     if(workerCart.size === 0) return alert('請先勾選要搬運的文物！');
+    
+    // 檢查人員是否有選
+    const staffSelect = document.getElementById('mvStaffInternal');
+    if(staffSelect && !staffSelect.value) {
+        alert('請先在上方「2. 本處人員 (操作者)」選擇您的名字！');
+        staffSelect.focus();
+        return;
+    }
+
     closeVK(); let html = '';
     workerCart.forEach(rIdx => {
         let item = currentProjectItems.find(x => x.rowIndex === rIdx); if(!item) return;
@@ -682,11 +779,10 @@ function openSubmitPreviewModal() {
 
 function checkLocModification(rIdx) { let input = document.getElementById(`prevLoc_${rIdx}`), card = document.getElementById(`prevCard_${rIdx}`), item = currentProjectItems.find(x => x.rowIndex === rIdx); if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { card.classList.add('preview-card-modified'); } else { card.classList.remove('preview-card-modified'); } }
 
-// 🔥 寫入後端時，將最上方的「本處人員 (staffInternal)」一併夾帶送出
 async function submitSingleMovement(rIdx) {
     let locInput = document.getElementById(`prevLoc_${rIdx}`).value.trim(); if(!locInput) return alert("請選擇實際放置地點！");
     let btn = document.querySelector(`#prevCard_${rIdx} button`); btn.disabled = true; btn.innerText = "寫入中...";
-    let staff = document.getElementById('mvStaffInternal').value; // 抓取人員
+    let staff = document.getElementById('mvStaffInternal').value; 
     try {
         await callAPI('submitMovement', { rowIndices: [rIdx], expectedLocs: { [rIdx]: locInput }, manager: currentManager, staffInternal: staff });
         document.getElementById(`prevCard_${rIdx}`).style.display = 'none'; currentProjectItems = currentProjectItems.filter(x => x.rowIndex !== rIdx);
@@ -700,7 +796,7 @@ async function confirmBulkMovement() {
     let emptyCount = inputs.filter(i => !i.value.trim()).length; if(emptyCount > 0) return alert(`還有 ${emptyCount} 件未指定實際地點！`);
     let btn = document.getElementById('btnConfirmBulkMove'); btn.disabled = true; btn.innerText = "全數寫入中...";
     let payloadDict = {}, rowIndices = []; inputs.forEach(i => { let rIdx = parseInt(i.id.split('_')[1]); payloadDict[rIdx] = i.value.trim(); rowIndices.push(rIdx); });
-    let staff = document.getElementById('mvStaffInternal').value; // 抓取人員
+    let staff = document.getElementById('mvStaffInternal').value; 
     try {
         await callAPI('submitMovement', { rowIndices: rowIndices, expectedLocs: payloadDict, manager: currentManager, staffInternal: staff }); alert(`✅ 成功送出 ${rowIndices.length} 件搬運紀錄！`);
         rowIndices.forEach(r => workerCart.delete(r)); updateFloatingCartUI(); bootstrap.Modal.getInstance(document.getElementById('mvPreviewModal')).hide(); loadWorkerLocations();
