@@ -1,12 +1,15 @@
 // ==========================================
 // 博物館系統前端核心 (app_core.js)
-// 包含：API通訊、全域變數、權限控管 (RBAC)、離線快取、基礎工具
+// 包含：API通訊(Fetch跨網域)、全域變數、權限控管 (RBAC)、離線快取、基礎工具
 // ==========================================
+
+const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
 
 // ================= 💡 全域變數宣告 =================
 let globalCatalog = {}; 
 let globalLocTree = []; 
 let mgrLocTree = [];
+let pendingLocTree = [];
 let sysState = { mode: 'all', locations: [], total: 0, scanned: 0 };
 let printCartMap = new Map(); 
 let allPrintItems = [];
@@ -30,18 +33,31 @@ document.addEventListener("DOMContentLoaded", () => {
     loadSyncQueue();
 });
 
-// 呼叫 Google Apps Script 封裝
-function callAPI(action, payload = {}) {
-    return new Promise((resolve, reject) => {
-        google.script.run
-            .withSuccessHandler(res => {
-                let parsed = typeof res === 'string' ? JSON.parse(res) : res;
-                if (parsed.success) resolve(parsed.data);
-                else reject(new Error(parsed.error || "未知錯誤"));
-            })
-            .withFailureHandler(err => reject(new Error("網路連線異常，請檢查網路狀態。")))
-            .processRequest(JSON.stringify({ action: action, payload: payload }));
-    });
+// 呼叫 Google Apps Script 封裝 (改用標準 Fetch API 解決跨網域與 google is not defined 問題)
+async function callAPI(action, payload = {}) {
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8',
+            },
+            body: JSON.stringify({ action: action, payload: payload })
+        });
+        
+        if (!response.ok) {
+            throw new Error("網路連線異常，狀態碼：" + response.status);
+        }
+        
+        const res = await response.json();
+        if (res.success) {
+            return res.data;
+        } else {
+            throw new Error(res.error || "後端處理發生未知錯誤");
+        }
+    } catch (err) {
+        console.error("API Call Error:", err);
+        throw new Error("連線失敗：" + err.message);
+    }
 }
 
 // 登入大門：驗證密碼並接收權限清單
