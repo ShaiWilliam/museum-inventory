@@ -1,6 +1,7 @@
 // ==========================================
 // 博物館系統前端核心 (app_core.js)
 // 包含：API通訊(Fetch跨網域)、七天免登入記憶、全域變數、權限控管 (RBAC)、離線快取、基礎工具
+// 最新優化：自動預設「操作人員」為當前登入者
 // ==========================================
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
@@ -204,8 +205,23 @@ async function enterSystem(sys) {
             document.getElementById('mvEvent').innerHTML = evHtml;
             document.getElementById('mgrEvent').innerHTML = evHtml;
             
-            let stHtml = ''; initData.staffInternal.forEach(s => stHtml += `<option value="${escapeHTML(s)}">${escapeHTML(s)}</option>`);
-            document.getElementById('mvStaffInternal').innerHTML = stHtml;
+            // 🔥 新增：動態渲染人員名單，並自動預設為當前登入者
+            let stHtml = ''; 
+            let managerFound = false;
+            initData.staffInternal.forEach(s => {
+                stHtml += `<option value="${escapeHTML(s)}">${escapeHTML(s)}</option>`;
+                if(s === currentManager) managerFound = true;
+            });
+            // 寬容防呆：若登入者不在預設名單內，強制補上並預設選取
+            if(!managerFound && currentManager) {
+                stHtml = `<option value="${escapeHTML(currentManager)}">${escapeHTML(currentManager)}</option>` + stHtml;
+            }
+            
+            let mvStaff = document.getElementById('mvStaffInternal');
+            if (mvStaff) {
+                mvStaff.innerHTML = stHtml;
+                mvStaff.value = currentManager;
+            }
             
             if (sys === 'mgr' && currentPermissions.mgr) { renderLocationsList(mgrLocTree); loadManagerData(); }
             if (sys === 'move') {
@@ -230,7 +246,6 @@ function refreshSystem(sys) {
         
         let mvLocSelector = document.getElementById('mvLocSelector'); if(mvLocSelector) mvLocSelector.style.display='none';
         let mvPhase2 = document.getElementById('mvPhase2'); if(mvPhase2) mvPhase2.style.display='none';
-        let mvPhase3 = document.getElementById('mvPhase3'); if(mvPhase3) mvPhase3.style.display='none';
         let mvProgressBox = document.getElementById('mvProgressBox'); if(mvProgressBox) mvProgressBox.style.display='none';
 
         showMiniLoading('更新背景資料中...');
@@ -239,6 +254,23 @@ function refreshSystem(sys) {
             let evHtml = '<option value="">請選擇專案...</option>';
             initData.events.forEach(e => evHtml += `<option value="${escapeHTML(e.id)}">${escapeHTML(e.name)}</option>`);
             document.getElementById('mvEvent').innerHTML = evHtml;
+            
+            // 🔥 刷新時一併確保人員名單與預設值為最新
+            let stHtml = ''; 
+            let managerFound = false;
+            initData.staffInternal.forEach(s => {
+                stHtml += `<option value="${escapeHTML(s)}">${escapeHTML(s)}</option>`;
+                if(s === currentManager) managerFound = true;
+            });
+            if(!managerFound && currentManager) {
+                stHtml = `<option value="${escapeHTML(currentManager)}">${escapeHTML(currentManager)}</option>` + stHtml;
+            }
+            let mvStaff = document.getElementById('mvStaffInternal');
+            if (mvStaff) {
+                mvStaff.innerHTML = stHtml;
+                mvStaff.value = currentManager;
+            }
+
             hideMiniLoading();
             
             if(currentPermissions.move_overview && typeof loadAllProjects === 'function') {
