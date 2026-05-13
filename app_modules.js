@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：修復「批次設定地點」字串與數字型別比對失敗的 Bug
+// 最新優化：管理員後台審核採用「樂觀更新 (Optimistic UI)」，零延遲背景同步
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -239,9 +239,9 @@ document.addEventListener('click', function(event) {
     if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
 });
 
-// ================= 💡 🔥修復：層疊下鑽式地點選單 (含型別安全批次支援) =================
+// ================= 💡 層疊下鑽式地點選單 (含批次支援) =================
 function openBottomSheet(rIdx) {
-    currentBsTargetRow = rIdx; // 這裡可能是數字，也可能是 'BATCH'
+    currentBsTargetRow = rIdx; 
     document.getElementById('bsOverlay').classList.add('active'); 
     document.getElementById('bsContainer').classList.add('active'); 
     renderBsMain(); 
@@ -311,7 +311,7 @@ function closeBottomSheet() {
 function selectBsLoc(loc) { 
     if (currentBsTargetRow === 'BATCH') {
         document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
-            let rIdx = parseInt(cb.value); // 🔥 修復型別轉換
+            let rIdx = parseInt(cb.value); 
             let input = document.getElementById(`prevLoc_${rIdx}`);
             if(input) { input.value = loc; checkLocModification(rIdx); }
         });
@@ -320,7 +320,7 @@ function selectBsLoc(loc) {
         togglePrevSelectAll(false);
         closeBottomSheet(); 
     } else {
-        let parsedIdx = parseInt(currentBsTargetRow); // 🔥 修復型別轉換
+        let parsedIdx = parseInt(currentBsTargetRow); 
         let input = document.getElementById(`prevLoc_${parsedIdx}`); 
         input.value = loc; closeBottomSheet(); checkLocModification(parsedIdx); 
     }
@@ -332,7 +332,7 @@ function enableManualLocInput() {
         let manualLoc = prompt("請輸入要批次套用的特殊地點：");
         if (manualLoc !== null && manualLoc.trim() !== '') {
             document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
-                let rIdx = parseInt(cb.value); // 🔥 修復型別轉換
+                let rIdx = parseInt(cb.value); 
                 let input = document.getElementById(`prevLoc_${rIdx}`);
                 if(input) { input.value = manualLoc.trim(); checkLocModification(rIdx); }
             });
@@ -341,21 +341,18 @@ function enableManualLocInput() {
             togglePrevSelectAll(false);
         }
     } else {
-        let parsedIdx = parseInt(currentBsTargetRow); // 🔥 修復型別轉換
+        let parsedIdx = parseInt(currentBsTargetRow); 
         let input = document.getElementById(`prevLoc_${parsedIdx}`); 
         input.removeAttribute('readonly'); input.focus(); 
     }
 }
 
-// 🔥 強制型別安全的地點檢查邏輯
 function checkLocModification(rIdx) { 
     let parsedIdx = parseInt(rIdx);
     let input = document.getElementById(`prevLoc_${parsedIdx}`), 
         card = document.getElementById(`prevCard_${parsedIdx}`), 
         item = currentProjectItems.find(x => x.rowIndex === parsedIdx); 
-    
-    if(!item) return; // 防崩潰保護
-    
+    if(!item) return; 
     if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { 
         card.classList.add('preview-card-modified'); 
     } else { 
@@ -438,7 +435,6 @@ async function processScanLocal(msg) { if (isProc || Date.now() - lastScan < 800
 function pauseAndSave() { document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
 function finishInventory() { if(!confirm("確定結束進入結算？")) return; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
-
 
 // ================= 💡 專案異動管理 (總覽與過濾) =================
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
@@ -693,7 +689,6 @@ function startImportLocScanner(id) { locScanTarget = 'importMiscLoc_' + id; docu
 // ================= 💡 精修清單與臨時碼 =================
 function refreshCartPrefixDropdown(targetPrefix) { let prefixes = new Set(); newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode))); let currentFilter = document.getElementById('cartPrefixFilter').value, selectHtml = '<option value="">所有前綴</option>'; Array.from(prefixes).sort().forEach(p => { selectHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`; }); document.getElementById('cartPrefixFilter').innerHTML = selectHtml; if (targetPrefix !== undefined && prefixes.has(targetPrefix)) { document.getElementById('cartPrefixFilter').value = targetPrefix; } else if (currentFilter && prefixes.has(currentFilter)) { document.getElementById('cartPrefixFilter').value = currentFilter; } else { document.getElementById('cartPrefixFilter').value = ''; } }
 function openCartModal() { refreshCartPrefixDropdown(); document.getElementById('cartSearchKw').value = ''; const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea')); if(bsCollapse) bsCollapse.hide(); filterCartList(); bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show(); }
-
 function filterCartList() { 
     const kwStr = document.getElementById('cartSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -1014,8 +1009,8 @@ async function updateBaseline() { const timeVal = document.getElementById('newBa
 async function loadManagerData() { const eid = document.getElementById('mgrEvent').value; if(!eid) { document.getElementById('mgrFilterSec').style.display = 'none'; document.getElementById('btnPrintReport').disabled = true; document.querySelector('#tablePending tbody').innerHTML = ''; document.querySelector('#tableConfirmed tbody').innerHTML = ''; return; } showMiniLoading('載入表單中...'); try { const res = await callAPI('getManagerData', { eventId: eid }); mgrPendingData = res.pending; mgrConfirmedData = res.confirmed; const allData = [...mgrPendingData, ...mgrConfirmedData]; const locs = [...new Set(allData.map(x => x.newLoc).filter(Boolean))].sort(), boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort(), staffs = [...new Set(allData.map(x => x.staff).filter(Boolean))].sort(); document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrFilterSec').style.display = 'block'; document.getElementById('btnPrintReport').disabled = false; applyMgrFilters(); } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); } }
 function applyMgrFilters() { const kwStr = document.getElementById('mgrSearchKw').value.toLowerCase().trim(), keywords = kwStr ? kwStr.split(/\s+/) : [], loc = document.getElementById('mgrSearchLoc').value, box = document.getElementById('mgrSearchBox').value, staff = document.getElementById('mgrSearchStaff').value; const filterFn = (x) => { let targetStr = (String(x.qrCode).replace(/\n/g, ' ') + ' ' + (x.name || '') + ' ' + (x.tempCode || '')).toLowerCase(); let matchKw = keywords.length === 0 || keywords.every(k => targetStr.includes(k)); let matchLoc = !loc || x.newLoc === loc; let matchBox = !box || x.boxName === box; let matchStaff = !staff || x.staff === staff; return matchKw && matchLoc && matchBox && matchStaff; }; const filteredP = mgrPendingData.filter(filterFn), filteredC = mgrConfirmedData.filter(filterFn); document.getElementById('mgrFilterCount').innerText = `篩選結果: 待核對 ${filteredP.length} 筆 / 已核對 ${filteredC.length} 筆`; renderTable('tablePending', filteredP, 'chk-pend', true); renderTable('tableConfirmed', filteredC, 'chk-conf', false); }
 function renderTable(tid, data, cls, edit) { document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => { let safeLoc = String(x.newLoc).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeBox = String(x.boxName).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; let displayId = String(x.qrCode).replace(/\n/g, ' '); let expectedWarning = x.isExpectedChanged ? `<br><small class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> 地點已變更</small>` : ''; return `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b class="${String(x.qrCode).startsWith('MISC') ? 'text-danger' : 'text-dark'}">${escapeHTML(displayId)}</b>${tcBadge}<br><span class="text-primary small fw-bold">${escapeHTML(x.name)}</span> <span class="badge bg-secondary rounded-pill">x${escapeHTML(x.qty || '1')}</span><br><small class="text-muted">原: ${escapeHTML(x.oldLoc)}</small></td><td><span class="text-success fw-bold">${escapeHTML(x.newLoc)}</span>${expectedWarning}<br><small class="badge bg-light text-dark border mt-1">${escapeHTML(x.boxName||'未裝箱')}</small></td><td>${edit ? `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` : `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><small class="badge bg-success">核對: ${escapeHTML(x.manager)}</small>`}</td></tr>`; }).join(''); }
-async function changeStatus(cls, stat) { const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請先勾選項目！'); showMiniLoading('處理中...'); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
-async function promptEdit(ri, nl, nb) { const loc = prompt("修改暫存地點：", nl), box = prompt("修改箱名：", nb); if(loc!==null) { showMiniLoading('更新中...'); try { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } } }
+async function changeStatus(cls, stat) { const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請先勾選項目！'); let movedItems = []; if (stat === true) { movedItems = mgrPendingData.filter(x => rows.includes(x.rowIndex)); mgrPendingData = mgrPendingData.filter(x => !rows.includes(x.rowIndex)); movedItems.forEach(x => { x.manager = currentManager; }); mgrConfirmedData.push(...movedItems); } else { movedItems = mgrConfirmedData.filter(x => rows.includes(x.rowIndex)); mgrConfirmedData = mgrConfirmedData.filter(x => !rows.includes(x.rowIndex)); movedItems.forEach(x => { x.manager = ''; }); mgrPendingData.push(...movedItems); } applyMgrFilters(); showSyncToast('狀態更新同步中...', false); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); showSyncToast('✅ 狀態已同步', true); } catch(e) { showSyncToast('❌ 同步失敗', true); alert("失敗將還原資料：" + e.message); loadManagerData(); } }
+async function promptEdit(ri, nl, nb) { const loc = prompt("修改暫存地點：", nl); if (loc === null) return; const box = prompt("修改箱名：", nb); if (box === null) return; let targetItem = mgrPendingData.find(x => x.rowIndex === ri) || mgrConfirmedData.find(x => x.rowIndex === ri); if (targetItem) { targetItem.newLoc = loc.trim(); targetItem.boxName = box.trim(); targetItem.isExpectedChanged = true; } applyMgrFilters(); showSyncToast('修改同步中...', false); try { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); showSyncToast('✅ 修改已同步', true); } catch(e) { showSyncToast('❌ 修改失敗', true); alert("失敗將還原資料：" + e.message); loadManagerData(); } }
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
 
