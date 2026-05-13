@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：顯示館藏屬性、購物車支援多選批次套用地點
+// 最新優化：館藏屬性顏色分級 (典藏>館藏>收藏>不收)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -673,6 +673,7 @@ function startImportLocScanner(id) { locScanTarget = 'importMiscLoc_' + id; docu
 // ================= 💡 精修清單與臨時碼 =================
 function refreshCartPrefixDropdown(targetPrefix) { let prefixes = new Set(); newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode))); let currentFilter = document.getElementById('cartPrefixFilter').value, selectHtml = '<option value="">所有前綴</option>'; Array.from(prefixes).sort().forEach(p => { selectHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`; }); document.getElementById('cartPrefixFilter').innerHTML = selectHtml; if (targetPrefix !== undefined && prefixes.has(targetPrefix)) { document.getElementById('cartPrefixFilter').value = targetPrefix; } else if (currentFilter && prefixes.has(currentFilter)) { document.getElementById('cartPrefixFilter').value = currentFilter; } else { document.getElementById('cartPrefixFilter').value = ''; } }
 function openCartModal() { refreshCartPrefixDropdown(); document.getElementById('cartSearchKw').value = ''; const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea')); if(bsCollapse) bsCollapse.hide(); filterCartList(); bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show(); }
+
 function filterCartList() { 
     const kwStr = document.getElementById('cartSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -771,7 +772,7 @@ function loadWorkerItems() {
 
 function searchWorkerItems() { loadWorkerItems(); }
 
-// 🔥 新增：在清單中抓取並顯示「館藏屬性」
+// 🔥 加入館藏屬性顏色分級
 function renderWorkerItems(items, isSearchMode) {
     const listDiv = document.getElementById('mvItemList');
     if (items.length === 0) { listDiv.innerHTML = `<div class="text-muted text-center py-4">查無符合條件的待搬運項目！</div>`; document.getElementById('mvPhase2').style.display = 'block'; return; }
@@ -783,10 +784,19 @@ function renderWorkerItems(items, isSearchMode) {
         let locBadge = isSearchMode ? `<span class="badge bg-light text-dark border ms-1">📍 ${escapeHTML(x.loc)}</span>` : '';
         let qtyBadge = `<span class="badge bg-secondary rounded-pill ms-1">x${escapeHTML(x.qty || '1')}</span>`;
         
-        // 抓取館藏屬性
+        // 抓取館藏屬性與分級顏色
         let baseId = String(x.qrCode).split('\n')[0].trim();
         let catObj = globalCatalog ? globalCatalog[baseId] : null;
-        let accBadge = (catObj && catObj.accession && catObj.accession !== '未註明') ? `<span class="badge bg-warning text-dark ms-1 shadow-sm">🏷️ ${escapeHTML(catObj.accession)}</span>` : '';
+        let accBadge = '';
+        if (catObj && catObj.accession && catObj.accession !== '未註明') {
+            let accLevel = catObj.accession;
+            let badgeClass = "bg-secondary"; // 預設或不收
+            if (accLevel.includes('典藏')) badgeClass = "bg-danger";
+            else if (accLevel.includes('館藏')) badgeClass = "bg-warning text-dark";
+            else if (accLevel.includes('收藏')) badgeClass = "bg-success";
+            
+            accBadge = `<span class="badge ${badgeClass} ms-1 shadow-sm" style="font-size: 0.75rem;">🏷️ ${escapeHTML(accLevel)}</span>`;
+        }
 
         return `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" ${isChecked} onchange="toggleWorkerCart(this, ${x.rowIndex})"><label class="form-check-label w-100" for="mvItem_${i}"><div class="d-flex align-items-center mb-1">${tcBadge}<span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.9rem;">[${escapeHTML(displayId)}]</span>${accBadge}</div><div class="fs-6 text-dark">${escapeHTML(x.name)}${qtyBadge}${locBadge}</div></label></div>`; 
     }).join(''); 
@@ -818,7 +828,6 @@ function updateFloatingCartUI() {
     } 
 }
 
-// 🔥 新增：預覽購物車支援「全選」與「批次修改地點」
 function togglePrevSelectAll(checked) {
     document.querySelectorAll('.prev-item-cb').forEach(cb => {
         if (cb.closest('.card').style.display !== 'none') { cb.checked = checked; }
@@ -837,7 +846,6 @@ function openSubmitPreviewModal() {
 
     closeVK(); 
     
-    // 注入批次操作區塊
     let html = `
     <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
         <div>
