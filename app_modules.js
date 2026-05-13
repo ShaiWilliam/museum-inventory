@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：修復原生鍵盤即時搜尋，強化全域字串轉換，解決純數字編碼搜尋失效問題
+// 最新優化：顯示館藏屬性、購物車支援多選批次套用地點
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-2">
-                    <div class="alert alert-success small py-2 mb-2">💡 點擊「實際放置」框框，跟隨層級引導選擇正確庫房地點。</div>
+                    <div class="alert alert-success small py-2 mb-2">💡 點擊「實際放置」框框，跟隨層級引導選擇正確庫房地點。支援上方多選批次套用。</div>
                     <div id="mvPreviewList" class="d-flex flex-column gap-2"></div>
                 </div>
                 <div class="modal-footer bg-white d-flex justify-content-between p-2">
@@ -71,7 +71,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const phase1 = document.getElementById('mvPhase1');
     if(phase1) {
-        // 🔥 修復：綁定 oninput 事件，讓原生鍵盤也能即時觸發過濾
         const searchUI = `
         <div class="mb-3 pt-3 border-top fade-in-section">
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -240,12 +239,21 @@ document.addEventListener('click', function(event) {
     if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
 });
 
-// ================= 💡 層疊下鑽式地點選單 (Bottom Sheet) =================
+// ================= 💡 層疊下鑽式地點選單 (含批次支援) =================
 function openBottomSheet(rIdx) {
     currentBsTargetRow = rIdx; 
     document.getElementById('bsOverlay').classList.add('active'); 
     document.getElementById('bsContainer').classList.add('active'); 
     renderBsMain(); 
+}
+
+function openBatchBottomSheet() {
+    let cbs = document.querySelectorAll('.prev-item-cb:checked');
+    if (cbs.length === 0) return alert('請先勾選要批次修改地點的項目！');
+    currentBsTargetRow = 'BATCH'; 
+    document.getElementById('bsOverlay').classList.add('active'); 
+    document.getElementById('bsContainer').classList.add('active'); 
+    renderBsMain();
 }
 
 function renderBsMain() {
@@ -300,8 +308,40 @@ function closeBottomSheet() {
     setTimeout(() => { document.querySelector('.bs-header').innerHTML = '<div class="bs-drag-handle"></div>選擇實際放置地點'; }, 300);
 }
 
-function selectBsLoc(loc) { let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.value = loc; closeBottomSheet(); checkLocModification(currentBsTargetRow); }
-function enableManualLocInput() { closeBottomSheet(); let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); input.removeAttribute('readonly'); input.focus(); }
+function selectBsLoc(loc) { 
+    if (currentBsTargetRow === 'BATCH') {
+        document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
+            let rIdx = cb.value;
+            let input = document.getElementById(`prevLoc_${rIdx}`);
+            if(input) { input.value = loc; checkLocModification(rIdx); }
+        });
+        document.getElementById('prevSelectAll').checked = false;
+        togglePrevSelectAll(false);
+        closeBottomSheet(); 
+    } else {
+        let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); 
+        input.value = loc; closeBottomSheet(); checkLocModification(currentBsTargetRow); 
+    }
+}
+
+function enableManualLocInput() { 
+    closeBottomSheet(); 
+    if (currentBsTargetRow === 'BATCH') {
+        let manualLoc = prompt("請輸入要批次套用的特殊地點：");
+        if (manualLoc !== null && manualLoc.trim() !== '') {
+            document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
+                let rIdx = cb.value;
+                let input = document.getElementById(`prevLoc_${rIdx}`);
+                if(input) { input.value = manualLoc.trim(); checkLocModification(rIdx); }
+            });
+            document.getElementById('prevSelectAll').checked = false;
+            togglePrevSelectAll(false);
+        }
+    } else {
+        let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); 
+        input.removeAttribute('readonly'); input.focus(); 
+    }
+}
 
 // ================= 💡 查詢、建檔、列印、盤點 =================
 function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
@@ -343,8 +383,6 @@ async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...');
 async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
-
-// 🔥 全域搜尋修正：列印中心
 function filterPrintList() { 
     const kwStr = document.getElementById('printSearch').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -353,7 +391,7 @@ function filterPrintList() {
         let locMatch = (locFilter === "" || item.loc === locFilter);
         if(!locMatch) return false;
         if(keywords.length === 0) return true;
-        let targetStr = `${String(item.id).replace(/\n/g, ' ')} ${String(item.name)}`.toLowerCase();
+        let targetStr = (item.id + ' ' + item.name).toLowerCase();
         return keywords.every(k => targetStr.includes(k));
     }); 
     renderPrintList(filtered); 
@@ -413,7 +451,31 @@ function filterProjectCards() {
         let badgeClass = p.status === '進行中' ? 'bg-primary' : (p.status === '已結案' ? 'bg-secondary' : 'bg-warning text-dark'); 
         let progressPct = p.total > 0 ? Math.round((p.moved / p.total) * 100) : 0; 
         let actionBtns = p.status === '進行中' ? `<button class="btn btn-sm btn-outline-info fw-bold w-100 mb-2" onclick="editProjectFromOverview('${escapeHTML(p.id)}')">📝 編輯專案清單</button><button class="btn btn-sm btn-outline-success fw-bold w-100" onclick="executeProjectFromOverview('${escapeHTML(p.id)}')">🚚 執行搬運</button>` : `<button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="printProjectFromOverview('${escapeHTML(p.id)}', '${escapeHTML(p.name)}')">🖨️ 列印清冊</button>`; 
-        return `<div class="col-12 col-md-6"><div class="card shadow-sm h-100 border-0 border-start border-4 ${p.status === '進行中' ? 'border-primary' : 'border-secondary'}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start mb-2"><h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${escapeHTML(p.name)}</h6><span class="badge ${badgeClass}">${escapeHTML(p.status)}</span></div><small class="text-muted d-block mb-1" style="font-family: monospace;">${escapeHTML(p.id)}</small><small class="text-secondary d-block mb-3 text-truncate">${escapeHTML(p.desc || '無備註')}</small><div class="mb-3 bg-light rounded p-2 border"><div class="d-flex justify-content-between small fw-bold text-secondary mb-1"><span>進度</span><span>${p.moved} / ${p.total} 件 (${progressPct}%)</span></div><div class="progress" style="height: 6px;"><div class="progress-bar ${p.status === '進行中' ? 'bg-success' : 'bg-secondary'}" style="width: ${progressPct}%;"></div></div></div><div class="row g-2"><div class="col-12"><button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${escapeHTML(p.id)}', '${escapeHTML(p.name)}', '${escapeHTML(p.status)}', '${escapeHTML(p.desc)}')">👁️ 檢視明細</button></div><div class="col-12">${actionBtns}</div></div></div></div></div>`; 
+        return `
+        <div class="col-12 col-md-6">
+            <div class="card shadow-sm h-100 border-0 border-start border-4 ${p.status === '進行中' ? 'border-primary' : 'border-secondary'}">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 70%;">${escapeHTML(p.name)}</h6>
+                        <span class="badge ${badgeClass}">${escapeHTML(p.status)}</span>
+                    </div>
+                    <small class="text-muted d-block mb-1" style="font-family: monospace;">${escapeHTML(p.id)}</small>
+                    <small class="text-secondary d-block mb-3 text-truncate">${escapeHTML(p.desc || '無備註')}</small>
+                    <div class="mb-3 bg-light rounded p-2 border">
+                        <div class="d-flex justify-content-between small fw-bold text-secondary mb-1">
+                            <span>進度</span><span>${p.moved} / ${p.total} 件 (${progressPct}%)</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar ${p.status === '進行中' ? 'bg-success' : 'bg-secondary'}" style="width: ${progressPct}%;"></div>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-12"><button class="btn btn-sm btn-light border fw-bold w-100 text-primary" onclick="viewProjectDetails('${escapeHTML(p.id)}', '${escapeHTML(p.name)}', '${escapeHTML(p.status)}', '${escapeHTML(p.desc)}')">👁️ 檢視明細</button></div>
+                        <div class="col-12">${actionBtns}</div>
+                    </div>
+                </div>
+            </div>
+        </div>`; 
     }).join(''); 
 }
 
@@ -439,7 +501,6 @@ async function viewProjectDetails(id, name, status, desc) {
     } catch(e) { alert("無法讀取明細：" + e.message); } finally { hideMiniLoading(); } 
 }
 
-// 🔥 全域搜尋修正：專案明細
 function renderPdTable() { 
     const kwStr = document.getElementById('pdSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -451,10 +512,10 @@ function renderPdTable() {
         let prefixMatch = (!prefixFilter || getPrefix(item.tempCode) === prefixFilter);
         let oldLocMatch = (!oldLocFilter || item.oldLoc === oldLocFilter);
         let newLocMatch = (!newLocFilter || item.newLoc === newLocFilter);
+        
         if(!(prefixMatch && oldLocMatch && newLocMatch)) return false;
         if(keywords.length === 0) return true;
         
-        // 強制全部轉化為純文字
         let safeId = String(item.id || '').replace(/\n/g, ' ');
         let safeName = String(item.name || '');
         let safeTc = String(item.tempCode || '');
@@ -514,7 +575,6 @@ async function switchMoveProjectAction() {
 function openMiscModal() { document.getElementById('miscName').value = ''; document.getElementById('miscLocDisplay').value = ''; document.getElementById('miscLoc').value = ''; document.getElementById('miscTempCode').value = ''; bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show(); }
 function addMiscItem() { const name = document.getElementById('miscName').value.trim(), loc = document.getElementById('miscLoc').value.trim(), tCode = document.getElementById('miscTempCode').value.trim(); if(!name || !loc) return alert("請完整填寫名稱與地點！"); const miscId = "MISC-" + new Date().getTime() + "-" + Math.floor(Math.random()*100); allMvItems.unshift({ id: miscId, name: name, loc: loc, isMisc: true, tempCode: tCode, expectedLoc: '待定', qty: '1' }); newMvCart.set(miscId, { name: name, loc: loc, isMisc: true, tempCode: tCode, expectedLoc: '待定', qty: '1' }); bootstrap.Modal.getInstance(document.getElementById('miscModal')).hide(); document.getElementById('newMvSelectedCount').innerText = newMvCart.size; document.getElementById('newMvSearch').value = name; saveMvDraft(); filterNewMvList(); showSyncToast("✅ 雜物已加入清單", true); }
 
-// 🔥 全域搜尋修正：專案挑選清單
 function filterNewMvList() { 
     const kwStr = document.getElementById('newMvSearch').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -613,8 +673,6 @@ function startImportLocScanner(id) { locScanTarget = 'importMiscLoc_' + id; docu
 // ================= 💡 精修清單與臨時碼 =================
 function refreshCartPrefixDropdown(targetPrefix) { let prefixes = new Set(); newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode))); let currentFilter = document.getElementById('cartPrefixFilter').value, selectHtml = '<option value="">所有前綴</option>'; Array.from(prefixes).sort().forEach(p => { selectHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`; }); document.getElementById('cartPrefixFilter').innerHTML = selectHtml; if (targetPrefix !== undefined && prefixes.has(targetPrefix)) { document.getElementById('cartPrefixFilter').value = targetPrefix; } else if (currentFilter && prefixes.has(currentFilter)) { document.getElementById('cartPrefixFilter').value = currentFilter; } else { document.getElementById('cartPrefixFilter').value = ''; } }
 function openCartModal() { refreshCartPrefixDropdown(); document.getElementById('cartSearchKw').value = ''; const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea')); if(bsCollapse) bsCollapse.hide(); filterCartList(); bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show(); }
-
-// 🔥 全域搜尋修正：購物車精修清單
 function filterCartList() { 
     const kwStr = document.getElementById('cartSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -651,10 +709,17 @@ function openTempCodeModal() { if(newMvCart.size === 0) return alert("請先挑�
 function toggleTcAll(state) { document.querySelectorAll('.tc-item-cb').forEach(cb => cb.checked = state); }
 function toggleTcUncoded() { document.querySelectorAll('.tc-item-cb').forEach(cb => { cb.checked = (cb.getAttribute('data-has-tc') === 'false'); }); }
 function applyTempCodes() { let prefix = document.getElementById('tcPrefix').value.trim(), startNum = parseInt(document.getElementById('tcStartNum').value.trim()); if(isNaN(startNum)) startNum = 1; let cbs = document.querySelectorAll('.tc-item-cb:checked'); if(cbs.length === 0) return alert("請勾選要配發臨時編碼的項目！"); let currentNum = startNum; cbs.forEach(cb => { let id = cb.value, item = newMvCart.get(id); if(item) { item.tempCode = prefix + currentNum; newMvCart.set(id, item); let inAllList = allMvItems.find(x => x.id === id); if(inAllList) inAllList.tempCode = item.tempCode; currentNum++; } }); saveMvDraft(); bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide(); filterNewMvList(); showSyncToast("✅ 臨時編碼已成功套用", true); }
-async function submitNewProject() { const action = document.getElementById('newMvActionSelect').value, pName = document.getElementById('newMvName').value.trim(), pDesc = document.getElementById('newMvDesc').value.trim(); if(!pName) return alert("請輸入專案名稱！"); if(newMvCart.size === 0) return alert("請至少挑選一件待搬運文物！"); showMiniLoading('正在儲存專案與清單資料...'); let miscDetails = {}, tempCodes = {}, expectedLocs = {}, quantities = {}; newMvCart.forEach((val, key) => { miscDetails[key] = val; if (val.tempCode) tempCodes[key] = val.tempCode; if (val.expectedLoc) expectedLocs[key] = val.expectedLoc; if (val.qty) quantities[key] = val.qty; }); try { await callAPI('saveMovementProject', { eventId: action, name: pName, desc: pDesc, itemIds: Array.from(newMvCart.keys()), miscDetails: miscDetails, tempCodes: tempCodes, expectedLocs: expectedLocs, quantities: quantities, manager: currentManager }); clearMvDraft(); alert('✅ 專案資料儲存成功！'); refreshSystem('move'); } catch (e) { alert("專案儲存失敗：" + e.message); } finally { hideMiniLoading(); } }
+
+async function submitNewProject() { 
+    const action = document.getElementById('newMvActionSelect').value, pName = document.getElementById('newMvName').value.trim(), pDesc = document.getElementById('newMvDesc').value.trim(); 
+    if(!pName) return alert("請輸入專案名稱！"); if(newMvCart.size === 0) return alert("請至少挑選一件待搬運文物！"); showMiniLoading('正在儲存專案與清單資料...'); 
+    let miscDetails = {}, tempCodes = {}, expectedLocs = {}, quantities = {}; 
+    newMvCart.forEach((val, key) => { miscDetails[key] = val; if (val.tempCode) tempCodes[key] = val.tempCode; if (val.expectedLoc) expectedLocs[key] = val.expectedLoc; if (val.qty) quantities[key] = val.qty; }); 
+    try { await callAPI('saveMovementProject', { eventId: action, name: pName, desc: pDesc, itemIds: Array.from(newMvCart.keys()), miscDetails: miscDetails, tempCodes: tempCodes, expectedLocs: expectedLocs, quantities: quantities, manager: currentManager }); clearMvDraft(); alert('✅ 專案資料儲存成功！'); refreshSystem('move'); } catch (e) { alert("專案儲存失敗：" + e.message); } finally { hideMiniLoading(); } 
+}
 
 
-// ================= 💡 執行搬運與送出 =================
+// ================= 💡 執行搬運與送出 (極簡動線 + 館藏屬性) =================
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
@@ -684,7 +749,6 @@ async function loadWorkerLocations() {
     } catch (e) { alert("載入資料失敗：" + e.message); } finally { hideMiniLoading(); }
 }
 
-// 🔥 全域搜尋修正：執行現場搬運清單
 function loadWorkerItems() {
     const loc = document.getElementById('mvLoc').value;
     const kwStr = document.getElementById('mvSearchKw').value.toLowerCase().trim();
@@ -695,7 +759,6 @@ function loadWorkerItems() {
     
     if (keywords.length > 0) { 
         filteredItems = filteredItems.filter(x => {
-            // 強制轉字串並用模板拼接，保證 Number (1247) 不會報錯
             let safeId = String(x.qrCode || '').replace(/\n/g, ' ');
             let safeName = String(x.name || '');
             let safeTc = String(x.tempCode || '');
@@ -708,39 +771,215 @@ function loadWorkerItems() {
 
 function searchWorkerItems() { loadWorkerItems(); }
 
+// 🔥 新增：在清單中抓取並顯示「館藏屬性」
 function renderWorkerItems(items, isSearchMode) {
     const listDiv = document.getElementById('mvItemList');
     if (items.length === 0) { listDiv.innerHTML = `<div class="text-muted text-center py-4">查無符合條件的待搬運項目！</div>`; document.getElementById('mvPhase2').style.display = 'block'; return; }
     listDiv.innerHTML = items.map((x, i) => { 
         let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark me-2 shadow-sm"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; 
-        let isMisc = String(x.qrCode).startsWith('MISC'); let displayId = String(x.qrCode).replace(/\n/g, ' '); 
+        let isMisc = String(x.qrCode).startsWith('MISC'); 
+        let displayId = String(x.qrCode).replace(/\n/g, ' '); 
         let isChecked = workerCart.has(x.rowIndex) ? 'checked' : '';
         let locBadge = isSearchMode ? `<span class="badge bg-light text-dark border ms-1">📍 ${escapeHTML(x.loc)}</span>` : '';
         let qtyBadge = `<span class="badge bg-secondary rounded-pill ms-1">x${escapeHTML(x.qty || '1')}</span>`;
-        return `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" ${isChecked} onchange="toggleWorkerCart(this, ${x.rowIndex})"><label class="form-check-label w-100" for="mvItem_${i}"><div class="d-flex align-items-center mb-1">${tcBadge}<span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.9rem;">[${escapeHTML(displayId)}]</span></div><div class="fs-6 text-dark">${escapeHTML(x.name)}${qtyBadge}${locBadge}</div></label></div>`; 
+        
+        // 抓取館藏屬性
+        let baseId = String(x.qrCode).split('\n')[0].trim();
+        let catObj = globalCatalog ? globalCatalog[baseId] : null;
+        let accBadge = (catObj && catObj.accession && catObj.accession !== '未註明') ? `<span class="badge bg-warning text-dark ms-1 shadow-sm">🏷️ ${escapeHTML(catObj.accession)}</span>` : '';
+
+        return `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" ${isChecked} onchange="toggleWorkerCart(this, ${x.rowIndex})"><label class="form-check-label w-100" for="mvItem_${i}"><div class="d-flex align-items-center mb-1">${tcBadge}<span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.9rem;">[${escapeHTML(displayId)}]</span>${accBadge}</div><div class="fs-6 text-dark">${escapeHTML(x.name)}${qtyBadge}${locBadge}</div></label></div>`; 
     }).join(''); 
     document.getElementById('mvPhase2').style.display = 'block';
 }
 
 function toggleWorkerCart(cb, rIdx) { if (cb.checked) workerCart.add(rIdx); else workerCart.delete(rIdx); updateFloatingCartUI(); }
-function updateFloatingCartUI() { const btn = document.getElementById('floatingCartBtn'), count = document.getElementById('floatingCartCount'), btnBottom = document.getElementById('btnGoToCart'); if (workerCart.size > 0) { btn.style.display = 'block'; count.innerText = workerCart.size; if(btnBottom) { btnBottom.innerText = `🛒 前往最終確認 (已勾選 ${workerCart.size} 件)`; btnBottom.classList.remove('btn-secondary'); btnBottom.classList.add('btn-primary'); btnBottom.disabled = false; } } else { btn.style.display = 'none'; if(btnBottom) { btnBottom.innerText = `🛒 前往最終確認 (已勾選 0 件)`; btnBottom.classList.remove('btn-primary'); btnBottom.classList.add('btn-secondary'); } } }
-function openSubmitPreviewModal() { if(workerCart.size === 0) return alert('請先勾選要搬運的文物！'); const staffSelect = document.getElementById('mvStaffInternal'); if(staffSelect && !staffSelect.value) { alert('請先在上方「2. 本處人員 (操作者)」選擇您的名字！'); staffSelect.focus(); return; } closeVK(); let html = ''; workerCart.forEach(rIdx => { let item = currentProjectItems.find(x => x.rowIndex === rIdx); if(!item) return; let displayId = String(item.qrCode).replace(/\n/g, ' '); let prefillLoc = item.expectedLoc && item.expectedLoc !== '待定' ? item.expectedLoc : ''; html += `<div class="card border-0 shadow-sm mb-2 preview-card" id="prevCard_${rIdx}"><div class="card-header bg-light p-2 d-flex justify-content-between align-items-center"><span class="fw-bold text-dark" style="font-size:0.9rem;">${escapeHTML(displayId)}</span><span class="badge bg-info text-dark">${escapeHTML(item.tempCode||'無碼')}</span></div><div class="card-body p-2"><div class="small text-muted mb-2 text-truncate fw-bold">${escapeHTML(item.name)} <span class="badge bg-secondary rounded-pill">x${escapeHTML(item.qty || '1')}</span></div><div class="input-group input-group-sm"><span class="input-group-text bg-white fw-bold text-success border-success">實際放置</span><input type="text" class="form-control border-success fw-bold prev-loc-input text-primary" id="prevLoc_${rIdx}" value="${escapeHTML(prefillLoc)}" placeholder="點擊選擇地點" readonly onclick="openBottomSheet(${rIdx})" onchange="checkLocModification(${rIdx})"><button class="btn btn-success fw-bold" onclick="submitSingleMovement(${rIdx})">單件寫入</button></div></div></div>`; }); document.getElementById('mvPreviewList').innerHTML = html; bootstrap.Modal.getOrCreateInstance(document.getElementById('mvPreviewModal')).show(); }
-function checkLocModification(rIdx) { let input = document.getElementById(`prevLoc_${rIdx}`), card = document.getElementById(`prevCard_${rIdx}`), item = currentProjectItems.find(x => x.rowIndex === rIdx); if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { card.classList.add('preview-card-modified'); } else { card.classList.remove('preview-card-modified'); } }
-async function submitSingleMovement(rIdx) { let locInput = document.getElementById(`prevLoc_${rIdx}`).value.trim(); if(!locInput) return alert("請選擇實際放置地點！"); let btn = document.querySelector(`#prevCard_${rIdx} button`); btn.disabled = true; btn.innerText = "寫入中..."; let staff = document.getElementById('mvStaffInternal').value; try { await callAPI('submitMovement', { rowIndices: [rIdx], expectedLocs: { [rIdx]: locInput }, manager: currentManager, staffInternal: staff }); document.getElementById(`prevCard_${rIdx}`).style.display = 'none'; currentProjectItems = currentProjectItems.filter(x => x.rowIndex !== rIdx); workerCart.delete(rIdx); updateFloatingCartUI(); showSyncToast(`✅ 單件送出成功`, true); if(Array.from(document.querySelectorAll('.prev-loc-input')).every(i => i.closest('.card').style.display === 'none')) { bootstrap.Modal.getInstance(document.getElementById('mvPreviewModal')).hide(); loadWorkerLocations(); } } catch(e) { alert(e.message); btn.disabled = false; btn.innerText = "單件寫入"; } }
-async function confirmBulkMovement() { let inputs = Array.from(document.querySelectorAll('.prev-loc-input')).filter(i => i.closest('.card').style.display !== 'none'); let emptyCount = inputs.filter(i => !i.value.trim()).length; if(emptyCount > 0) return alert(`還有 ${emptyCount} 件未指定實際地點！`); let btn = document.getElementById('btnConfirmBulkMove'); btn.disabled = true; btn.innerText = "全數寫入中..."; let payloadDict = {}, rowIndices = []; inputs.forEach(i => { let rIdx = parseInt(i.id.split('_')[1]); payloadDict[rIdx] = i.value.trim(); rowIndices.push(rIdx); }); let staff = document.getElementById('mvStaffInternal').value; try { await callAPI('submitMovement', { rowIndices: rowIndices, expectedLocs: payloadDict, manager: currentManager, staffInternal: staff }); alert(`✅ 成功送出 ${rowIndices.length} 件搬運紀錄！`); rowIndices.forEach(r => workerCart.delete(r)); updateFloatingCartUI(); bootstrap.Modal.getInstance(document.getElementById('mvPreviewModal')).hide(); loadWorkerLocations(); } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.innerText = "📤 全數確認送出"; } }
 
-async function generateHandoff() { if (workerCart.size === 0) return alert("請先勾選要交接的文物！"); let handoffData = { eventId: document.getElementById('mvEvent').value, selectedRows: Array.from(workerCart) }; showMiniLoading('產生交接碼中...'); try { let res = await callAPI('generateHandoff', { data: handoffData }); document.getElementById('handoffPinDisplay').innerText = res.pin; const qr = new QRious({ value: "HANDOFF:" + res.pin, size: 200, level: 'M' }); document.getElementById('handoffQrImage').src = qr.toDataURL('image/png'); bootstrap.Modal.getOrCreateInstance(document.getElementById('handoffModal')).show(); } catch(e) { alert(e.message); } finally { hideMiniLoading(); } }
-function resumeHandoffPrompt() { startLocScanner('handoff'); setTimeout(() => { document.getElementById('locScannerTitle').innerText = "掃描交接 QR Code"; if(!document.getElementById('manualHandoffBtn')) { let manualBtn = document.createElement('button'); manualBtn.id = 'manualHandoffBtn'; manualBtn.className = "btn btn-info w-100 mt-3 fw-bold py-3 fs-5 text-white shadow-sm"; manualBtn.innerText = "改用 4 位數代碼手動輸入"; manualBtn.onclick = () => { cancelLocScanner(); setTimeout(() => { let pin = prompt("請輸入 4 位數交接碼："); if(pin && pin.trim().length === 4) processHandoff(pin.trim()); }, 300); }; document.getElementById('loc-reader-container').querySelector('.btn-danger').before(manualBtn); } }, 500); }
-async function processHandoff(pin) { showMiniLoading('讀取交接資料中...'); try { let res = await callAPI('consumeHandoff', { pin: pin }); document.getElementById('mvEvent').value = res.data.eventId; await loadWorkerLocations(); res.data.selectedRows.forEach(r => workerCart.add(r)); updateFloatingCartUI(); let itemsToRender = currentProjectItems.filter(x => workerCart.has(x.rowIndex)); renderWorkerItems(itemsToRender, true); showSyncToast('✅ 交接進度已無縫還原', true); } catch(e) { alert(e.message); } finally { hideMiniLoading(); } }
-function startLocScanner(targetId) { locScanTarget = targetId; document.getElementById('locScannerTitle').innerText = "掃描條碼"; document.getElementById('loc-reader-container').style.display = 'flex'; if (!locScanner) locScanner = new Html5Qrcode("loc-reader"); if (locScanner.getState() !== 2) { locScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => handleLocScan(msg)); } }
-function stopLocScanner() { document.getElementById('loc-reader-container').style.display = 'none'; let hBtn = document.getElementById('manualHandoffBtn'); if(hBtn) hBtn.remove(); if(locScanner) { try { locScanner.stop().then(() => { locScanner.clear(); locScanner = null; }).catch(() => { locScanner = null; }); } catch(e) { locScanner = null; } } }
+function updateFloatingCartUI() { 
+    const btn = document.getElementById('floatingCartBtn'), count = document.getElementById('floatingCartCount'); 
+    const btnBottom = document.getElementById('btnGoToCart');
+    
+    if (workerCart.size > 0) { 
+        btn.style.display = 'block'; 
+        count.innerText = workerCart.size; 
+        if(btnBottom) {
+            btnBottom.innerText = `🛒 前往最終確認 (已勾選 ${workerCart.size} 件)`;
+            btnBottom.classList.remove('btn-secondary');
+            btnBottom.classList.add('btn-primary');
+            btnBottom.disabled = false;
+        }
+    } else { 
+        btn.style.display = 'none'; 
+        if(btnBottom) {
+            btnBottom.innerText = `🛒 前往最終確認 (已勾選 0 件)`;
+            btnBottom.classList.remove('btn-primary');
+            btnBottom.classList.add('btn-secondary');
+        }
+    } 
+}
+
+// 🔥 新增：預覽購物車支援「全選」與「批次修改地點」
+function togglePrevSelectAll(checked) {
+    document.querySelectorAll('.prev-item-cb').forEach(cb => {
+        if (cb.closest('.card').style.display !== 'none') { cb.checked = checked; }
+    });
+}
+
+function openSubmitPreviewModal() {
+    if(workerCart.size === 0) return alert('請先勾選要搬運的文物！');
+    
+    const staffSelect = document.getElementById('mvStaffInternal');
+    if(staffSelect && !staffSelect.value) {
+        alert('請先在上方「2. 本處人員 (操作者)」選擇您的名字！');
+        staffSelect.focus();
+        return;
+    }
+
+    closeVK(); 
+    
+    // 注入批次操作區塊
+    let html = `
+    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+        <div>
+            <input type="checkbox" id="prevSelectAll" class="form-check-input me-1 border-primary" onchange="togglePrevSelectAll(this.checked)">
+            <label for="prevSelectAll" class="fw-bold small text-dark">全選</label>
+        </div>
+        <button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="openBatchBottomSheet()">📍 批次設定地點</button>
+    </div>`;
+    
+    workerCart.forEach(rIdx => {
+        let item = currentProjectItems.find(x => x.rowIndex === rIdx); if(!item) return;
+        let displayId = String(item.qrCode).replace(/\n/g, ' '); let prefillLoc = item.expectedLoc && item.expectedLoc !== '待定' ? item.expectedLoc : '';
+        html += `
+        <div class="card border-0 shadow-sm mb-2 preview-card" id="prevCard_${rIdx}">
+            <div class="card-header bg-light p-2 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <input type="checkbox" class="form-check-input prev-item-cb me-2 border-secondary" value="${rIdx}">
+                    <span class="fw-bold text-dark" style="font-size:0.9rem;">${escapeHTML(displayId)}</span>
+                </div>
+                <span class="badge bg-info text-dark">${escapeHTML(item.tempCode||'無碼')}</span>
+            </div>
+            <div class="card-body p-2">
+                <div class="small text-muted mb-2 text-truncate fw-bold">${escapeHTML(item.name)} <span class="badge bg-secondary rounded-pill">x${escapeHTML(item.qty || '1')}</span></div>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white fw-bold text-success border-success">實際放置</span>
+                    <input type="text" class="form-control border-success fw-bold prev-loc-input text-primary" id="prevLoc_${rIdx}" value="${escapeHTML(prefillLoc)}" placeholder="點擊選擇地點" readonly onclick="openBottomSheet(${rIdx})" onchange="checkLocModification(${rIdx})">
+                    <button class="btn btn-success fw-bold" onclick="submitSingleMovement(${rIdx})">單件寫入</button>
+                </div>
+            </div>
+        </div>`;
+    });
+    document.getElementById('mvPreviewList').innerHTML = html;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('mvPreviewModal')).show();
+}
+
+function checkLocModification(rIdx) { let input = document.getElementById(`prevLoc_${rIdx}`), card = document.getElementById(`prevCard_${rIdx}`), item = currentProjectItems.find(x => x.rowIndex === rIdx); if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { card.classList.add('preview-card-modified'); } else { card.classList.remove('preview-card-modified'); } }
+
+async function submitSingleMovement(rIdx) {
+    let locInput = document.getElementById(`prevLoc_${rIdx}`).value.trim(); if(!locInput) return alert("請選擇實際放置地點！");
+    let btn = document.querySelector(`#prevCard_${rIdx} button`); btn.disabled = true; btn.innerText = "寫入中...";
+    let staff = document.getElementById('mvStaffInternal').value; 
+    try {
+        await callAPI('submitMovement', { rowIndices: [rIdx], expectedLocs: { [rIdx]: locInput }, manager: currentManager, staffInternal: staff });
+        document.getElementById(`prevCard_${rIdx}`).style.display = 'none'; currentProjectItems = currentProjectItems.filter(x => x.rowIndex !== rIdx);
+        workerCart.delete(rIdx); updateFloatingCartUI(); showSyncToast(`✅ 單件送出成功`, true);
+        if(Array.from(document.querySelectorAll('.prev-loc-input')).every(i => i.closest('.card').style.display === 'none')) { bootstrap.Modal.getInstance(document.getElementById('mvPreviewModal')).hide(); loadWorkerLocations(); }
+    } catch(e) { alert(e.message); btn.disabled = false; btn.innerText = "單件寫入"; }
+}
+
+async function confirmBulkMovement() {
+    let inputs = Array.from(document.querySelectorAll('.prev-loc-input')).filter(i => i.closest('.card').style.display !== 'none');
+    let emptyCount = inputs.filter(i => !i.value.trim()).length; if(emptyCount > 0) return alert(`還有 ${emptyCount} 件未指定實際地點！`);
+    let btn = document.getElementById('btnConfirmBulkMove'); btn.disabled = true; btn.innerText = "全數寫入中...";
+    let payloadDict = {}, rowIndices = []; inputs.forEach(i => { let rIdx = parseInt(i.id.split('_')[1]); payloadDict[rIdx] = i.value.trim(); rowIndices.push(rIdx); });
+    let staff = document.getElementById('mvStaffInternal').value; 
+    try {
+        await callAPI('submitMovement', { rowIndices: rowIndices, expectedLocs: payloadDict, manager: currentManager, staffInternal: staff }); alert(`✅ 成功送出 ${rowIndices.length} 件搬運紀錄！`);
+        rowIndices.forEach(r => workerCart.delete(r)); updateFloatingCartUI(); bootstrap.Modal.getInstance(document.getElementById('mvPreviewModal')).hide(); loadWorkerLocations();
+    } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.innerText = "📤 全數確認送出"; }
+}
+
+// ================= 💡 交接與掃描邏輯 =================
+async function generateHandoff() {
+    if (workerCart.size === 0) return alert("請先勾選要交接的文物！");
+    let handoffData = { eventId: document.getElementById('mvEvent').value, selectedRows: Array.from(workerCart) }; showMiniLoading('產生交接碼中...');
+    try { let res = await callAPI('generateHandoff', { data: handoffData }); document.getElementById('handoffPinDisplay').innerText = res.pin; const qr = new QRious({ value: "HANDOFF:" + res.pin, size: 200, level: 'M' }); document.getElementById('handoffQrImage').src = qr.toDataURL('image/png'); bootstrap.Modal.getOrCreateInstance(document.getElementById('handoffModal')).show(); } catch(e) { alert(e.message); } finally { hideMiniLoading(); }
+}
+
+function resumeHandoffPrompt() { 
+    startLocScanner('handoff'); 
+    setTimeout(() => { 
+        document.getElementById('locScannerTitle').innerText = "掃描交接 QR Code"; 
+        if(!document.getElementById('manualHandoffBtn')) {
+            let manualBtn = document.createElement('button'); 
+            manualBtn.id = 'manualHandoffBtn';
+            manualBtn.className = "btn btn-info w-100 mt-3 fw-bold py-3 fs-5 text-white shadow-sm"; 
+            manualBtn.innerText = "改用 4 位數代碼手動輸入"; 
+            manualBtn.onclick = () => { 
+                cancelLocScanner(); 
+                setTimeout(() => {
+                    let pin = prompt("請輸入 4 位數交接碼："); 
+                    if(pin && pin.trim().length === 4) processHandoff(pin.trim()); 
+                }, 300); 
+            }; 
+            document.getElementById('loc-reader-container').querySelector('.btn-danger').before(manualBtn); 
+        }
+    }, 500); 
+}
+
+async function processHandoff(pin) { 
+    showMiniLoading('讀取交接資料中...'); 
+    try { 
+        let res = await callAPI('consumeHandoff', { pin: pin }); 
+        document.getElementById('mvEvent').value = res.data.eventId; 
+        await loadWorkerLocations(); 
+        res.data.selectedRows.forEach(r => workerCart.add(r)); 
+        updateFloatingCartUI(); 
+        let itemsToRender = currentProjectItems.filter(x => workerCart.has(x.rowIndex)); 
+        renderWorkerItems(itemsToRender, true); 
+        showSyncToast('✅ 交接進度已無縫還原', true); 
+    } catch(e) { alert(e.message); } finally { hideMiniLoading(); } 
+}
+
+function startLocScanner(targetId) { 
+    locScanTarget = targetId; 
+    document.getElementById('locScannerTitle').innerText = "掃描條碼"; 
+    document.getElementById('loc-reader-container').style.display = 'flex'; 
+    if (!locScanner) locScanner = new Html5Qrcode("loc-reader"); 
+    if (locScanner.getState() !== 2) { 
+        locScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => handleLocScan(msg)); 
+    } 
+}
+
+function stopLocScanner() { 
+    document.getElementById('loc-reader-container').style.display = 'none'; 
+    let hBtn = document.getElementById('manualHandoffBtn'); 
+    if(hBtn) hBtn.remove();
+    if(locScanner) { try { locScanner.stop().then(() => { locScanner.clear(); locScanner = null; }).catch(() => { locScanner = null; }); } catch(e) { locScanner = null; } } 
+}
+
 function cancelLocScanner() { stopLocScanner(); }
-function handleLocScan(msg) { let target = locScanTarget; locScanTarget = ''; stopLocScanner(); let cleanMsg = msg.trim(); if (cleanMsg.startsWith("LOC:")) cleanMsg = cleanMsg.substring(4); if (cleanMsg.startsWith("HANDOFF:")) { processHandoff(cleanMsg.substring(8)); } else if (target === 'mvLoc' || target === 'regLoc' || target === 'miscLoc' || target.startsWith('importMiscLoc_')) { currentModalTarget = target; selectModalLoc(cleanMsg); } else if (target === 'handoff') { alert("無效的交接條碼：" + cleanMsg); playSound('error'); } else { alert("掃描結果：" + cleanMsg); } }
+
+function handleLocScan(msg) { 
+    let target = locScanTarget; locScanTarget = ''; 
+    stopLocScanner();
+    let cleanMsg = msg.trim(); 
+    if (cleanMsg.startsWith("LOC:")) cleanMsg = cleanMsg.substring(4);
+    if (cleanMsg.startsWith("HANDOFF:")) { 
+        processHandoff(cleanMsg.substring(8)); 
+    } else if (target === 'mvLoc' || target === 'regLoc' || target === 'miscLoc' || target.startsWith('importMiscLoc_')) {
+        currentModalTarget = target;
+        selectModalLoc(cleanMsg);
+    } else if (target === 'handoff') {
+        alert("無效的交接條碼：" + cleanMsg); playSound('error'); 
+    } else { alert("掃描結果：" + cleanMsg); }
+}
 
 function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEach(cb => cb.checked = state); document.querySelectorAll('.mv-item-cb').forEach(cb => toggleWorkerCart(cb, parseInt(cb.value))); }
 async function silentMvSync() { if(!currentMvEventId) return; try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {} }
 
-// ================= 💡 管理員後台 =================
+
+// ================= 💡 管理員審核與空間架構管理 =================
 function parseOverrideData() { const raw = document.getElementById('importOverrideTextarea').value.trim(); if(!raw) return alert("請先貼上資料！"); const lines = raw.split('\n'); let payload = []; lines.forEach(line => { if(!line.trim()) return; let cols = line.includes('\t') ? line.split('\t') : line.split(','); cols = cols.map(c => c.trim()); if (cols.length >= 2 && cols[0]) { payload.push({ id: cols[0], newLoc: cols[1] }); } }); if(payload.length === 0) return alert("解析失敗！請確保貼上格式為「編號 + 地點」。"); showMiniLoading("正在比對雲端總表..."); callAPI('previewLocationOverride', { items: payload }).then(res => { parsedOverrideItems = res.results; renderOverridePreview(); document.getElementById('overridePreviewSection').style.display = 'block'; hideMiniLoading(); }).catch(e => { alert("預覽失敗：" + e.message); hideMiniLoading(); }); }
 function renderOverridePreview() { let html = '', validCount = 0; parsedOverrideItems.forEach(item => { let statusBadge = '', trClass = ''; if (item.status === 'ok') { statusBadge = '<span class="badge bg-success">✅ 準備覆寫</span>'; validCount++; } else if (item.status === 'no_change') { statusBadge = '<span class="badge bg-secondary">⏸️ 地點相同</span>'; trClass = 'table-secondary text-muted'; } else { statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>'; trClass = 'table-danger text-muted'; } html += `<tr class="${trClass}"><td>${statusBadge}</td><td class="fw-bold text-dark">${escapeHTML(item.id)}</td><td class="small">${escapeHTML(item.oldLoc || '無')}</td><td class="text-danger fw-bold small">${item.status === 'not_found' ? '--' : escapeHTML(item.newLoc)}</td></tr>`; }); document.getElementById('overridePreviewTableBody').innerHTML = html; document.getElementById('overrideStats').innerText = `✅ 可強制校正：${validCount} 筆`; document.getElementById('btnConfirmOverride').disabled = (validCount === 0); }
 function confirmOverride() { let validItems = parsedOverrideItems.filter(x => x.status === 'ok'); if(validItems.length === 0) return; if (!confirm(`⚠️ 危險操作確認！\n\n系統將直接覆寫總表中這 ${validItems.length} 件文物的地點，此操作無法復原。\n\n確定要強制執行覆寫嗎？`)) { return; } showMiniLoading(`正在強制寫入 ${validItems.length} 筆地點資料...`); callAPI('executeLocationOverride', { items: validItems }).then(res => { alert(`✅ 成功強制校正了 ${res.count} 筆文物地點！`); document.getElementById('importOverrideTextarea').value = ''; document.getElementById('overridePreviewSection').style.display = 'none'; parsedOverrideItems = []; callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); hideMiniLoading(); }).catch(e => { alert("寫入失敗：" + e.message); hideMiniLoading(); }); }
