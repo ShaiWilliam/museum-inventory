@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：升級全域「智慧多關鍵字」模糊搜尋，無視換行符號，支援空白鍵多條件過濾
+// 最新優化：虛擬鍵盤純數字通道、全域搜尋引擎覆蓋(包含臨時編碼)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -189,7 +189,7 @@ function toggleBoxInput() {
     document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; 
 }
 
-// ================= 💡 虛擬鍵盤 =================
+// ================= 💡 🔥修復：虛擬鍵盤純數字通道 =================
 function toggleInputMode() {
     useVK = !useVK;
     let input = document.getElementById('mvSearchKw'), btn = document.getElementById('btnToggleInputMode');
@@ -208,20 +208,46 @@ function toggleInputMode() {
 function handleSearchClick() { if (useVK) openVK(); }
 function openVK() { 
     let input = document.getElementById('mvSearchKw');
-    if(input.value.trim() === '') { document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); } 
-    else { document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; }
+    if(input.value.trim() === '') { 
+        document.getElementById('vkPrefixCol').style.display = 'grid'; 
+        document.getElementById('vkNumCol').style.display = 'none'; 
+        renderVkPrefixes(); 
+    } else { 
+        document.getElementById('vkPrefixCol').style.display = 'none'; 
+        document.getElementById('vkNumCol').style.display = 'grid'; 
+    }
     document.getElementById('vkContainer').classList.add('active'); 
 }
 function closeVK() { document.getElementById('vkContainer').classList.remove('active'); }
-function vkPressPrefix(prefix) { let input = document.getElementById('mvSearchKw'); input.value = prefix; document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; searchWorkerItems(); }
+function vkPressPrefix(prefix) { 
+    let input = document.getElementById('mvSearchKw'); 
+    input.value = prefix; 
+    document.getElementById('vkPrefixCol').style.display = 'none'; 
+    document.getElementById('vkNumCol').style.display = 'grid'; 
+    searchWorkerItems(); 
+}
+function vkShowNumOnly() {
+    document.getElementById('vkPrefixCol').style.display = 'none';
+    document.getElementById('vkNumCol').style.display = 'grid';
+}
 function vkPress(val) { document.getElementById('mvSearchKw').value += val; searchWorkerItems(); }
 function vkBackspace() { 
     let input = document.getElementById('mvSearchKw'); 
     input.value = input.value.slice(0, -1); 
-    if(input.value === '') { document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; } 
+    if(input.value === '') { 
+        document.getElementById('vkNumCol').style.display = 'none'; 
+        document.getElementById('vkPrefixCol').style.display = 'grid'; 
+        renderVkPrefixes();
+    } 
     searchWorkerItems(); 
 }
-function vkClear() { document.getElementById('mvSearchKw').value = ''; document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; searchWorkerItems(); }
+function vkClear() { 
+    document.getElementById('mvSearchKw').value = ''; 
+    document.getElementById('vkNumCol').style.display = 'none'; 
+    document.getElementById('vkPrefixCol').style.display = 'grid'; 
+    renderVkPrefixes();
+    searchWorkerItems(); 
+}
 function renderVkPrefixes() {
     let prefixes = new Set();
     currentProjectItems.forEach(item => { 
@@ -230,6 +256,9 @@ function renderVkPrefixes() {
     });
     let html = ''; 
     Array.from(prefixes).sort().forEach(p => { html += `<button class="vk-btn vk-btn-prefix no-select" onclick="vkPressPrefix('${p}')">${p}</button>`; });
+    
+    // 🔥 加入純數字繞過按鈕
+    html += `<button class="vk-btn vk-btn-primary no-select" style="grid-column: 1 / -1; margin-top: 5px; padding: 12px; border-radius: 8px;" onclick="vkShowNumOnly()"><i class="fas fa-keyboard"></i> 🔢 直接打數字 (無前綴)</button>`;
     document.getElementById('vkPrefixCol').innerHTML = html;
 }
 document.addEventListener('click', function(event) { 
@@ -353,8 +382,8 @@ async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...');
 
 async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 
-// 🔥 全域搜尋修正：標籤列印清單
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
+function renderPrintList(items) { const container = document.getElementById('printListContainer'); if(items.length === 0) { container.innerHTML = '<div class="p-3 text-center text-muted">查無紀錄</div>'; return; } container.innerHTML = items.map((item, idx) => `<div class="print-item p-2 d-flex align-items-center"><input class="form-check-input me-2 cb-print" type="checkbox" value="${escapeHTML(item.id)}" data-name="${escapeHTML(item.name)}" data-loc="${escapeHTML(item.loc)}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)"><label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${escapeHTML(item.id)}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${escapeHTML(item.loc)}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${escapeHTML(item.name)}</div></label></div>`).join(''); updateCartBtn(); }
 function filterPrintList() { 
     const kwStr = document.getElementById('printSearch').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -368,7 +397,6 @@ function filterPrintList() {
     }); 
     renderPrintList(filtered); 
 }
-function renderPrintList(items) { const container = document.getElementById('printListContainer'); if(items.length === 0) { container.innerHTML = '<div class="p-3 text-center text-muted">查無紀錄</div>'; return; } container.innerHTML = items.map((item, idx) => `<div class="print-item p-2 d-flex align-items-center"><input class="form-check-input me-2 cb-print" type="checkbox" value="${escapeHTML(item.id)}" data-name="${escapeHTML(item.name)}" data-loc="${escapeHTML(item.loc)}" id="pr_${idx}" ${printCartMap.has(item.id) ? 'checked' : ''} onchange="updateCart(this)"><label class="form-check-label flex-grow-1 d-flex flex-column" for="pr_${idx}"><div class="fw-bold text-dark d-flex justify-content-between"><span>${escapeHTML(item.id)}</span><span class="badge bg-secondary" style="font-size:0.7rem;">${escapeHTML(item.loc)}</span></div><div class="small text-muted text-truncate" style="max-width: 250px;">${escapeHTML(item.name)}</div></label></div>`).join(''); updateCartBtn(); }
 function updateCart(cb) { if(cb.checked) { printCartMap.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc') }); } else { printCartMap.delete(cb.value); } updateCartBtn(); }
 function togglePrintAll(isCheck) { document.querySelectorAll('.cb-print').forEach(cb => { cb.checked = isCheck; updateCart(cb); }); }
 function selectTop10Print() { togglePrintAll(false); const cbs = document.querySelectorAll('.cb-print'); for(let i=0; i<Math.min(10, cbs.length); i++) { cbs[i].checked = true; updateCart(cbs[i]); } }
@@ -485,7 +513,6 @@ async function viewProjectDetails(id, name, status, desc) {
     } catch(e) { alert("無法讀取明細：" + e.message); } finally { hideMiniLoading(); } 
 }
 
-// 🔥 全域搜尋修正：專案明細檢視
 function renderPdTable() { 
     const kwStr = document.getElementById('pdSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -571,7 +598,11 @@ function filterNewMvList() {
         let locMatch = (locFilter === "" || item.loc === locFilter);
         if(!locMatch) return false;
         if(keywords.length === 0) return true;
-        let targetStr = (item.id.replace(/\n/g, ' ') + ' ' + item.name).toLowerCase();
+        
+        let cartItem = newMvCart.get(item.id);
+        let tc = cartItem ? (cartItem.tempCode || '') : (item.tempCode || '');
+        let targetStr = (item.id.replace(/\n/g, ' ') + ' ' + (item.name || '') + ' ' + tc).toLowerCase();
+        
         return keywords.every(k => targetStr.includes(k));
     }); 
     
@@ -590,7 +621,6 @@ function filterNewMvList() {
 function updateNewMvCart(cb) { if(cb.checked) { let existingItem = newMvCart.get(cb.value); let tc = existingItem ? existingItem.tempCode : null; let exp = existingItem ? existingItem.expectedLoc : '待定'; let qty = existingItem ? existingItem.qty : '1'; newMvCart.set(cb.value, { name: cb.getAttribute('data-name'), loc: cb.getAttribute('data-loc'), tempCode: tc, expectedLoc: exp, qty: qty }); } else { newMvCart.delete(cb.value); } saveMvDraft(); document.getElementById('newMvSelectedCount').innerText = newMvCart.size; }
 function toggleNewMvAll(isCheck) { document.querySelectorAll('.cb-newmv').forEach(cb => { cb.checked = isCheck; updateNewMvCart(cb); }); filterNewMvList(); }
 function clearNewMvSelection(requireConfirm = false, modalId = null) { if (requireConfirm) { if (newMvCart.size === 0) return; if (!confirm("確定要清空目前已選擇的待搬運文物嗎？這將會清除您的勾選清單與臨時編碼！")) return; } newMvCart.clear(); saveMvDraft(); document.getElementById('newMvSelectedCount').innerText = 0; filterNewMvList(); if (modalId) { let m = bootstrap.Modal.getInstance(document.getElementById(modalId)); if (m) m.hide(); } }
-function getPrefix(tc) { if (!tc) return "未編碼"; const match = tc.match(/^([A-Za-z\-_]+)/); return match ? match[1].toUpperCase() : "無英文前綴"; }
 
 // ================= 💡 批次匯入 (5 欄位完整支援) =================
 function openImportModal() { 
@@ -672,8 +702,6 @@ function startImportLocScanner(id) { locScanTarget = 'importMiscLoc_' + id; docu
 // ================= 💡 精修清單與臨時碼 =================
 function refreshCartPrefixDropdown(targetPrefix) { let prefixes = new Set(); newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode))); let currentFilter = document.getElementById('cartPrefixFilter').value, selectHtml = '<option value="">所有前綴</option>'; Array.from(prefixes).sort().forEach(p => { selectHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`; }); document.getElementById('cartPrefixFilter').innerHTML = selectHtml; if (targetPrefix !== undefined && prefixes.has(targetPrefix)) { document.getElementById('cartPrefixFilter').value = targetPrefix; } else if (currentFilter && prefixes.has(currentFilter)) { document.getElementById('cartPrefixFilter').value = currentFilter; } else { document.getElementById('cartPrefixFilter').value = ''; } }
 function openCartModal() { refreshCartPrefixDropdown(); document.getElementById('cartSearchKw').value = ''; const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea')); if(bsCollapse) bsCollapse.hide(); filterCartList(); bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show(); }
-
-// 🔥 全域搜尋修正：購物車精修清單
 function filterCartList() { 
     const kwStr = document.getElementById('cartSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -685,21 +713,18 @@ function filterCartList() {
         if (prefixFilter && itemPrefix !== prefixFilter) return; 
         
         if (keywords.length > 0) {
-            let targetStr = (id.replace(/\n/g, ' ') + ' ' + val.name + ' ' + tc).toLowerCase();
-            let matchKw = keywords.every(k => targetStr.includes(k));
-            if (!matchKw) return;
+            let targetStr = (id.replace(/\n/g, ' ') + ' ' + (val.name || '') + ' ' + tc).toLowerCase();
+            if (!keywords.every(k => targetStr.includes(k))) return;
         }
         
         let displayId = id.replace(/\n/g, ' '); 
-        html += `<div class="d-flex align-items-center p-2 border-bottom"><div class="me-2"><input class="form-check-input cart-item-cb" type="checkbox" value="${escapeHTML(id)}"></div><div style="width: 45%;"><div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+escapeHTML(displayId) : escapeHTML(displayId)}</div><div class="small text-muted text-truncate" style="max-width: 150px;">${escapeHTML(val.name)} <span class="badge bg-secondary">x${escapeHTML(val.qty||'1')}</span></div></div><div style="width: 30%;" class="px-1"><input type="text" class="form-control form-control-sm border-info" placeholder="臨時編碼" value="${escapeHTML(tc)}" onchange="updateCartItemTc('${escapeHTML(id)}', this.value)"></div><div style="width: 15%; text-align: right;"><button class="btn btn-sm btn-outline-danger" onclick="removeCartItem('${escapeHTML(id)}')">❌</button></div></div>`; 
-        count++; 
+        html += `<div class="d-flex align-items-center p-2 border-bottom"><div class="me-2"><input class="form-check-input cart-item-cb" type="checkbox" value="${escapeHTML(id)}"></div><div style="width: 45%;"><div class="fw-bold ${isMisc ? 'text-danger' : 'text-dark'}">${isMisc ? '📦 '+escapeHTML(displayId) : escapeHTML(displayId)}</div><div class="small text-muted text-truncate" style="max-width: 150px;">${escapeHTML(val.name)} <span class="badge bg-secondary">x${escapeHTML(val.qty||'1')}</span></div></div><div style="width: 30%;" class="px-1"><input type="text" class="form-control form-control-sm border-info" placeholder="臨時編碼" value="${escapeHTML(tc)}" onchange="updateCartItemTc('${escapeHTML(id)}', this.value)"></div><div style="width: 15%; text-align: right;"><button class="btn btn-sm btn-outline-danger" onclick="removeCartItem('${escapeHTML(id)}')">❌</button></div></div>`; count++; 
     }); 
     
     if (count === 0) { html = '<div class="text-center text-muted p-4">查無符合條件的項目</div>'; } 
     document.getElementById('cartItemList').innerHTML = html; 
     document.getElementById('cartCountText').innerText = count + ' / ' + newMvCart.size; 
 }
-
 function toggleCartAll(state) { document.querySelectorAll('.cart-item-cb').forEach(cb => cb.checked = state); }
 function batchRemoveCartItems() { const cbs = document.querySelectorAll('.cart-item-cb:checked'); if(cbs.length === 0) return alert('請先勾選要移除的項目！'); if(!confirm(`確定要移除這 ${cbs.length} 個項目嗎？`)) return; cbs.forEach(cb => newMvCart.delete(cb.value)); saveMvDraft(); filterNewMvList(); refreshCartPrefixDropdown(); filterCartList(); document.getElementById('newMvSelectedCount').innerText = newMvCart.size; }
 function applyCartBatchEdit() { const cbs = document.querySelectorAll('.cart-item-cb:checked'); if(cbs.length === 0) return alert('請先勾選要修改編碼的項目！'); let prefix = document.getElementById('cartBatchPrefix').value.trim(), startNum = parseInt(document.getElementById('cartBatchStart').value.trim()); if(isNaN(startNum)) startNum = 1; let currentNum = startNum; cbs.forEach(cb => { let id = cb.value, item = newMvCart.get(id); if(item) { item.tempCode = prefix + currentNum; newMvCart.set(id, item); let inAllList = allMvItems.find(x => x.id === id); if(inAllList) inAllList.tempCode = item.tempCode; currentNum++; } }); saveMvDraft(); filterNewMvList(); let targetPrefix = getPrefix(prefix + "1"); refreshCartPrefixDropdown(targetPrefix); filterCartList(); showSyncToast("✅ 批次修改已套用", true); const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea')); if(bsCollapse) bsCollapse.hide(); }
@@ -720,7 +745,7 @@ async function submitNewProject() {
 }
 
 
-// ================= 💡 執行搬運與送出 (極簡動線) =================
+// ================= 💡 執行搬運與送出 =================
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
@@ -750,7 +775,7 @@ async function loadWorkerLocations() {
     } catch (e) { alert("載入資料失敗：" + e.message); } finally { hideMiniLoading(); }
 }
 
-// 🔥 全域搜尋修正：執行搬運現場清單
+// 🔥 全域搜尋修正：執行現場清單
 function loadWorkerItems() {
     const loc = document.getElementById('mvLoc').value;
     const kwStr = document.getElementById('mvSearchKw').value.toLowerCase().trim();
@@ -761,7 +786,7 @@ function loadWorkerItems() {
     
     if (keywords.length > 0) { 
         filteredItems = filteredItems.filter(x => {
-            let targetStr = (x.qrCode.replace(/\n/g, ' ') + ' ' + x.name + ' ' + (x.tempCode || '')).toLowerCase();
+            let targetStr = (x.qrCode.replace(/\n/g, ' ') + ' ' + (x.name || '') + ' ' + (x.tempCode || '')).toLowerCase();
             return keywords.every(k => targetStr.includes(k));
         }); 
     }
@@ -954,7 +979,7 @@ function confirmOverride() { let validItems = parsedOverrideItems.filter(x => x.
 async function updateBaseline() { const timeVal = document.getElementById('newBaseline').value; if(!timeVal) return alert('請選擇日期時間'); if(!confirm("確定要更新基準日嗎？")) return; showMiniLoading('更新中...'); try { await callAPI('updateBaseline', { timeString: timeVal }); alert('✅ 更新成功！'); location.reload(); } catch (e) { alert("更新失敗：" + e.message); hideMiniLoading(); } }
 async function loadManagerData() { const eid = document.getElementById('mgrEvent').value; if(!eid) { document.getElementById('mgrFilterSec').style.display = 'none'; document.getElementById('btnPrintReport').disabled = true; document.querySelector('#tablePending tbody').innerHTML = ''; document.querySelector('#tableConfirmed tbody').innerHTML = ''; return; } showMiniLoading('載入表單中...'); try { const res = await callAPI('getManagerData', { eventId: eid }); mgrPendingData = res.pending; mgrConfirmedData = res.confirmed; const allData = [...mgrPendingData, ...mgrConfirmedData]; const locs = [...new Set(allData.map(x => x.newLoc).filter(Boolean))].sort(), boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort(), staffs = [...new Set(allData.map(x => x.staff).filter(Boolean))].sort(); document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrFilterSec').style.display = 'block'; document.getElementById('btnPrintReport').disabled = false; applyMgrFilters(); } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); } }
 function applyMgrFilters() { const kw = document.getElementById('mgrSearchKw').value.toLowerCase().trim(), loc = document.getElementById('mgrSearchLoc').value, box = document.getElementById('mgrSearchBox').value, staff = document.getElementById('mgrSearchStaff').value; const filterFn = (x) => { const matchKw = !kw || (x.qrCode.toLowerCase().includes(kw) || (x.name && x.name.toLowerCase().includes(kw))); const matchLoc = !loc || x.newLoc === loc; const matchBox = !box || x.boxName === box; const matchStaff = !staff || x.staff === staff; return matchKw && matchLoc && matchBox && matchStaff; }; const filteredP = mgrPendingData.filter(filterFn), filteredC = mgrConfirmedData.filter(filterFn); document.getElementById('mgrFilterCount').innerText = `篩選結果: 待核對 ${filteredP.length} 筆 / 已核對 ${filteredC.length} 筆`; renderTable('tablePending', filteredP, 'chk-pend', true); renderTable('tableConfirmed', filteredC, 'chk-conf', false); }
-function renderTable(tid, data, cls, edit) { document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => { let safeLoc = x.newLoc.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeBox = x.boxName.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; let displayId = x.qrCode.replace(/\n/g, ' '); let expectedWarning = x.isExpectedChanged ? `<br><small class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> 地點已變更</small>` : ''; return `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${escapeHTML(displayId)}</b>${tcBadge}<br><span class="text-primary small fw-bold">${escapeHTML(x.name)}</span> <span class="badge bg-secondary rounded-pill">x${escapeHTML(x.qty || '1')}</span><br><small class="text-muted">原: ${escapeHTML(x.oldLoc)}</small></td><td><span class="text-success fw-bold">${escapeHTML(x.newLoc)}</span>${expectedWarning}<br><small class="badge bg-light text-dark border mt-1">${escapeHTML(x.boxName||'未裝箱')}</small></td><td>${edit ? `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` : `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><small class="badge bg-success">核 ডান對: ${escapeHTML(x.manager)}</small>`}</td></tr>`; }).join(''); }
+function renderTable(tid, data, cls, edit) { document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => { let safeLoc = x.newLoc.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeBox = x.boxName.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; let displayId = x.qrCode.replace(/\n/g, ' '); let expectedWarning = x.isExpectedChanged ? `<br><small class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> 地點已變更</small>` : ''; return `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b class="${x.qrCode.startsWith('MISC') ? 'text-danger' : 'text-dark'}">${escapeHTML(displayId)}</b>${tcBadge}<br><span class="text-primary small fw-bold">${escapeHTML(x.name)}</span> <span class="badge bg-secondary rounded-pill">x${escapeHTML(x.qty || '1')}</span><br><small class="text-muted">原: ${escapeHTML(x.oldLoc)}</small></td><td><span class="text-success fw-bold">${escapeHTML(x.newLoc)}</span>${expectedWarning}<br><small class="badge bg-light text-dark border mt-1">${escapeHTML(x.boxName||'未裝箱')}</small></td><td>${edit ? `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` : `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><small class="badge bg-success">核對: ${escapeHTML(x.manager)}</small>`}</td></tr>`; }).join(''); }
 async function changeStatus(cls, stat) { const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請先勾選項目！'); showMiniLoading('處理中...'); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 async function promptEdit(ri, nl, nb) { const loc = prompt("修改暫存地點：", nl), box = prompt("修改箱名：", nb); if(loc!==null) { showMiniLoading('更新中...'); try { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); loadManagerData(); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } } }
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
@@ -962,7 +987,44 @@ function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.ch
 
 function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = r.main.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = displayMedium.replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = (r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
-async function addNewLocation() { const m = document.getElementById('locAddMain').value.trim(), med = document.getElementById('locAddMedium').value.trim(), s = document.getElementById('locAddSmall').value.trim(); if(!m) return alert("「大區」為必填欄位！"); let fullStr = smartConcatLoc(m, med, s), flatTree = []; mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d)))); let existing = flatTree.find(d => d.val === fullStr), existingInQueue = locAddQueue.find(q => smartConcatLoc(q.main, q.medium, q.small) === fullStr); if (existing || existingInQueue) { if (existing && !existing.isHidden) { return showSyncToast('⚠️ 此地點已在啟用清單中！', false); } else if (existing && existing.isHidden) { showSyncToast('⚠️ 偵測到歷史停用地點，將為您自動喚醒...', false); sInput.value = ''; return toggleLocStatus(existing.rowIndex, false); } else { return showSyncToast('⚠️ 此地點已在背景排隊建立中！', false); } } locAddQueue.push({ main: m, medium: med, small: s }); optimisticAddLocToTree(m, med, s, fullStr); showSyncToast(`✅ [${fullStr}] 已加入建立排程`, true); document.getElementById('locAddSmall').value = ''; document.getElementById('locAddSmall').focus(); processLocAddQueue(); }
+
+async function addNewLocation() { 
+    try {
+        const mInput = document.getElementById('locAddMain');
+        const medInput = document.getElementById('locAddMedium');
+        const sInput = document.getElementById('locAddSmall');
+        
+        const m = mInput.value.trim(), med = medInput.value.trim(), s = sInput.value.trim(); 
+        if(!m) return alert("「大區」為必填欄位！"); 
+        
+        let fullStr = smartConcatLoc(m, med, s), flatTree = []; 
+        mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d)))); 
+        
+        let existing = flatTree.find(d => d.val === fullStr);
+        let existingInQueue = locAddQueue.find(q => smartConcatLoc(q.main, q.medium, q.small) === fullStr); 
+        
+        if (existing || existingInQueue) { 
+            if (existing && !existing.isHidden) { return showSyncToast('⚠️ 此地點已在啟用清單中！', false); } 
+            else if (existing && existing.isHidden) { 
+                showSyncToast('⚠️ 偵測到歷史停用地點，將為您自動喚醒...', false); 
+                sInput.value = ''; 
+                return toggleLocStatus(existing.rowIndex, false); 
+            } 
+            else { return showSyncToast('⚠️ 此地點已在背景排隊建立中！', false); } 
+        } 
+        
+        locAddQueue.push({ main: m, medium: med, small: s }); 
+        optimisticAddLocToTree(m, med, s, fullStr); 
+        showSyncToast(`✅ [${fullStr}] 已加入建立排程`, true); 
+        
+        sInput.value = ''; 
+        sInput.focus(); 
+        processLocAddQueue(); 
+    } catch(e) {
+        alert("新增地點發生錯誤：" + e.message);
+    }
+}
+
 function optimisticAddLocToTree(m, med, s, fullStr) { let targetMain = mgrLocTree.find(x => x.main === m); if (!targetMain) { targetMain = { main: m, subs: [] }; mgrLocTree.push(targetMain); mgrLocTree.sort((a,b) => a.main.localeCompare(b.main)); } let targetSub = targetMain.subs.find(x => x.sub === (med || "(本區)")); if (!targetSub) { targetSub = { sub: (med || "(本區)"), details: [] }; targetMain.subs.push(targetSub); targetMain.subs.sort((a,b) => a.sub.localeCompare(b.sub)); } targetSub.details.push({ label: s || "(無)", val: fullStr, rowIndex: 'temp_' + Date.now() + Math.random(), isHidden: false, isPending: true }); targetSub.details.sort((a,b) => a.label.localeCompare(b.label)); renderLocationsList(mgrLocTree); }
 async function processLocAddQueue() { if (isLocAdding || locAddQueue.length === 0) return; isLocAdding = true; const itemsToProcess = [...locAddQueue]; locAddQueue = []; try { const newTree = await callAPI('batchAddLocations', { items: itemsToProcess }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); let addedNames = itemsToProcess.map(q => smartConcatLoc(q.main, q.medium, q.small)).join('、'); if (addedNames.length > 40) { addedNames = addedNames.substring(0, 40) + '... 等 ' + itemsToProcess.length + ' 筆'; } showSyncToast(`✅ 已成功新增後台資料：${addedNames}`, true); } catch (e) { console.error("背景建立失敗", e); showSyncToast("⚠️ 部分地點建立失敗，將於下次重試", false); locAddQueue = [...itemsToProcess, ...locAddQueue]; renderLocationsList(mgrLocTree); } finally { isLocAdding = false; if (locAddQueue.length > 0) { processLocAddQueue(); } } }
 function openEditLocModal(rowIndex, oldMain, oldMedium, oldSmall) { document.getElementById('editLocRowIndex').value = rowIndex; document.getElementById('editLocMain').value = oldMain; document.getElementById('editLocMedium').value = oldMedium; document.getElementById('editLocSmall').value = oldSmall; bootstrap.Modal.getOrCreateInstance(document.getElementById('editLocModal')).show(); }
