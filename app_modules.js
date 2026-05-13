@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：館藏屬性顏色分級 (典藏>館藏>收藏>不收)
+// 最新優化：修復「批次設定地點」字串與數字型別比對失敗的 Bug
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -239,9 +239,9 @@ document.addEventListener('click', function(event) {
     if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
 });
 
-// ================= 💡 層疊下鑽式地點選單 (含批次支援) =================
+// ================= 💡 🔥修復：層疊下鑽式地點選單 (含型別安全批次支援) =================
 function openBottomSheet(rIdx) {
-    currentBsTargetRow = rIdx; 
+    currentBsTargetRow = rIdx; // 這裡可能是數字，也可能是 'BATCH'
     document.getElementById('bsOverlay').classList.add('active'); 
     document.getElementById('bsContainer').classList.add('active'); 
     renderBsMain(); 
@@ -311,16 +311,18 @@ function closeBottomSheet() {
 function selectBsLoc(loc) { 
     if (currentBsTargetRow === 'BATCH') {
         document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
-            let rIdx = cb.value;
+            let rIdx = parseInt(cb.value); // 🔥 修復型別轉換
             let input = document.getElementById(`prevLoc_${rIdx}`);
             if(input) { input.value = loc; checkLocModification(rIdx); }
         });
-        document.getElementById('prevSelectAll').checked = false;
+        let sa = document.getElementById('prevSelectAll');
+        if(sa) sa.checked = false;
         togglePrevSelectAll(false);
         closeBottomSheet(); 
     } else {
-        let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); 
-        input.value = loc; closeBottomSheet(); checkLocModification(currentBsTargetRow); 
+        let parsedIdx = parseInt(currentBsTargetRow); // 🔥 修復型別轉換
+        let input = document.getElementById(`prevLoc_${parsedIdx}`); 
+        input.value = loc; closeBottomSheet(); checkLocModification(parsedIdx); 
     }
 }
 
@@ -330,17 +332,35 @@ function enableManualLocInput() {
         let manualLoc = prompt("請輸入要批次套用的特殊地點：");
         if (manualLoc !== null && manualLoc.trim() !== '') {
             document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
-                let rIdx = cb.value;
+                let rIdx = parseInt(cb.value); // 🔥 修復型別轉換
                 let input = document.getElementById(`prevLoc_${rIdx}`);
                 if(input) { input.value = manualLoc.trim(); checkLocModification(rIdx); }
             });
-            document.getElementById('prevSelectAll').checked = false;
+            let sa = document.getElementById('prevSelectAll');
+            if(sa) sa.checked = false;
             togglePrevSelectAll(false);
         }
     } else {
-        let input = document.getElementById(`prevLoc_${currentBsTargetRow}`); 
+        let parsedIdx = parseInt(currentBsTargetRow); // 🔥 修復型別轉換
+        let input = document.getElementById(`prevLoc_${parsedIdx}`); 
         input.removeAttribute('readonly'); input.focus(); 
     }
+}
+
+// 🔥 強制型別安全的地點檢查邏輯
+function checkLocModification(rIdx) { 
+    let parsedIdx = parseInt(rIdx);
+    let input = document.getElementById(`prevLoc_${parsedIdx}`), 
+        card = document.getElementById(`prevCard_${parsedIdx}`), 
+        item = currentProjectItems.find(x => x.rowIndex === parsedIdx); 
+    
+    if(!item) return; // 防崩潰保護
+    
+    if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { 
+        card.classList.add('preview-card-modified'); 
+    } else { 
+        card.classList.remove('preview-card-modified'); 
+    } 
 }
 
 // ================= 💡 查詢、建檔、列印、盤點 =================
@@ -720,7 +740,7 @@ async function submitNewProject() {
 }
 
 
-// ================= 💡 執行搬運與送出 (極簡動線 + 館藏屬性) =================
+// ================= 💡 執行搬運與送出 =================
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
@@ -772,7 +792,6 @@ function loadWorkerItems() {
 
 function searchWorkerItems() { loadWorkerItems(); }
 
-// 🔥 加入館藏屬性顏色分級
 function renderWorkerItems(items, isSearchMode) {
     const listDiv = document.getElementById('mvItemList');
     if (items.length === 0) { listDiv.innerHTML = `<div class="text-muted text-center py-4">查無符合條件的待搬運項目！</div>`; document.getElementById('mvPhase2').style.display = 'block'; return; }
@@ -784,13 +803,12 @@ function renderWorkerItems(items, isSearchMode) {
         let locBadge = isSearchMode ? `<span class="badge bg-light text-dark border ms-1">📍 ${escapeHTML(x.loc)}</span>` : '';
         let qtyBadge = `<span class="badge bg-secondary rounded-pill ms-1">x${escapeHTML(x.qty || '1')}</span>`;
         
-        // 抓取館藏屬性與分級顏色
         let baseId = String(x.qrCode).split('\n')[0].trim();
         let catObj = globalCatalog ? globalCatalog[baseId] : null;
         let accBadge = '';
         if (catObj && catObj.accession && catObj.accession !== '未註明') {
             let accLevel = catObj.accession;
-            let badgeClass = "bg-secondary"; // 預設或不收
+            let badgeClass = "bg-secondary"; 
             if (accLevel.includes('典藏')) badgeClass = "bg-danger";
             else if (accLevel.includes('館藏')) badgeClass = "bg-warning text-dark";
             else if (accLevel.includes('收藏')) badgeClass = "bg-success";
@@ -881,7 +899,7 @@ function openSubmitPreviewModal() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('mvPreviewModal')).show();
 }
 
-function checkLocModification(rIdx) { let input = document.getElementById(`prevLoc_${rIdx}`), card = document.getElementById(`prevCard_${rIdx}`), item = currentProjectItems.find(x => x.rowIndex === rIdx); if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { card.classList.add('preview-card-modified'); } else { card.classList.remove('preview-card-modified'); } }
+function checkLocModification(rIdx) { let parsedIdx = parseInt(rIdx); let input = document.getElementById(`prevLoc_${parsedIdx}`), card = document.getElementById(`prevCard_${parsedIdx}`), item = currentProjectItems.find(x => x.rowIndex === parsedIdx); if(!item) return; if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { card.classList.add('preview-card-modified'); } else { card.classList.remove('preview-card-modified'); } }
 
 async function submitSingleMovement(rIdx) {
     let locInput = document.getElementById(`prevLoc_${rIdx}`).value.trim(); if(!locInput) return alert("請選擇實際放置地點！");
