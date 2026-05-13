@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：管理員後台審核採用「樂觀更新 (Optimistic UI)」，零延遲背景同步
+// 最新優化：管理員後台審核升級「雙向購物車系統」與「零延遲樂觀更新」
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -21,6 +21,44 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="modal-footer bg-white d-flex justify-content-between p-2">
                     <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">🔙 返回修改</button>
                     <button class="btn btn-success fw-bold px-4 shadow-sm flex-grow-1 ms-2" id="btnConfirmBulkMove" onclick="confirmBulkMovement()">📤 全數確認送出</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="mgrVerifyModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-success"><i class="fas fa-clipboard-check"></i> 待核對清單確認</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-2 bg-light">
+                    <div class="alert alert-info small py-2 mb-2">💡 您可以逐筆確認，或一次將本清單內的所有文物核對通過。</div>
+                    <div id="mgrVerifyList" class="d-flex flex-column gap-2"></div>
+                </div>
+                <div class="modal-footer bg-white d-flex justify-content-between p-2">
+                    <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">返回</button>
+                    <button class="btn btn-success fw-bold px-4 shadow-sm" id="btnConfirmMgrBatch" onclick="executeMgrBatchAction(true)">✅ 全數核對通過</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="mgrRevertModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-warning text-dark"><i class="fas fa-undo"></i> 退回核對清單確認</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-2 bg-light">
+                    <div class="alert alert-warning small py-2 mb-2">⚠️ 這些文物已退回至待核對狀態，請確認後送出。</div>
+                    <div id="mgrRevertList" class="d-flex flex-column gap-2"></div>
+                </div>
+                <div class="modal-footer bg-white d-flex justify-content-between p-2">
+                    <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">返回</button>
+                    <button class="btn btn-warning text-dark fw-bold px-4 shadow-sm" id="btnRevertMgrBatch" onclick="executeMgrBatchAction(false)">↩️ 全數退回待核對</button>
                 </div>
             </div>
         </div>
@@ -66,6 +104,10 @@ document.addEventListener("DOMContentLoaded", () => {
     <button class="floating-cart-btn btn-primary border-0" id="floatingCartBtn" onclick="openSubmitPreviewModal()">
         <i class="fas fa-box-open fs-4"></i><span class="cart-badge-count" id="floatingCartCount">0</span>
     </button>
+    
+    <button class="floating-cart-btn btn-success border-0 shadow-lg" id="mgrFloatingCartBtn" onclick="openMgrCartModal()" style="display:none; z-index: 1050;">
+        <i class="fas fa-clipboard-check fs-4"></i><span class="cart-badge-count bg-danger" id="mgrCartCount">0</span>
+    </button>
     `;
     document.body.insertAdjacentHTML('beforeend', dynamicModals);
 
@@ -88,17 +130,22 @@ document.addEventListener("DOMContentLoaded", () => {
         phase1.insertAdjacentHTML('beforeend', searchUI);
     }
 
-    const moveCreateTabBtn = document.querySelector('button[data-bs-target="#moveCreateTab"]');
-    if (moveCreateTabBtn) {
-        moveCreateTabBtn.addEventListener('click', () => {
-            loadNewMvList();
-            filterNewMvList();
+    // 頁籤切換時自動更新購物車顯示狀態
+    document.querySelectorAll('button[data-bs-toggle="pill"], button[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', (e) => {
+            if (typeof updateMgrCartUI === 'function') updateMgrCartUI();
+            if (typeof updateFloatingCartUI === 'function') updateFloatingCartUI();
         });
-    }
+    });
+
+    const moveCreateTabBtn = document.querySelector('button[data-bs-target="#moveCreateTab"]');
+    if (moveCreateTabBtn) { moveCreateTabBtn.addEventListener('click', () => { loadNewMvList(); filterNewMvList(); }); }
 });
 
 // ================= 💡 核心全域變數與共用函數 =================
 let workerCart = new Set();
+let mgrPendingCart = new Set();
+let mgrConfirmedCart = new Set();
 let useVK = true;
 let currentBsTargetRow = null;
 let bsState = { step: 0, main: '', med: '' };
@@ -436,6 +483,7 @@ function pauseAndSave() { document.getElementById('step2').style.display = 'none
 function finishInventory() { if(!confirm("確定結束進入結算？")) return; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
 
+
 // ================= 💡 專案異動管理 (總覽與過濾) =================
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
 
@@ -689,6 +737,7 @@ function startImportLocScanner(id) { locScanTarget = 'importMiscLoc_' + id; docu
 // ================= 💡 精修清單與臨時碼 =================
 function refreshCartPrefixDropdown(targetPrefix) { let prefixes = new Set(); newMvCart.forEach((val) => prefixes.add(getPrefix(val.tempCode))); let currentFilter = document.getElementById('cartPrefixFilter').value, selectHtml = '<option value="">所有前綴</option>'; Array.from(prefixes).sort().forEach(p => { selectHtml += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`; }); document.getElementById('cartPrefixFilter').innerHTML = selectHtml; if (targetPrefix !== undefined && prefixes.has(targetPrefix)) { document.getElementById('cartPrefixFilter').value = targetPrefix; } else if (currentFilter && prefixes.has(currentFilter)) { document.getElementById('cartPrefixFilter').value = currentFilter; } else { document.getElementById('cartPrefixFilter').value = ''; } }
 function openCartModal() { refreshCartPrefixDropdown(); document.getElementById('cartSearchKw').value = ''; const bsCollapse = bootstrap.Collapse.getInstance(document.getElementById('cartBatchEditArea')); if(bsCollapse) bsCollapse.hide(); filterCartList(); bootstrap.Modal.getOrCreateInstance(document.getElementById('cartModal')).show(); }
+
 function filterCartList() { 
     const kwStr = document.getElementById('cartSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -807,7 +856,6 @@ function renderWorkerItems(items, isSearchMode) {
             if (accLevel.includes('典藏')) badgeClass = "bg-danger";
             else if (accLevel.includes('館藏')) badgeClass = "bg-warning text-dark";
             else if (accLevel.includes('收藏')) badgeClass = "bg-success";
-            
             accBadge = `<span class="badge ${badgeClass} ms-1 shadow-sm" style="font-size: 0.75rem;">🏷️ ${escapeHTML(accLevel)}</span>`;
         }
 
@@ -920,7 +968,6 @@ async function confirmBulkMovement() {
     } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.innerText = "📤 全數確認送出"; }
 }
 
-// ================= 💡 交接與掃描邏輯 =================
 async function generateHandoff() {
     if (workerCart.size === 0) return alert("請先勾選要交接的文物！");
     let handoffData = { eventId: document.getElementById('mvEvent').value, selectedRows: Array.from(workerCart) }; showMiniLoading('產生交接碼中...');
@@ -1000,19 +1047,236 @@ function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEac
 async function silentMvSync() { if(!currentMvEventId) return; try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {} }
 
 
-// ================= 💡 管理員審核與空間架構管理 =================
+// ================= 💡 管理員後台 (加入購物車與樂觀更新) =================
 function parseOverrideData() { const raw = document.getElementById('importOverrideTextarea').value.trim(); if(!raw) return alert("請先貼上資料！"); const lines = raw.split('\n'); let payload = []; lines.forEach(line => { if(!line.trim()) return; let cols = line.includes('\t') ? line.split('\t') : line.split(','); cols = cols.map(c => c.trim()); if (cols.length >= 2 && cols[0]) { payload.push({ id: cols[0], newLoc: cols[1] }); } }); if(payload.length === 0) return alert("解析失敗！請確保貼上格式為「編號 + 地點」。"); showMiniLoading("正在比對雲端總表..."); callAPI('previewLocationOverride', { items: payload }).then(res => { parsedOverrideItems = res.results; renderOverridePreview(); document.getElementById('overridePreviewSection').style.display = 'block'; hideMiniLoading(); }).catch(e => { alert("預覽失敗：" + e.message); hideMiniLoading(); }); }
 function renderOverridePreview() { let html = '', validCount = 0; parsedOverrideItems.forEach(item => { let statusBadge = '', trClass = ''; if (item.status === 'ok') { statusBadge = '<span class="badge bg-success">✅ 準備覆寫</span>'; validCount++; } else if (item.status === 'no_change') { statusBadge = '<span class="badge bg-secondary">⏸️ 地點相同</span>'; trClass = 'table-secondary text-muted'; } else { statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>'; trClass = 'table-danger text-muted'; } html += `<tr class="${trClass}"><td>${statusBadge}</td><td class="fw-bold text-dark">${escapeHTML(item.id)}</td><td class="small">${escapeHTML(item.oldLoc || '無')}</td><td class="text-danger fw-bold small">${item.status === 'not_found' ? '--' : escapeHTML(item.newLoc)}</td></tr>`; }); document.getElementById('overridePreviewTableBody').innerHTML = html; document.getElementById('overrideStats').innerText = `✅ 可強制校正：${validCount} 筆`; document.getElementById('btnConfirmOverride').disabled = (validCount === 0); }
 function confirmOverride() { let validItems = parsedOverrideItems.filter(x => x.status === 'ok'); if(validItems.length === 0) return; if (!confirm(`⚠️ 危險操作確認！\n\n系統將直接覆寫總表中這 ${validItems.length} 件文物的地點，此操作無法復原。\n\n確定要強制執行覆寫嗎？`)) { return; } showMiniLoading(`正在強制寫入 ${validItems.length} 筆地點資料...`); callAPI('executeLocationOverride', { items: validItems }).then(res => { alert(`✅ 成功強制校正了 ${res.count} 筆文物地點！`); document.getElementById('importOverrideTextarea').value = ''; document.getElementById('overridePreviewSection').style.display = 'none'; parsedOverrideItems = []; callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); hideMiniLoading(); }).catch(e => { alert("寫入失敗：" + e.message); hideMiniLoading(); }); }
 
 async function updateBaseline() { const timeVal = document.getElementById('newBaseline').value; if(!timeVal) return alert('請選擇日期時間'); if(!confirm("確定要更新基準日嗎？")) return; showMiniLoading('更新中...'); try { await callAPI('updateBaseline', { timeString: timeVal }); alert('✅ 更新成功！'); location.reload(); } catch (e) { alert("更新失敗：" + e.message); hideMiniLoading(); } }
-async function loadManagerData() { const eid = document.getElementById('mgrEvent').value; if(!eid) { document.getElementById('mgrFilterSec').style.display = 'none'; document.getElementById('btnPrintReport').disabled = true; document.querySelector('#tablePending tbody').innerHTML = ''; document.querySelector('#tableConfirmed tbody').innerHTML = ''; return; } showMiniLoading('載入表單中...'); try { const res = await callAPI('getManagerData', { eventId: eid }); mgrPendingData = res.pending; mgrConfirmedData = res.confirmed; const allData = [...mgrPendingData, ...mgrConfirmedData]; const locs = [...new Set(allData.map(x => x.newLoc).filter(Boolean))].sort(), boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort(), staffs = [...new Set(allData.map(x => x.staff).filter(Boolean))].sort(); document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); document.getElementById('mgrFilterSec').style.display = 'block'; document.getElementById('btnPrintReport').disabled = false; applyMgrFilters(); } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); } }
-function applyMgrFilters() { const kwStr = document.getElementById('mgrSearchKw').value.toLowerCase().trim(), keywords = kwStr ? kwStr.split(/\s+/) : [], loc = document.getElementById('mgrSearchLoc').value, box = document.getElementById('mgrSearchBox').value, staff = document.getElementById('mgrSearchStaff').value; const filterFn = (x) => { let targetStr = (String(x.qrCode).replace(/\n/g, ' ') + ' ' + (x.name || '') + ' ' + (x.tempCode || '')).toLowerCase(); let matchKw = keywords.length === 0 || keywords.every(k => targetStr.includes(k)); let matchLoc = !loc || x.newLoc === loc; let matchBox = !box || x.boxName === box; let matchStaff = !staff || x.staff === staff; return matchKw && matchLoc && matchBox && matchStaff; }; const filteredP = mgrPendingData.filter(filterFn), filteredC = mgrConfirmedData.filter(filterFn); document.getElementById('mgrFilterCount').innerText = `篩選結果: 待核對 ${filteredP.length} 筆 / 已核對 ${filteredC.length} 筆`; renderTable('tablePending', filteredP, 'chk-pend', true); renderTable('tableConfirmed', filteredC, 'chk-conf', false); }
-function renderTable(tid, data, cls, edit) { document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => { let safeLoc = String(x.newLoc).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeBox = String(x.boxName).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; let displayId = String(x.qrCode).replace(/\n/g, ' '); let expectedWarning = x.isExpectedChanged ? `<br><small class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> 地點已變更</small>` : ''; return `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}"></td><td><b class="${String(x.qrCode).startsWith('MISC') ? 'text-danger' : 'text-dark'}">${escapeHTML(displayId)}</b>${tcBadge}<br><span class="text-primary small fw-bold">${escapeHTML(x.name)}</span> <span class="badge bg-secondary rounded-pill">x${escapeHTML(x.qty || '1')}</span><br><small class="text-muted">原: ${escapeHTML(x.oldLoc)}</small></td><td><span class="text-success fw-bold">${escapeHTML(x.newLoc)}</span>${expectedWarning}<br><small class="badge bg-light text-dark border mt-1">${escapeHTML(x.boxName||'未裝箱')}</small></td><td>${edit ? `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` : `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><small class="badge bg-success">核對: ${escapeHTML(x.manager)}</small>`}</td></tr>`; }).join(''); }
-async function changeStatus(cls, stat) { const rows = Array.from(document.querySelectorAll(`${cls}:checked`)).map(cb => parseInt(cb.value)); if(rows.length === 0) return alert('請先勾選項目！'); let movedItems = []; if (stat === true) { movedItems = mgrPendingData.filter(x => rows.includes(x.rowIndex)); mgrPendingData = mgrPendingData.filter(x => !rows.includes(x.rowIndex)); movedItems.forEach(x => { x.manager = currentManager; }); mgrConfirmedData.push(...movedItems); } else { movedItems = mgrConfirmedData.filter(x => rows.includes(x.rowIndex)); mgrConfirmedData = mgrConfirmedData.filter(x => !rows.includes(x.rowIndex)); movedItems.forEach(x => { x.manager = ''; }); mgrPendingData.push(...movedItems); } applyMgrFilters(); showSyncToast('狀態更新同步中...', false); try { await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager }); showSyncToast('✅ 狀態已同步', true); } catch(e) { showSyncToast('❌ 同步失敗', true); alert("失敗將還原資料：" + e.message); loadManagerData(); } }
+
+async function loadManagerData() { 
+    const eid = document.getElementById('mgrEvent').value; 
+    
+    mgrPendingCart.clear(); 
+    mgrConfirmedCart.clear();
+    updateMgrCartUI();
+    document.querySelectorAll('#mgrPending > .action-btn, #mgrConfirmed > .action-btn').forEach(btn => btn.style.display = 'none');
+
+    if(!eid) { 
+        document.getElementById('mgrFilterSec').style.display = 'none'; document.getElementById('btnPrintReport').disabled = true; 
+        document.querySelector('#tablePending tbody').innerHTML = ''; document.querySelector('#tableConfirmed tbody').innerHTML = ''; 
+        return; 
+    } 
+    showMiniLoading('載入表單中...'); 
+    try { 
+        const res = await callAPI('getManagerData', { eventId: eid }); 
+        mgrPendingData = res.pending; mgrConfirmedData = res.confirmed; 
+        const allData = [...mgrPendingData, ...mgrConfirmedData]; 
+        const locs = [...new Set(allData.map(x => x.newLoc).filter(Boolean))].sort(), boxes = [...new Set(allData.map(x => x.boxName).filter(Boolean))].sort(), staffs = [...new Set(allData.map(x => x.staff).filter(Boolean))].sort(); 
+        document.getElementById('mgrSearchLoc').innerHTML = '<option value="">📍 所有地點</option>' + locs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); 
+        document.getElementById('mgrSearchBox').innerHTML = '<option value="">📦 所有箱號</option>' + boxes.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); 
+        document.getElementById('mgrSearchStaff').innerHTML = '<option value="">👤 所有人員</option>' + staffs.map(x => `<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join(''); 
+        document.getElementById('mgrFilterSec').style.display = 'block'; document.getElementById('btnPrintReport').disabled = false; 
+        applyMgrFilters(); 
+    } catch(e) { alert("載入失敗：" + e.message); } finally { hideMiniLoading(); } 
+}
+
+function applyMgrFilters() { 
+    const kwStr = document.getElementById('mgrSearchKw').value.toLowerCase().trim(), keywords = kwStr ? kwStr.split(/\s+/) : [], loc = document.getElementById('mgrSearchLoc').value, box = document.getElementById('mgrSearchBox').value, staff = document.getElementById('mgrSearchStaff').value; 
+    const filterFn = (x) => { 
+        let targetStr = (String(x.qrCode).replace(/\n/g, ' ') + ' ' + (x.name || '') + ' ' + (x.tempCode || '')).toLowerCase(); 
+        let matchKw = keywords.length === 0 || keywords.every(k => targetStr.includes(k)); 
+        let matchLoc = !loc || x.newLoc === loc; let matchBox = !box || x.boxName === box; let matchStaff = !staff || x.staff === staff; 
+        return matchKw && matchLoc && matchBox && matchStaff; 
+    }; 
+    const filteredP = mgrPendingData.filter(filterFn), filteredC = mgrConfirmedData.filter(filterFn); 
+    document.getElementById('mgrFilterCount').innerText = `篩選結果: 待核對 ${filteredP.length} 筆 / 已核對 ${filteredC.length} 筆`; 
+    renderTable('tablePending', filteredP, 'pending', true); 
+    renderTable('tableConfirmed', filteredC, 'confirmed', false); 
+}
+
+// 🔥 購物車：表格渲染與選取連動
+function renderTable(tid, data, type, edit) { 
+    let cart = type === 'pending' ? mgrPendingCart : mgrConfirmedCart;
+    let cls = type === 'pending' ? 'chk-pend' : 'chk-conf';
+
+    document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => { 
+        let safeLoc = String(x.newLoc).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeBox = String(x.boxName).replace(/'/g, "\\'").replace(/"/g, "&quot;"); 
+        let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; 
+        let displayId = String(x.qrCode).replace(/\n/g, ' '); 
+        let expectedWarning = x.isExpectedChanged ? `<br><small class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> 地點已變更</small>` : ''; 
+        let isChecked = cart.has(x.rowIndex) ? 'checked' : '';
+
+        return `<tr><td><input type="checkbox" class="${cls}" value="${x.rowIndex}" ${isChecked} onchange="toggleMgrCart(this, ${x.rowIndex}, '${type}')"></td><td><b class="${String(x.qrCode).startsWith('MISC') ? 'text-danger' : 'text-dark'}">${escapeHTML(displayId)}</b>${tcBadge}<br><span class="text-primary small fw-bold">${escapeHTML(x.name)}</span> <span class="badge bg-secondary rounded-pill">x${escapeHTML(x.qty || '1')}</span><br><small class="text-muted">原: ${escapeHTML(x.oldLoc)}</small></td><td><span class="text-success fw-bold">${escapeHTML(x.newLoc)}</span>${expectedWarning}<br><small class="badge bg-light text-dark border mt-1">${escapeHTML(x.boxName||'未裝箱')}</small></td><td>${edit ? `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><button class="btn btn-sm btn-outline-primary" onclick="promptEdit(${x.rowIndex},'${safeLoc}','${safeBox}')">📝修改</button>` : `<small class="text-muted d-block mb-1">搬運: ${escapeHTML(x.staff)}</small><small class="badge bg-success">核對: ${escapeHTML(x.manager)}</small>`}</td></tr>`; 
+    }).join(''); 
+}
+
+function toggleMgrCart(cb, rIdx, type) {
+    let cart = type === 'pending' ? mgrPendingCart : mgrConfirmedCart;
+    if (cb.checked) cart.add(rIdx); else cart.delete(rIdx);
+    updateMgrCartUI();
+}
+
+function toggleAllCheck(s, t) { 
+    let type = t === '.chk-pend' ? 'pending' : 'confirmed';
+    document.querySelectorAll(t).forEach(cb => { 
+        cb.checked = s.checked; 
+        toggleMgrCart(cb, parseInt(cb.value), type);
+    }); 
+}
+
+function updateMgrCartUI() {
+    let isPendingTab = document.querySelector('button[data-bs-target="#mgrPending"]').classList.contains('active');
+    let cart = isPendingTab ? mgrPendingCart : mgrConfirmedCart;
+    let btn = document.getElementById('mgrFloatingCartBtn');
+    let countSpan = document.getElementById('mgrCartCount');
+    
+    let isMgrActive = document.querySelector('button[data-bs-target="#mgr"]').classList.contains('active');
+    let isVerifyActive = document.querySelector('button[data-bs-target="#mgrTabVerify"]').classList.contains('active');
+    
+    if (isMgrActive && isVerifyActive && cart.size > 0) {
+        btn.style.display = 'block';
+        countSpan.innerText = cart.size;
+        if (isPendingTab) {
+            btn.className = 'floating-cart-btn btn-success border-0 shadow-lg';
+            btn.innerHTML = `<i class="fas fa-check-double fs-4"></i><span class="cart-badge-count bg-danger" id="mgrCartCount">${cart.size}</span>`;
+        } else {
+            btn.className = 'floating-cart-btn btn-warning text-dark border-0 shadow-lg';
+            btn.innerHTML = `<i class="fas fa-undo fs-4"></i><span class="cart-badge-count bg-danger" id="mgrCartCount">${cart.size}</span>`;
+        }
+    } else {
+        if(btn) btn.style.display = 'none';
+    }
+}
+
+function openMgrCartModal() {
+    let isPendingTab = document.querySelector('button[data-bs-target="#mgrPending"]').classList.contains('active');
+    let cart = isPendingTab ? mgrPendingCart : mgrConfirmedCart;
+    let dataList = isPendingTab ? mgrPendingData : mgrConfirmedData;
+    
+    if (cart.size === 0) return alert('請先勾選項目！');
+    
+    let html = '';
+    cart.forEach(rIdx => {
+        let item = dataList.find(x => x.rowIndex === rIdx);
+        if (!item) return;
+        
+        let safeLoc = escapeHTML(item.newLoc);
+        let safeBox = escapeHTML(item.boxName || '未裝箱');
+        let displayId = escapeHTML(String(item.qrCode).replace(/\n/g, ' '));
+        
+        if (isPendingTab) {
+            html += `
+            <div class="card border-0 shadow-sm mb-2" id="mgrCartCard_${rIdx}">
+                <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold text-dark small">${displayId} <span class="text-primary">${escapeHTML(item.name)}</span></div>
+                        <div class="text-success fw-bold small mt-1">📍 ${safeLoc} <span class="badge bg-light text-dark border">📦 ${safeBox}</span></div>
+                    </div>
+                    <button class="btn btn-success btn-sm fw-bold px-3 ms-2" onclick="executeMgrSingleAction(${rIdx}, true)">✅ 核對</button>
+                </div>
+            </div>`;
+        } else {
+            html += `
+            <div class="card border-0 shadow-sm mb-2" id="mgrCartCard_${rIdx}">
+                <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold text-dark small">${displayId} <span class="text-primary">${escapeHTML(item.name)}</span></div>
+                        <div class="text-success fw-bold small mt-1">📍 ${safeLoc} <span class="badge bg-light text-dark border">📦 ${safeBox}</span></div>
+                    </div>
+                    <button class="btn btn-warning btn-sm text-dark fw-bold px-3 ms-2" onclick="executeMgrSingleAction(${rIdx}, false)">↩️ 退回</button>
+                </div>
+            </div>`;
+        }
+    });
+    
+    if (isPendingTab) {
+        document.getElementById('mgrVerifyList').innerHTML = html;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('mgrVerifyModal')).show();
+    } else {
+        document.getElementById('mgrRevertList').innerHTML = html;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('mgrRevertModal')).show();
+    }
+}
+
+// 🔥 樂觀更新：單件執行
+async function executeMgrSingleAction(rIdx, stat) {
+    let card = document.getElementById(`mgrCartCard_${rIdx}`);
+    if(card) card.style.display = 'none';
+    
+    optimisticToggleStatus([rIdx], stat);
+    updateMgrCartUI(); 
+    
+    let modalId = stat ? 'mgrVerifyModal' : 'mgrRevertModal';
+    let listId = stat ? 'mgrVerifyList' : 'mgrRevertList';
+    
+    let remaining = Array.from(document.querySelectorAll(`#${listId} .card`)).filter(c => c.style.display !== 'none');
+    if(remaining.length === 0) {
+        bootstrap.Modal.getInstance(document.getElementById(modalId)).hide();
+    }
+    
+    showSyncToast('狀態更新同步中...', false);
+    try {
+        await callAPI('toggleStatus', { rowIndices: [rIdx], newStatus: stat, managerName: currentManager });
+        showSyncToast('✅ 單件狀態已同步', true);
+    } catch(e) {
+        showSyncToast('❌ 同步失敗', true);
+        alert("失敗將自動還原資料：" + e.message);
+        loadManagerData();
+    }
+}
+
+// 🔥 樂觀更新：批次執行
+async function executeMgrBatchAction(stat) {
+    let cart = stat ? mgrPendingCart : mgrConfirmedCart;
+    let rows = Array.from(cart);
+    if(rows.length === 0) return;
+    
+    let modalId = stat ? 'mgrVerifyModal' : 'mgrRevertModal';
+    let btnId = stat ? 'btnConfirmMgrBatch' : 'btnRevertMgrBatch';
+    let btn = document.getElementById(btnId);
+    btn.disabled = true;
+    btn.innerText = "處理中...";
+    
+    optimisticToggleStatus(rows, stat);
+    bootstrap.Modal.getInstance(document.getElementById(modalId)).hide();
+    updateMgrCartUI();
+    
+    btn.disabled = false;
+    btn.innerText = stat ? "✅ 全數核對通過" : "↩️ 全數退回待核對";
+    
+    showSyncToast('批次狀態更新同步中...', false);
+    try {
+        await callAPI('toggleStatus', { rowIndices: rows, newStatus: stat, managerName: currentManager });
+        showSyncToast(`✅ ${rows.length} 件狀態已同步`, true);
+    } catch(e) {
+        showSyncToast('❌ 同步失敗', true);
+        alert("失敗將自動還原資料：" + e.message);
+        loadManagerData();
+    }
+}
+
+// 核心記憶體轉移 (瞬間移動)
+function optimisticToggleStatus(rows, stat) {
+    let movedItems = [];
+    if (stat === true) {
+        movedItems = mgrPendingData.filter(x => rows.includes(x.rowIndex));
+        mgrPendingData = mgrPendingData.filter(x => !rows.includes(x.rowIndex));
+        movedItems.forEach(x => { x.manager = currentManager; });
+        mgrConfirmedData.push(...movedItems);
+        rows.forEach(r => mgrPendingCart.delete(r));
+    } else {
+        movedItems = mgrConfirmedData.filter(x => rows.includes(x.rowIndex));
+        mgrConfirmedData = mgrConfirmedData.filter(x => !rows.includes(x.rowIndex));
+        movedItems.forEach(x => { x.manager = ''; });
+        mgrPendingData.push(...movedItems);
+        rows.forEach(r => mgrConfirmedCart.delete(r));
+    }
+    applyMgrFilters();
+}
+
 async function promptEdit(ri, nl, nb) { const loc = prompt("修改暫存地點：", nl); if (loc === null) return; const box = prompt("修改箱名：", nb); if (box === null) return; let targetItem = mgrPendingData.find(x => x.rowIndex === ri) || mgrConfirmedData.find(x => x.rowIndex === ri); if (targetItem) { targetItem.newLoc = loc.trim(); targetItem.boxName = box.trim(); targetItem.isExpectedChanged = true; } applyMgrFilters(); showSyncToast('修改同步中...', false); try { await callAPI('editItem', { rowIndex: ri, newLoc: loc, boxName: box, managerName: currentManager }); showSyncToast('✅ 修改已同步', true); } catch(e) { showSyncToast('❌ 修改失敗', true); alert("失敗將還原資料：" + e.message); loadManagerData(); } }
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
-function toggleAllCheck(s, t) { document.querySelectorAll(t).forEach(cb => cb.checked = s.checked); }
 
 function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = String(r.main).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = String(displayMedium).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = String(r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
