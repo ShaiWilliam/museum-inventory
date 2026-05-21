@@ -1,12 +1,45 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：明細統計、前台反悔鍵、後台購物車支援下鑽式地點修改與退回搬運
+// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (含打洞區、裁切十字線、四行明細)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
 document.addEventListener("DOMContentLoaded", () => {
     const dynamicModals = `
+    <div class="modal fade" id="printFormatModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-dark"><i class="fas fa-print"></i> 選擇列印格式</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <div class="d-grid gap-3">
+                        <button class="btn btn-outline-primary btn-lg fw-bold py-3 text-start px-4" onclick="executeGeneratePrintPage('basic')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-qrcode fs-2 me-3"></i>
+                                <div>
+                                    <div class="fs-5">純 QR Code 標籤</div>
+                                    <small class="fw-normal text-muted">包含地點分類標題，適合黏貼於一般平面</small>
+                                </div>
+                            </div>
+                        </button>
+                        <button class="btn btn-outline-success btn-lg fw-bold py-3 text-start px-4" onclick="executeGeneratePrintPage('full')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-tag fs-2 me-3"></i>
+                                <div>
+                                    <div class="fs-5">完整藏品吊牌 (6x3cm)</div>
+                                    <small class="fw-normal text-muted">含打洞預留區、編號、名稱、財編與地點</small>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="mvPreviewModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-lg bg-light">
@@ -158,17 +191,11 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.addEventListener('shown.bs.tab', (e) => {
             if (typeof updateMgrCartUI === 'function') updateMgrCartUI();
             if (typeof updateFloatingCartUI === 'function') updateFloatingCartUI();
-            
-            // 控制前台反悔鍵顯示時機
             let undoBtn = document.getElementById('floatingUndoBtn');
             let cartBtn = document.getElementById('floatingCartBtn');
             if (undoBtn) {
-                if (e.target.getAttribute('data-bs-target') === '#moveExecuteTab' && currentMvEventId) {
-                    undoBtn.style.display = 'block';
-                } else {
-                    undoBtn.style.display = 'none';
-                    if(cartBtn) cartBtn.style.display = 'none';
-                }
+                if (e.target.getAttribute('data-bs-target') === '#moveExecuteTab' && currentMvEventId) { undoBtn.style.display = 'block'; } 
+                else { undoBtn.style.display = 'none'; if(cartBtn) cartBtn.style.display = 'none'; }
             }
         });
     });
@@ -396,7 +423,7 @@ function selectBsLoc(loc) {
         let input = document.getElementById(`mgrLoc_${rIdx}`);
         if (input) input.value = loc;
         closeBottomSheet();
-        promptEditMgrOptimistic(rIdx, loc); // 後台樂觀更新
+        promptEditMgrOptimistic(rIdx, loc); 
     } else if (currentBsTargetRow === 'BATCH') {
         document.querySelectorAll('.prev-item-cb:checked').forEach(cb => {
             let rIdx = parseInt(cb.value); 
@@ -495,6 +522,7 @@ async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...');
 
 async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 
+// 🔥 全域列印中心與多格式選擇機制
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
 function filterPrintList() { 
     const kwStr = document.getElementById('printSearch').value.toLowerCase().trim();
@@ -517,7 +545,103 @@ function updateCartBtn() { document.getElementById('btnGoPreview').innerText = `
 function showPrintPreview() { if(printCartMap.size === 0) return alert("請先勾選要列印的標籤！"); document.getElementById('printSelectSec').style.display = 'none'; document.getElementById('printPreviewSec').style.display = 'block'; let html = ''; printCartMap.forEach((data, id) => { html += `<div class="print-item p-2 d-flex align-items-center justify-content-between"><div class="d-flex flex-column" style="max-width: 80%;"><span class="fw-bold text-dark text-break">${escapeHTML(id)}</span><span class="small text-muted text-truncate">${escapeHTML(data.name)}</span><span class="badge bg-light text-secondary border mt-1 align-self-start" style="font-size:0.75rem;">📍 ${escapeHTML(data.loc)}</span></div><button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${escapeHTML(id)}')">❌ 移除</button></div>`; }); document.getElementById('printPreviewContainer').innerHTML = html; }
 function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
 function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
-function generatePrintPage() { if(printCartMap.size === 0) return alert("請至少選擇一筆項目！"); showMiniLoading("生成本機高品質 QR Code 中..."); setTimeout(() => { try { const groups = {}; printCartMap.forEach((data, id) => { const loc = data.loc || '未分類地點'; if (!groups[loc]) groups[loc] = []; groups[loc].push({ id: id, name: data.name }); }); let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; for(let loc of Object.keys(groups).sort()) { printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${escapeHTML(loc)}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`; for(let item of groups[loc]) { const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${escapeHTML(item.id)}</div><div class="name-text">${escapeHTML(item.name)}</div></div>`; } } printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch(e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
+
+// 🔥 攔截舊的列印按鈕，改為呼叫選擇格式 Modal
+function generatePrintPage() { 
+    if(printCartMap.size === 0) return alert("請至少選擇一筆項目！"); 
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('printFormatModal')).show(); 
+}
+
+// 執行指定格式列印
+function executeGeneratePrintPage(format) {
+    bootstrap.Modal.getInstance(document.getElementById('printFormatModal')).hide();
+    showMiniLoading("生成本機高品質標籤中...");
+    setTimeout(() => { 
+        try { 
+            if (format === 'basic') { generateBasicPrintHtml(); } 
+            else { generateFullPrintHtml(); }
+            document.getElementById('printOverlay').style.display = 'flex'; 
+            hideMiniLoading(); 
+        } catch(e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } 
+    }, 50);
+}
+
+// 產生純 QR Code 格式 (舊有邏輯)
+function generateBasicPrintHtml() {
+    const groups = {}; 
+    printCartMap.forEach((data, id) => { 
+        const loc = data.loc || '未分類地點'; 
+        if (!groups[loc]) groups[loc] = []; 
+        groups[loc].push({ id: id, name: data.name }); 
+    }); 
+    let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; 
+    for(let loc of Object.keys(groups).sort()) { 
+        printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${escapeHTML(loc)}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`; 
+        for(let item of groups[loc]) { 
+            const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; 
+            const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); 
+            const base64Img = qr.toDataURL('image/png'); 
+            printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${escapeHTML(item.id)}</div><div class="name-text">${escapeHTML(item.name)}</div></div>`; 
+        } 
+    } 
+    printHtml += `</div></div>`; 
+    document.getElementById('printOverlayContent').innerHTML = printHtml;
+}
+
+// 🔥 產生完整藏品吊牌 (6x3cm)
+function generateFullPrintHtml() {
+    let itemsToPrint = [];
+    printCartMap.forEach((data, id) => {
+        let catObj = globalCatalog[id] || {};
+        itemsToPrint.push({ id: id, name: data.name, loc: data.loc || '未指定地點', propNum: catObj.propNum || '無財編' });
+    });
+    
+    // 依據地點與編號排序方便裁切後整理
+    itemsToPrint.sort((a,b) => a.loc.localeCompare(b.loc) || a.id.localeCompare(b.id));
+
+    let printHtml = `
+    <style>
+        .full-print-container { display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; padding: 5mm; background: white; margin: 0 auto; width: 210mm; }
+        .fl-card { width: 60mm; height: 30mm; background: white; position: relative; display: flex; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; }
+        .fl-crop-tl, .fl-crop-tr, .fl-crop-bl, .fl-crop-br { position: absolute; width: 3mm; height: 3mm; border-color: #999; border-style: solid; pointer-events: none; }
+        .fl-crop-tl { top: 0; left: 0; border-width: 0.5px 0 0 0.5px; }
+        .fl-crop-tr { top: 0; right: 0; border-width: 0.5px 0.5px 0 0; }
+        .fl-crop-bl { bottom: 0; left: 0; border-width: 0 0 0.5px 0.5px; }
+        .fl-crop-br { bottom: 0; right: 0; border-width: 0 0.5px 0.5px 0; }
+        .fl-hole { width: 10mm; display: flex; justify-content: center; align-items: center; border-right: 0.5px dotted #eee; }
+        .fl-hole-circle { width: 4mm; height: 4mm; border: 0.5px solid #bbb; border-radius: 50%; }
+        .fl-info { flex: 1; padding: 0 2mm; display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; }
+        .fl-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+        .fl-qr { width: 20mm; display: flex; justify-content: center; align-items: center; padding: 1mm; }
+        .fl-qr img { width: 18mm; height: 18mm; object-fit: contain; }
+    </style>
+    <div class="preview-paper full-print-container">`;
+
+    itemsToPrint.forEach(item => {
+        const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; 
+        const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); 
+        const base64Img = qr.toDataURL('image/png');
+        let displayId = String(item.id).replace(/\n/g, ' ');
+
+        printHtml += `
+        <div class="fl-card">
+            <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
+            <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
+            <div class="fl-hole"><div class="fl-hole-circle"></div></div>
+            <div class="fl-info">
+                <div class="fl-text" style="font-size: 8pt; font-weight: bold; color: #000;">${escapeHTML(displayId)}</div>
+                <div class="fl-text" style="font-size: 8pt; font-weight: bold; color: #000; margin-bottom: 0.5mm;">${escapeHTML(item.name)}</div>
+                <div class="fl-text" style="font-size: 6.5pt; color: #555;">${escapeHTML(item.propNum)}</div>
+                <div class="fl-text" style="font-size: 6.5pt; color: #555;">${escapeHTML(item.loc)}</div>
+            </div>
+            <div class="fl-qr"><img src="${base64Img}" alt="QR"></div>
+        </div>`;
+    });
+
+    printHtml += `</div>`;
+    document.getElementById('printOverlayContent').innerHTML = printHtml;
+}
+
 function closePrintOverlay() { document.getElementById('printOverlay').style.display = 'none'; document.getElementById('printOverlayContent').innerHTML = ''; }
 function closePrintReport() { document.getElementById('printReportOverlay').style.display = 'none'; document.getElementById('printReportContent').innerHTML = ''; }
 
@@ -531,7 +655,6 @@ async function processScanLocal(msg) { if (isProc || Date.now() - lastScan < 800
 function pauseAndSave() { document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
 function finishInventory() { if(!confirm("確定結束進入結算？")) return; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
-
 
 // ================= 💡 專案異動管理 (總覽與明細) =================
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
@@ -614,7 +737,6 @@ async function viewProjectDetails(id, name, status, desc) {
     } catch(e) { alert("無法讀取明細：" + e.message); } finally { hideMiniLoading(); } 
 }
 
-// 🔥 新增：動態統計已搬運與未搬運數量
 function renderPdTable() { 
     const kwStr = document.getElementById('pdSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
@@ -626,7 +748,6 @@ function renderPdTable() {
         let prefixMatch = (!prefixFilter || getPrefix(item.tempCode) === prefixFilter);
         let oldLocMatch = (!oldLocFilter || item.oldLoc === oldLocFilter);
         let newLocMatch = (!newLocFilter || item.newLoc === newLocFilter);
-        
         if(!(prefixMatch && oldLocMatch && newLocMatch)) return false;
         if(keywords.length === 0) return true;
         
@@ -634,11 +755,9 @@ function renderPdTable() {
         let safeName = String(item.name || '');
         let safeTc = String(item.tempCode || '');
         let targetStr = `${safeId} ${safeName} ${safeTc}`.toLowerCase();
-        
         return keywords.every(k => targetStr.includes(k));
     }); 
     
-    // 計算已搬與未搬
     let movedCount = filtered.filter(item => item.newLoc && item.newLoc !== '').length;
     let unmovedCount = filtered.length - movedCount;
     document.getElementById('pdCount').innerHTML = `${filtered.length} 件 <span class="badge bg-success ms-2 shadow-sm">已搬運: ${movedCount}</span> <span class="badge bg-secondary shadow-sm">未搬運: ${unmovedCount}</span>`; 
@@ -841,7 +960,6 @@ async function submitNewProject() {
 // ================= 💡 執行搬運與送出 =================
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
-    
     let undoBtn = document.getElementById('floatingUndoBtn');
     if (undoBtn) undoBtn.style.display = eid ? 'block' : 'none';
 
@@ -876,8 +994,10 @@ function loadWorkerItems() {
     const loc = document.getElementById('mvLoc').value;
     const kwStr = document.getElementById('mvSearchKw').value.toLowerCase().trim();
     const keywords = kwStr ? kwStr.split(/\s+/) : [];
+    
     let filteredItems = currentProjectItems;
     if (loc) { filteredItems = filteredItems.filter(x => x.loc === loc); }
+    
     if (keywords.length > 0) { 
         filteredItems = filteredItems.filter(x => {
             let safeId = String(x.qrCode || '').replace(/\n/g, ' ');
@@ -889,6 +1009,7 @@ function loadWorkerItems() {
     }
     renderWorkerItems(filteredItems, keywords.length > 0);
 }
+
 function searchWorkerItems() { loadWorkerItems(); }
 
 function renderWorkerItems(items, isSearchMode) {
@@ -901,6 +1022,7 @@ function renderWorkerItems(items, isSearchMode) {
         let isChecked = workerCart.has(x.rowIndex) ? 'checked' : '';
         let locBadge = isSearchMode ? `<span class="badge bg-light text-dark border ms-1">📍 ${escapeHTML(x.loc)}</span>` : '';
         let qtyBadge = `<span class="badge bg-secondary rounded-pill ms-1">x${escapeHTML(x.qty || '1')}</span>`;
+        
         let baseId = String(x.qrCode).split('\n')[0].trim();
         let catObj = globalCatalog ? globalCatalog[baseId] : null;
         let accBadge = '';
@@ -912,6 +1034,7 @@ function renderWorkerItems(items, isSearchMode) {
             else if (accLevel.includes('收藏')) badgeClass = "bg-success";
             accBadge = `<span class="badge ${badgeClass} ms-1 shadow-sm" style="font-size: 0.75rem;">🏷️ ${escapeHTML(accLevel)}</span>`;
         }
+
         return `<div class="form-check mb-2 pb-2 border-bottom"><input class="form-check-input mv-item-cb" type="checkbox" value="${x.rowIndex}" id="mvItem_${i}" ${isChecked} onchange="toggleWorkerCart(this, ${x.rowIndex})"><label class="form-check-label w-100" for="mvItem_${i}"><div class="d-flex align-items-center mb-1">${tcBadge}<span class="${isMisc ? 'text-danger' : 'text-primary'} fw-bold" style="font-size:0.9rem;">[${escapeHTML(displayId)}]</span>${accBadge}</div><div class="fs-6 text-dark">${escapeHTML(x.name)}${qtyBadge}${locBadge}</div></label></div>`; 
     }).join(''); 
     document.getElementById('mvPhase2').style.display = 'block';
@@ -949,8 +1072,6 @@ function openSubmitPreviewModal() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('mvPreviewModal')).show();
 }
 
-function checkLocModification(rIdx) { let parsedIdx = parseInt(rIdx); let input = document.getElementById(`prevLoc_${parsedIdx}`), card = document.getElementById(`prevCard_${parsedIdx}`), item = currentProjectItems.find(x => x.rowIndex === parsedIdx); if(!item) return; if(input.value.trim() !== '' && input.value.trim() !== (item.expectedLoc||'待定')) { card.classList.add('preview-card-modified'); } else { card.classList.remove('preview-card-modified'); } }
-
 async function submitSingleMovement(rIdx) {
     let locInput = document.getElementById(`prevLoc_${rIdx}`).value.trim(); if(!locInput) return alert("請選擇實際放置地點！");
     let btn = document.querySelector(`#prevCard_${rIdx} button`); btn.disabled = true; btn.innerText = "寫入中...";
@@ -975,13 +1096,12 @@ async function confirmBulkMovement() {
     } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.innerText = "📤 全數確認送出"; }
 }
 
-// 🔥 新增：前台反悔撤銷功能
 async function openUndoMoveModal() {
     if(!currentMvEventId) return alert("請先選擇專案！");
     showMiniLoading('讀取可撤銷清單...');
     try {
         const res = await callAPI('getProjectDetails', { eventId: currentMvEventId });
-        let undoItems = res.filter(x => x.newLoc && x.status !== '已核對'); // 僅列出已搬運且未核對的
+        let undoItems = res.filter(x => x.newLoc && x.status !== '已核對'); 
         
         let html = '';
         if (undoItems.length === 0) {
@@ -1018,7 +1138,7 @@ async function submitUndoMovement(rIdx) {
         let remaining = Array.from(document.querySelectorAll('#undoMoveList .card')).filter(c => c.style.display !== 'none');
         if(remaining.length === 0) { bootstrap.Modal.getInstance(document.getElementById('undoMoveModal')).hide(); }
         
-        loadWorkerLocations(); // 刷新背景清單
+        loadWorkerLocations(); 
     } catch(e) { alert(e.message); btn.disabled = false; btn.innerText = "↩️ 撤銷"; }
 }
 
@@ -1102,7 +1222,7 @@ function toggleAllItems(state) { document.querySelectorAll('.mv-item-cb').forEac
 async function silentMvSync() { if(!currentMvEventId) return; try { const res = await callAPI('getProjectPendingData', { eventId: currentMvEventId }); currentProjectItems = res.items || []; pendingLocTree = res.locTree || []; } catch(e) {} }
 
 
-// ================= 💡 管理員審核與空間架構管理 =================
+// ================= 💡 管理員後台 (加入購物車與樂觀更新) =================
 function parseOverrideData() { const raw = document.getElementById('importOverrideTextarea').value.trim(); if(!raw) return alert("請先貼上資料！"); const lines = raw.split('\n'); let payload = []; lines.forEach(line => { if(!line.trim()) return; let cols = line.includes('\t') ? line.split('\t') : line.split(','); cols = cols.map(c => c.trim()); if (cols.length >= 2 && cols[0]) { payload.push({ id: cols[0], newLoc: cols[1] }); } }); if(payload.length === 0) return alert("解析失敗！請確保貼上格式為「編號 + 地點」。"); showMiniLoading("正在比對雲端總表..."); callAPI('previewLocationOverride', { items: payload }).then(res => { parsedOverrideItems = res.results; renderOverridePreview(); document.getElementById('overridePreviewSection').style.display = 'block'; hideMiniLoading(); }).catch(e => { alert("預覽失敗：" + e.message); hideMiniLoading(); }); }
 function renderOverridePreview() { let html = '', validCount = 0; parsedOverrideItems.forEach(item => { let statusBadge = '', trClass = ''; if (item.status === 'ok') { statusBadge = '<span class="badge bg-success">✅ 準備覆寫</span>'; validCount++; } else if (item.status === 'no_change') { statusBadge = '<span class="badge bg-secondary">⏸️ 地點相同</span>'; trClass = 'table-secondary text-muted'; } else { statusBadge = '<span class="badge bg-danger">❌ 查無此物</span>'; trClass = 'table-danger text-muted'; } html += `<tr class="${trClass}"><td>${statusBadge}</td><td class="fw-bold text-dark">${escapeHTML(item.id)}</td><td class="small">${escapeHTML(item.oldLoc || '無')}</td><td class="text-danger fw-bold small">${item.status === 'not_found' ? '--' : escapeHTML(item.newLoc)}</td></tr>`; }); document.getElementById('overridePreviewTableBody').innerHTML = html; document.getElementById('overrideStats').innerText = `✅ 可強制校正：${validCount} 筆`; document.getElementById('btnConfirmOverride').disabled = (validCount === 0); }
 function confirmOverride() { let validItems = parsedOverrideItems.filter(x => x.status === 'ok'); if(validItems.length === 0) return; if (!confirm(`⚠️ 危險操作確認！\n\n系統將直接覆寫總表中這 ${validItems.length} 件文物的地點，此操作無法復原。\n\n確定要強制執行覆寫嗎？`)) { return; } showMiniLoading(`正在強制寫入 ${validItems.length} 筆地點資料...`); callAPI('executeLocationOverride', { items: validItems }).then(res => { alert(`✅ 成功強制校正了 ${res.count} 筆文物地點！`); document.getElementById('importOverrideTextarea').value = ''; document.getElementById('overridePreviewSection').style.display = 'none'; parsedOverrideItems = []; callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); hideMiniLoading(); }).catch(e => { alert("寫入失敗：" + e.message); hideMiniLoading(); }); }
@@ -1149,7 +1269,6 @@ function applyMgrFilters() {
     renderTable('tableConfirmed', filteredC, 'confirmed', false); 
 }
 
-// 🔥 購物車：表格渲染與選取連動
 function renderTable(tid, data, type, edit) { 
     let cart = type === 'pending' ? mgrPendingCart : mgrConfirmedCart;
     let cls = type === 'pending' ? 'chk-pend' : 'chk-conf';
@@ -1262,7 +1381,6 @@ function openMgrCartModal() {
     }
 }
 
-// 🔥 樂觀更新：修改地點
 async function promptEditMgrOptimistic(ri, newLoc) {
     let item = mgrPendingData.find(x => x.rowIndex === ri);
     if(!item) return;
@@ -1275,14 +1393,13 @@ async function promptEditMgrOptimistic(ri, newLoc) {
         await callAPI('editItem', { rowIndex: ri, newLoc: newLoc, boxName: item.boxName, managerName: currentManager });
         showSyncToast('✅ 地點修改已同步', true);
     } catch(e) {
-        item.newLoc = oldLoc; // 還原
+        item.newLoc = oldLoc; 
         applyMgrFilters();
         showSyncToast('❌ 修改失敗', true);
         alert("失敗將還原資料：" + e.message);
     }
 }
 
-// 🔥 樂觀更新：單件執行 (核對/撤銷核對)
 async function executeMgrSingleAction(rIdx, stat) {
     let card = document.getElementById(`mgrCartCard_${rIdx}`);
     if(card) card.style.display = 'none';
@@ -1301,7 +1418,6 @@ async function executeMgrSingleAction(rIdx, stat) {
     } catch(e) { showSyncToast('❌ 同步失敗', true); alert("失敗將自動還原資料：" + e.message); loadManagerData(); }
 }
 
-// 🔥 樂觀更新：單件執行 (退回未搬運)
 async function executeMgrSingleUndo(rIdx) {
     if(!confirm("確定要將此文物退回前台重新搬運嗎？")) return;
     let card = document.getElementById(`mgrCartCard_${rIdx}`);
@@ -1320,7 +1436,6 @@ async function executeMgrSingleUndo(rIdx) {
     } catch(e) { showSyncToast('❌ 退回失敗', true); alert("失敗將自動還原資料：" + e.message); loadManagerData(); }
 }
 
-// 🔥 樂觀更新：批次執行 (包含三種操作)
 async function executeMgrBatchAction(stat) {
     let isPendingTab = document.querySelector('button[data-bs-target="#mgrPending"]').classList.contains('active');
     let cart = isPendingTab ? mgrPendingCart : mgrConfirmedCart;
@@ -1351,7 +1466,6 @@ async function executeMgrBatchAction(stat) {
     } catch(e) { showSyncToast('❌ 同步失敗', true); alert("失敗將自動還原資料：" + e.message); loadManagerData(); }
 }
 
-// 核心記憶體轉移 (瞬間移動)
 function optimisticToggleStatus(rows, stat) {
     let movedItems = [];
     if (stat === true) {
