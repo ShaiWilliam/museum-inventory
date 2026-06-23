@@ -561,6 +561,12 @@ function executeGeneratePrintPage(format) {
             if (format === 'basic') { generateBasicPrintHtml(); } 
             else { generateFullPrintHtml(); }
             document.getElementById('printOverlay').style.display = 'flex'; 
+            
+            // 每次重新產生預覽時，主動去觸發一次檢查開關狀態，以確保裁切線顯示正確
+            if(format === 'full') {
+                togglePrintBorders();
+            }
+            
             hideMiniLoading(); 
         } catch(e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } 
     }, 50);
@@ -588,7 +594,22 @@ function generateBasicPrintHtml() {
     document.getElementById('printOverlayContent').innerHTML = printHtml;
 }
 
-// 🔥 產生完整藏品吊牌 (6x3cm)
+// 🔥 開關觸發邏輯：動態加上/移除帶有邊界的 class
+function togglePrintBorders() {
+    const isChecked = document.getElementById('toggleBorderCheck').checked;
+    // 找出所有可能是標籤的容器
+    const labels = document.querySelectorAll('.label-box, .fl-card');
+    
+    labels.forEach(label => {
+        if (isChecked) {
+            label.classList.add('with-border');
+        } else {
+            label.classList.remove('with-border');
+        }
+    });
+}
+
+// 🔥 產生完整藏品吊牌 (6x3cm) -> 配合 CSS Grid 網格系統重構
 function generateFullPrintHtml() {
     let itemsToPrint = [];
     printCartMap.forEach((data, id) => {
@@ -599,23 +620,12 @@ function generateFullPrintHtml() {
     // 依據地點與編號排序方便裁切後整理
     itemsToPrint.sort((a,b) => a.loc.localeCompare(b.loc) || a.id.localeCompare(b.id));
 
-    let printHtml = `
-    <style>
-        .full-print-container { display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; padding: 5mm; background: white; margin: 0 auto; width: 210mm; }
-        .fl-card { width: 60mm; height: 30mm; background: white; position: relative; display: flex; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; }
-        .fl-crop-tl, .fl-crop-tr, .fl-crop-bl, .fl-crop-br { position: absolute; width: 3mm; height: 3mm; border-color: #999; border-style: solid; pointer-events: none; }
-        .fl-crop-tl { top: 0; left: 0; border-width: 0.5px 0 0 0.5px; }
-        .fl-crop-tr { top: 0; right: 0; border-width: 0.5px 0.5px 0 0; }
-        .fl-crop-bl { bottom: 0; left: 0; border-width: 0 0 0.5px 0.5px; }
-        .fl-crop-br { bottom: 0; right: 0; border-width: 0 0.5px 0.5px 0; }
-        .fl-hole { width: 10mm; display: flex; justify-content: center; align-items: center; border-right: 0.5px dotted #eee; }
-        .fl-hole-circle { width: 4mm; height: 4mm; border: 0.5px solid #bbb; border-radius: 50%; }
-        .fl-info { flex: 1; padding: 0 2mm; display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; }
-        .fl-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
-        .fl-qr { width: 20mm; display: flex; justify-content: center; align-items: center; padding: 1mm; }
-        .fl-qr img { width: 18mm; height: 18mm; object-fit: contain; }
-    </style>
-    <div class="preview-paper full-print-container">`;
+    // 使用原本定義好的 .preview-paper 與 .grid-container，不需再重新寫 inline style 來覆蓋尺寸
+    let printHtml = `<div class="preview-paper"><div class="grid-container">`;
+
+    // 檢查目前開關狀態，決定預設要不要帶邊界
+    const isChecked = document.getElementById('toggleBorderCheck') ? document.getElementById('toggleBorderCheck').checked : false;
+    const borderClass = isChecked ? 'with-border' : '';
 
     itemsToPrint.forEach(item => {
         const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; 
@@ -623,22 +633,22 @@ function generateFullPrintHtml() {
         const base64Img = qr.toDataURL('image/png');
         let displayId = String(item.id).replace(/\n/g, ' ');
 
+        // 使用 .label-box 類別來套用 grid 設定的長寬與排版
         printHtml += `
-        <div class="fl-card">
-            <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
-            <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
-            <div class="fl-hole"><div class="fl-hole-circle"></div></div>
-            <div class="fl-info">
-                <div class="fl-text" style="font-size: 8pt; font-weight: bold; color: #000;">${escapeHTML(displayId)}</div>
-                <div class="fl-text" style="font-size: 8pt; font-weight: bold; color: #000; margin-bottom: 0.5mm;">${escapeHTML(item.name)}</div>
-                <div class="fl-text" style="font-size: 6.5pt; color: #555;">${escapeHTML(item.propNum)}</div>
-                <div class="fl-text" style="font-size: 6.5pt; color: #555;">${escapeHTML(item.loc)}</div>
+        <div class="label-box fl-card ${borderClass}">
+            <img src="${base64Img}" class="qr-img" alt="QR">
+            <div class="id-text">
+               ${escapeHTML(displayId)}<br>
+               <span style="font-size: 7.5pt; color:#333;">${escapeHTML(item.name)}</span>
             </div>
-            <div class="fl-qr"><img src="${base64Img}" alt="QR"></div>
+            <div class="name-text">
+               ${escapeHTML(item.propNum)}<br>
+               <span style="font-weight:bold;">${escapeHTML(item.loc)}</span>
+            </div>
         </div>`;
     });
 
-    printHtml += `</div>`;
+    printHtml += `</div></div>`;
     document.getElementById('printOverlayContent').innerHTML = printHtml;
 }
 
