@@ -2,6 +2,7 @@
    典藏庫房管理系統 核心樣式表 (style.css)
    包含：基礎 UI、列印排版、虛擬鍵盤、底部選單
 ========================================== */
+/* STREAMING_CHUNK: Setting up scrollbars and base body styles... */
 html::-webkit-scrollbar, body::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -19,6 +20,7 @@ html, body {
     transition: background-color 0.5s ease;
 }
 
+/* STREAMING_CHUNK: Styling authentication and splash screens... */
 #authScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; background: #212529; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; padding: 20px;}
 #splashScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; background: #212529; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: opacity 0.5s; }
 .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite; }
@@ -26,6 +28,7 @@ html, body {
 .progress-box { width: 80%; max-width: 300px; background: #343a40; border-radius: 10px; overflow: hidden; margin-top: 20px; }
 .progress-fill { height: 8px; background: #198754; width: 0%; transition: width 0.3s ease-out; }
 
+/* STREAMING_CHUNK: Configuring home menu and navigation layout... */
 #homeMenu { padding: max(20px, calc(env(safe-area-inset-top) + 20px)) 20px 20px; display: none; animation: fadeIn 0.5s; max-width: 800px; margin: 0 auto; min-height: 100vh; }
 .marquee-container { width: 100%; overflow: hidden; background: rgba(33, 37, 41, 0.05); border-radius: 50px; padding: 8px 0; white-space: nowrap; position: relative; }
 .marquee-content { display: inline-block; animation: marquee 20s linear infinite; color: #495057; font-weight: 500; font-size: 0.9rem; }
@@ -42,6 +45,7 @@ html, body {
 .home-card.c-mgr { border-bottom-color: #dc3545; }
 .home-icon { font-size: 2.2rem; margin-bottom: 8px; }
 
+/* STREAMING_CHUNK: Defining UI elements and card components... */
 .navbar { position: fixed !important; top: 0; left: 0; right: 0; z-index: 1040; padding-top: max(15px, env(safe-area-inset-top)) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
 #mainApp { display: none; padding-top: calc(max(15px, env(safe-area-inset-top)) + 65px); padding-bottom: 60px; animation: fadeIn 0.3s; }
 
@@ -59,6 +63,7 @@ html, body {
 #resultOverlay { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 100; display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); border-radius: 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); border: 2px solid #198754; animation: slideIn 0.3s; }
 @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+/* STREAMING_CHUNK: Styling utility classes and interactions... */
 .accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
 .sub-group { border-left: 3px solid #198754; background: #fafafa; }
 .single-item-btn { background-color: #e8f5e9; border: 1px solid #198754 !important; color: #157347; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -78,19 +83,21 @@ html, body {
 #syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
 .sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
 
+/* STREAMING_CHUNK: Print overlay and accurate 6x3cm one-cut Grid Layout... */
 #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
 #printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
 
 /* =========================================================
-   🖨️ 精確排版 (3欄 x 8列 標籤紙)
+   🖨️ 精確排版 (3欄 x 9列 標籤紙，嚴格 6x3cm，一刀切無縫裁切)
 ========================================================= */
 .preview-paper {
     background: #fff;
     width: 210mm; /* A4 寬度 */
     min-height: 297mm; /* A4 高度 */
     margin: 0 auto;
-    padding: 10mm 7mm; /* 模擬實體紙張邊距 (上10 下10 左7 右7) */
+    /* 自動置中邊距：上下(297-270)/2=13.5mm，左右(210-180)/2=15mm */
+    padding: 13.5mm 15mm; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     border-radius: 8px;
     box-sizing: border-box;
@@ -98,40 +105,46 @@ html, body {
 
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(3, 65mm); /* 3欄，每欄 65mm 寬 */
-    grid-template-rows: repeat(8, 24.5mm); /* 8列，每列 24.5mm 高 */
-    column-gap: 2.5mm; /* 欄間距 2.5mm */
-    row-gap: 2mm;      /* 列間距 2mm */
+    grid-template-columns: repeat(3, 60mm); /* 3欄，每欄嚴格 60mm 寬 */
+    grid-auto-rows: 30mm; /* 每列嚴格 30mm 高 */
+    gap: 0; /* 零間距，達成一刀無縫裁切 */
     justify-content: center;
     align-content: start;
 }
 
 .label-box {
-    width: 65mm;
-    height: 24.5mm;
+    width: 60mm;
+    height: 30mm;
     box-sizing: border-box;
-    border: 1px solid transparent; /* 預設為隱藏邊界，維持版面尺寸 */
-    padding: 2mm;
+    border: transparent; /* 預設為透明無邊界 */
+    padding: 2mm 3mm;
     background: white;
     page-break-inside: avoid;
     overflow: hidden;
     
-    /* 標籤內部內容排版：左邊 QR Code，右邊文字堆疊 */
+    /* 內部內容排版：左邊 QR Code，右邊文字區塊 */
     display: grid;
-    grid-template-columns: 20.5mm 1fr;
+    grid-template-columns: 24mm 1fr;
     grid-template-rows: 1fr 1fr;
     column-gap: 2mm;
     align-items: center;
 }
 
-/* 透過 JS 切換這個 class 來決定是否顯示裁切線 */
+/* 💡 智慧型單一裁切線：只畫右與下，邊緣靠虛擬選擇器補齊，裁切時永不重疊 */
 .label-box.with-border {
-    border: 1px solid #000;
+    border-right: 0.5px solid #000;
+    border-bottom: 0.5px solid #000;
+}
+.label-box.with-border:nth-child(-n+3) { /* 補齊第一列的上方框線 */
+    border-top: 0.5px solid #000;
+}
+.label-box.with-border:nth-child(3n+1) { /* 補齊每一列第一欄的左方框線 */
+    border-left: 0.5px solid #000;
 }
 
 .qr-img {
-    width: 20.5mm;
-    height: 20.5mm;
+    width: 24mm;
+    height: 24mm;
     grid-column: 1 / 2;
     grid-row: 1 / 3;
     object-fit: contain;
@@ -142,15 +155,15 @@ html, body {
 .id-text {
     grid-column: 2 / 3;
     grid-row: 1 / 2;
-    font-size: 8.5pt;
+    font-size: 9pt;
     font-weight: bold;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     color: #000;
-    line-height: 1.1;
+    line-height: 1.2;
     align-self: end;
-    padding-bottom: 1px;
+    padding-bottom: 0.5mm;
 }
 
 .name-text {
@@ -161,21 +174,23 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     color: #555;
-    line-height: 1.1;
+    line-height: 1.2;
     align-self: start;
-    padding-top: 1px;
+    padding-top: 0.5mm;
 }
 
-/* 為了維持相容性的標題標籤樣式 (若有使用到的話) */
+/* 為了維持相容性的標題標籤樣式 */
 .title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; display: flex; align-items: center; justify-content: center; text-align: center; }
 
-/* =========================================================
-   📦 其他 UI 元素
-========================================================= */
+/* STREAMING_CHUNK: Styling locations cards and UI interactions... */
 .loc-card-new { background: #fff; border: 1px solid #eaeaea; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: 0.2s; }
 .loc-card-new:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
 .loc-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .loc-card-title { font-weight: 600; font-size: 1.05rem; color: #212529; word-break: break-word; line-height: 1.4; }
+
+/* =========================================================
+   💡 搬運優化升級 (虛擬鍵盤、底部選單、浮動多選購物車)
+========================================================= */
 
 /* 1. 浮動待搬運清單 (多選購物車) */
 .floating-cart-btn {
@@ -183,7 +198,7 @@ html, body {
     border-radius: 50px; padding: 12px 24px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s, background-color 0.2s;
-    display: none;
+    display: none; /* 預設隱藏，有選東西才出現 */
 }
 .floating-cart-btn:active { transform: scale(0.95); }
 .cart-badge-count {
@@ -243,9 +258,7 @@ html, body {
 /* 防止 iOS 出現選取放大鏡 */
 .no-select { user-select: none; -webkit-user-select: none; }
 
-/* =========================================================
-   🖨️ 實際列印指令覆寫
-========================================================= */
+/* STREAMING_CHUNK: Setting up strict @media print rules for precise scaling... */
 @media print {
     body * { visibility: hidden; }
     #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
@@ -269,9 +282,13 @@ html, body {
     
     .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     
-    /* 嚴格設定印表機的實體紙張與邊距 */
+    /* 嚴格設定印表機的實體紙張與邊距，直接指定上下 13.5mm、左右 15mm 置中 */
     @page { 
         size: A4 portrait; 
-        margin: 10mm 7mm 10mm 7mm; /* 上10mm、下10mm、左7mm、右7mm */
+        margin: 13.5mm 15mm; 
     }
 }
+```eof
+
+成功覆蓋後，**請回覆「接續」兩個字**。
+接下來我會發送 `app_modules.js` 的修改，將繁瑣的十字線和打洞等裝飾移除，讓它能配合這個全新的 60x30 完美網格進行資料繪製！
