@@ -36,15 +36,8 @@
   <div id="printOverlay">
     <div id="printOverlayTopBar">
       <button class="btn btn-outline-secondary fw-bold" onclick="closePrintOverlay()">🔙 返回系統</button>
-      
-      <div class="d-flex align-items-center gap-2 gap-sm-3">
-        <div class="form-check form-switch mb-0" style="background: rgba(255,255,255,0.8); padding: 5px 10px 5px 40px; border-radius: 20px; border: 1px solid #ccc;">
-          <input class="form-check-input" type="checkbox" id="toggleBorderCheck" onchange="togglePrintBorders()">
-          <label class="form-check-label fw-bold text-dark d-none d-sm-inline" for="toggleBorderCheck">顯示裁切線</label>
-          <label class="form-check-label fw-bold text-dark d-inline d-sm-none" for="toggleBorderCheck">裁切線</label>
-        </div>
-        <button class="btn btn-success fw-bold px-3 px-sm-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
-      </div>
+      <h6 class="mb-0 fw-bold text-dark d-none d-sm-block">實體標籤列印預覽</h6>
+      <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
     </div>
     <div id="printOverlayContent"></div>
   </div>
@@ -97,13 +90,12 @@
   </div>
 
   <div id="homeMenu">
-    <!-- 💡 修改點：加入 flex-column, flex-sm-row 與 align-self-stretch 等響應式設定 -->
-    <div id="profileBanner" class="bg-white rounded-3 shadow p-3 mb-4 mx-auto d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 border-start border-4 border-primary" style="max-width: 800px;">
+    <div id="profileBanner" class="bg-white rounded-3 shadow p-3 mb-4 mx-auto d-flex justify-content-between align-items-center border-start border-4 border-primary">
       <div>
         <h5 class="fw-bold mb-1 text-dark" id="welcomeName">👋 歡迎歸隊，管理員！</h5>
         <small class="text-muted" id="tokenCountdown">🔐 授權憑證有效期限剩餘：-- 天</small>
       </div>
-      <button class="btn btn-sm btn-outline-danger px-4 py-2 fw-bold align-self-stretch align-self-sm-auto" onclick="logoutSystem()">登出</button>
+      <button class="btn btn-sm btn-outline-danger px-3 fw-bold" onclick="logoutSystem()">登出</button>
     </div>
 
     <h5 class="fw-bold mb-3 text-dark text-center">請選擇系統模組</h5>
@@ -866,3 +858,5 @@
 
 </body>
 </html>
+
+
