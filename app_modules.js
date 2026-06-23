@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (含打洞區、裁切十字線、四行明細)
+// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (無縫一刀切設計)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -29,8 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-tag fs-2 me-3"></i>
                                 <div>
-                                    <div class="fs-5">完整藏品吊牌 (6x3cm)</div>
-                                    <small class="fw-normal text-muted">含打洞預留區、編號、名稱、財編與地點</small>
+                                    <div class="fs-5">精確標籤版 (6x3cm)</div>
+                                    <small class="fw-normal text-muted">無縫一刀切設計，含編號、名稱、財編與地點</small>
                                 </div>
                             </div>
                         </button>
@@ -572,7 +572,7 @@ function executeGeneratePrintPage(format) {
     }, 50);
 }
 
-// 產生純 QR Code 格式 (舊有邏輯)
+// 產生純 QR Code 格式
 function generateBasicPrintHtml() {
     const groups = {}; 
     printCartMap.forEach((data, id) => { 
@@ -609,7 +609,7 @@ function togglePrintBorders() {
     });
 }
 
-// 🔥 產生完整藏品吊牌 (6x3cm) -> 配合 CSS Grid 網格系統重構
+// 🔥 產生完整藏品吊牌 (6x3cm 無縫一刀切設計 + Flex 截斷保護)
 function generateFullPrintHtml() {
     let itemsToPrint = [];
     printCartMap.forEach((data, id) => {
@@ -633,17 +633,17 @@ function generateFullPrintHtml() {
         const base64Img = qr.toDataURL('image/png');
         let displayId = String(item.id).replace(/\n/g, ' ');
 
-        // 使用 .label-box 類別來套用 grid 設定的長寬與排版
+        // 導入 Flex 欄位控制，確保 white-space:nowrap 下，四行文字皆能順利獨立觸發截斷(ellipsis)，且不撐破標籤！
         printHtml += `
         <div class="label-box fl-card ${borderClass}">
             <img src="${base64Img}" class="qr-img" alt="QR">
-            <div class="id-text">
-               ${escapeHTML(displayId)}<br>
-               <span style="font-size: 7.5pt; color:#333;">${escapeHTML(item.name)}</span>
+            <div class="id-text" style="display:flex; flex-direction:column; white-space:normal; justify-content:flex-end;">
+               <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${escapeHTML(displayId)}</span>
+               <span style="font-size:7.5pt; color:#333; font-weight:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; margin-top:1px;">${escapeHTML(item.name)}</span>
             </div>
-            <div class="name-text">
-               ${escapeHTML(item.propNum)}<br>
-               <span style="font-weight:bold;">${escapeHTML(item.loc)}</span>
+            <div class="name-text" style="display:flex; flex-direction:column; white-space:normal; justify-content:flex-start;">
+               <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; margin-bottom:1px;">${escapeHTML(item.propNum)}</span>
+               <span style="font-weight:bold; color:#000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${escapeHTML(item.loc)}</span>
             </div>
         </div>`;
     });
