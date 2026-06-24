@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (含打洞區、裁切十字線、四行明細)
+// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (保留十字裁切線，QR碼靠左)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <i class="fas fa-tag fs-2 me-3"></i>
                                 <div>
                                     <div class="fs-5">完整藏品吊牌 (6x3cm)</div>
-                                    <small class="fw-normal text-muted">含打洞預留區、編號、名稱、財編與地點</small>
+                                    <small class="fw-normal text-muted">含十字裁切線、編號、名稱、財編與地點</small>
                                 </div>
                             </div>
                         </button>
@@ -561,12 +561,30 @@ function executeGeneratePrintPage(format) {
             if (format === 'basic') { generateBasicPrintHtml(); } 
             else { generateFullPrintHtml(); }
             document.getElementById('printOverlay').style.display = 'flex'; 
+            
+            // 確保產生後，立即依據開關狀態套用邊框樣式
+            if (typeof togglePrintBorders === 'function') togglePrintBorders();
+            
             hideMiniLoading(); 
         } catch(e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } 
     }, 50);
 }
 
-// 產生純 QR Code 格式 (舊有邏輯)
+// 🔥 裁切線開關控制邏輯
+function togglePrintBorders() {
+    const checkEl = document.getElementById('toggleBorderCheck');
+    const isChecked = checkEl ? checkEl.checked : true;
+    const labels = document.querySelectorAll('.label-box, .fl-card');
+    labels.forEach(label => {
+        if (isChecked) {
+            label.classList.remove('no-border');
+        } else {
+            label.classList.add('no-border');
+        }
+    });
+}
+
+// 產生純 QR Code 格式
 function generateBasicPrintHtml() {
     const groups = {}; 
     printCartMap.forEach((data, id) => { 
@@ -588,7 +606,7 @@ function generateBasicPrintHtml() {
     document.getElementById('printOverlayContent').innerHTML = printHtml;
 }
 
-// 🔥 產生完整藏品吊牌 (6x3cm)
+// 🔥 產生完整藏品吊牌 (6x3cm) - 移除打洞區、QR靠左、文字在右垂直堆疊
 function generateFullPrintHtml() {
     let itemsToPrint = [];
     printCartMap.forEach((data, id) => {
@@ -602,18 +620,18 @@ function generateFullPrintHtml() {
     let printHtml = `
     <style>
         .full-print-container { display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; padding: 5mm; background: white; margin: 0 auto; width: 210mm; }
-        .fl-card { width: 60mm; height: 30mm; background: white; position: relative; display: flex; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; }
+        .fl-card { width: 60mm; height: 30mm; background: white; position: relative; display: flex; flex-direction: row; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; }
         .fl-crop-tl, .fl-crop-tr, .fl-crop-bl, .fl-crop-br { position: absolute; width: 3mm; height: 3mm; border-color: #999; border-style: solid; pointer-events: none; }
         .fl-crop-tl { top: 0; left: 0; border-width: 0.5px 0 0 0.5px; }
         .fl-crop-tr { top: 0; right: 0; border-width: 0.5px 0.5px 0 0; }
         .fl-crop-bl { bottom: 0; left: 0; border-width: 0 0 0.5px 0.5px; }
         .fl-crop-br { bottom: 0; right: 0; border-width: 0 0.5px 0.5px 0; }
-        .fl-hole { width: 10mm; display: flex; justify-content: center; align-items: center; border-right: 0.5px dotted #eee; }
-        .fl-hole-circle { width: 4mm; height: 4mm; border: 0.5px solid #bbb; border-radius: 50%; }
-        .fl-info { flex: 1; padding: 0 2mm; display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; }
+        
+        /* 左右排版設定 */
+        .fl-qr { width: 22mm; display: flex; justify-content: center; align-items: center; padding: 1mm 0 1mm 2mm; }
+        .fl-qr img { width: 20mm; height: 20mm; object-fit: contain; }
+        .fl-info { flex: 1; padding: 0 2mm 0 1mm; display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; }
         .fl-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
-        .fl-qr { width: 20mm; display: flex; justify-content: center; align-items: center; padding: 1mm; }
-        .fl-qr img { width: 18mm; height: 18mm; object-fit: contain; }
     </style>
     <div class="preview-paper full-print-container">`;
 
@@ -623,18 +641,18 @@ function generateFullPrintHtml() {
         const base64Img = qr.toDataURL('image/png');
         let displayId = String(item.id).replace(/\n/g, ' ');
 
+        // HTML 結構：QR 先、資訊後
         printHtml += `
         <div class="fl-card">
             <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
             <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
-            <div class="fl-hole"><div class="fl-hole-circle"></div></div>
-            <div class="fl-info">
-                <div class="fl-text" style="font-size: 8pt; font-weight: bold; color: #000;">${escapeHTML(displayId)}</div>
-                <div class="fl-text" style="font-size: 8pt; font-weight: bold; color: #000; margin-bottom: 0.5mm;">${escapeHTML(item.name)}</div>
-                <div class="fl-text" style="font-size: 6.5pt; color: #555;">${escapeHTML(item.propNum)}</div>
-                <div class="fl-text" style="font-size: 6.5pt; color: #555;">${escapeHTML(item.loc)}</div>
-            </div>
             <div class="fl-qr"><img src="${base64Img}" alt="QR"></div>
+            <div class="fl-info">
+                <div class="fl-text" style="font-size: 8.5pt; font-weight: bold; color: #000;">${escapeHTML(displayId)}</div>
+                <div class="fl-text" style="font-size: 8.5pt; font-weight: bold; color: #000; margin-bottom: 0.5mm;">${escapeHTML(item.name)}</div>
+                <div class="fl-text" style="font-size: 7pt; color: #555;">${escapeHTML(item.propNum)}</div>
+                <div class="fl-text" style="font-size: 7pt; color: #555;">${escapeHTML(item.loc)}</div>
+            </div>
         </div>`;
     });
 
@@ -1533,4 +1551,3 @@ function submitEditLoc() { const rowIndex = parseInt(document.getElementById('ed
 async function processLocQueue() { if (isLocSyncing || locUpdateQueue.length === 0) return; isLocSyncing = true; const updatesToProcess = [...locUpdateQueue]; locUpdateQueue = []; try { const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`, true); } catch (e) { console.error("背景更新失敗", e); showSyncToast("⚠️ 部分地點背景更新失敗，將於下次重試", true); locUpdateQueue = [...updatesToProcess, ...locUpdateQueue]; renderLocationsList(mgrLocTree); } finally { isLocSyncing = false; if (locUpdateQueue.length > 0) { processLocQueue(); } } }
 async function toggleLocStatus(rowIndex, setHidden) { showSyncToast('狀態更新同步中...'); let found = false; mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => { if(d.rowIndex === rowIndex) { d.isHidden = setHidden; found = true; } }))); if(found) renderLocationsList(mgrLocTree); try { const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast("✅ 狀態已同步", true); } catch(e) { alert("狀態切換失敗：" + e.message); showSyncToast("❌ 同步失敗", true); } }
 async function deleteLoc(rowIndex) { if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return; showMiniLoading('刪除地點中...'); try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); } }
-
