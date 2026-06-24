@@ -165,6 +165,21 @@ html, body {
 /* 防止 iOS 出現選取放大鏡 */
 .no-select { user-select: none; -webkit-user-select: none; }
 
+
+/* =========================================================
+   💡 裁切線顯示/隱藏控制 (配合 index.html 開關使用)
+========================================================= */
+.no-border {
+    border-color: transparent !important;
+}
+.no-border .fl-crop-tl, 
+.no-border .fl-crop-tr, 
+.no-border .fl-crop-bl, 
+.no-border .fl-crop-br {
+    border-color: transparent !important;
+}
+
+
 @media print {
     body * { visibility: hidden; }
     #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
@@ -176,5 +191,3 @@ html, body {
     .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { margin: 1cm; size: A4 portrait; }
 }
-
-
