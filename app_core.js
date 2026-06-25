@@ -176,8 +176,8 @@ function logoutSystem() {
 
 // 進入指定模組 (防呆跳轉)
 async function enterSystem(sys) {
-    const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
-    document.getElementById('sysTitle').innerText = sysNames[sys];
+    const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台', cond: '狀況報告管理' };
+    document.getElementById('sysTitle').innerText = sysNames[sys] || '系統載入中';
     
     document.querySelector(`button[data-bs-target="#${sys}"]`).click();
     
@@ -194,6 +194,10 @@ async function enterSystem(sys) {
     window.scrollTo(0, 0);
 
     if (sys === 'query') { document.getElementById('queryManualInput').focus(); }
+    if (sys === 'cond') {
+        // 進入狀況報告時先載入總覽清單
+        if (typeof loadConditionReports === 'function') loadConditionReports();
+    }
     if (sys === 'move' || sys === 'mgr') {
         showMiniLoading('載入動態資料中...');
         try {
