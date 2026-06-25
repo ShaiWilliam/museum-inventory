@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統前端核心 (app_core.js)
 // 包含：API通訊(Fetch跨網域)、七天免登入記憶、全域變數、權限控管 (RBAC)、離線快取、基礎工具
-// 最新優化：自動預設「操作人員」為當前登入者
+// 最新擴充：支援抓取「型制/材質/尺寸/備註/作者」等完整藏品資訊以供報告帶入
 // ==========================================
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
@@ -400,4 +400,3 @@ async function triggerBackgroundSync() {
 }
 
 window.addEventListener('online', () => { if(syncQueue.length > 0) triggerBackgroundSync(); });
-
