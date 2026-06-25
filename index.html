@@ -36,8 +36,15 @@
   <div id="printOverlay">
     <div id="printOverlayTopBar">
       <button class="btn btn-outline-secondary fw-bold" onclick="closePrintOverlay()">🔙 返回系統</button>
-      <h6 class="mb-0 fw-bold text-dark d-none d-sm-block">實體標籤列印預覽</h6>
-      <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
+      
+      <div class="d-flex align-items-center gap-2 gap-sm-3">
+        <div class="form-check form-switch mb-0" style="background: rgba(255,255,255,0.8); padding: 5px 10px 5px 40px; border-radius: 20px; border: 1px solid #ccc;">
+          <input class="form-check-input" type="checkbox" id="toggleBorderCheck" onchange="togglePrintBorders()" checked>
+          <label class="form-check-label fw-bold text-dark d-none d-sm-inline" for="toggleBorderCheck">顯示裁切線 (若使用未裁切標籤紙時請關閉)</label>
+          <label class="form-check-label fw-bold text-dark d-inline d-sm-none" for="toggleBorderCheck">裁切線</label>
+        </div>
+        <button class="btn btn-success fw-bold px-3 px-sm-4 shadow-sm" onclick="window.print()">🖨️ 呼叫印表機</button>
+      </div>
     </div>
     <div id="printOverlayContent"></div>
   </div>
