@@ -192,3 +192,482 @@ html, body {
     @page { margin: 1cm; size: A4 portrait; }
 }
 
+後端 Code.gs
+// ==========================================
+// 博物館系統後端 API (穩定同步版)
+// 包含：RBAC 權限修復、新增反悔退回(Undo)機制、修復分頁讀取當機Bug
+// ==========================================
+const DOC_ID = "1i2kzCS8AnIXn5-t9DgtwdIN-0eiiO2qexdoeibJu52M";
+
+function onOpen() {
+    var ui = SpreadsheetApp.getUi();
+    ui.createMenu('🛠️ 系統管理').addItem('🔄 從 Google Docs 同步說明書', 'syncManualFromDocs').addToUi();
+}
+
+function syncManualFromDocs() {
+    try {
+        var doc = DocumentApp.openById(DOC_ID);
+        var body = doc.getBody();
+        var paragraphs = body.getParagraphs();
+        var manualData = {};
+        var currentModule = "";
+        var moduleKeywords = { "藏品狀態查詢": "query", "建檔與列印": "register", "文物盤點系統": "inv", "文物異動搬運": "move", "管理員後台": "mgr" };
+        
+        for (var i = 0; i < paragraphs.length; i++) {
+            var p = paragraphs[i];
+            var text = p.getText().trim();
+            if (!text) continue;
+            var isHeading = p.getHeading() === DocumentApp.ParagraphHeading.HEADING2 || p.getHeading() === DocumentApp.ParagraphHeading.HEADING3;
+            var foundModule = false;
+            if (isHeading) {
+                for (var key in moduleKeywords) {
+                    if (text.indexOf(key) !== -1) {
+                        currentModule = moduleKeywords[key];
+                        if (!manualData[currentModule]) manualData[currentModule] = "";
+                        foundModule = true; break;
+                    }
+                }
+            }
+            if (!foundModule && currentModule !== "") { manualData[currentModule] += text + "\n\n"; }
+        }
+        var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('模組說明書');
+        if (!sheet) sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('模組說明書');
+        sheet.clear(); sheet.appendRow(['模組ID', '說明內容']);
+        for (var mod in manualData) { sheet.appendRow([mod, manualData[mod].trim()]); }
+        SpreadsheetApp.getUi().alert('✅ 說明書同步完成！');
+    } catch(e) { SpreadsheetApp.getUi().alert('❌ 同步失敗：' + e.message); }
+}
+
+function doGet(e) { return processRequest(e.parameter.q); }
+function doPost(e) { return processRequest(e.postData.contents); }
+
+function processRequest(jsonString) {
+    try {
+        if (!jsonString) return ContentService.createTextOutput("API 正常運作中").setMimeType(ContentService.MimeType.TEXT);
+        var request = JSON.parse(jsonString);
+        var action = request.action;
+        var payload = request.payload || {};
+        var result = {};
+        var lock = LockService.getScriptLock();
+        
+        switch(action) {
+            case 'getInventoryInitData': result = getInventoryInitData(); break;
+            case 'startInventory': result = getGlobalProgress(payload.mode, payload.locations); break;
+            case 'submitScan': try { lock.waitLock(10000); result = submitScanWithLock(payload); } finally { lock.releaseLock(); } break;
+            case 'updateBaseline': var ts = new Date(payload.timeString.replace('T', ' ').replace(/-/g, '/')).getTime(); setBaseline(ts); result = true; break;
+            case 'exportInventoryReport': result = exportInventoryReport(payload); break;
+            case 'getWorkerInitData': result = getWorkerInitData(); break;
+            case 'getProjectPendingData': result = getProjectPendingData(payload.eventId); break;
+            case 'getAllProjects': result = getAllProjects(); break;
+            case 'getProjectDetails': result = getProjectDetails(payload.eventId); break;
+            case 'getProjectDataForEdit': result = getProjectDataForEdit(payload.eventId); break;
+            case 'previewLocationOverride': result = previewLocationOverride(payload.items); break;
+            case 'executeLocationOverride': try { lock.waitLock(20000); result = executeLocationOverride(payload.items); } finally { lock.releaseLock(); } break;
+            case 'saveMovementProject': try { lock.waitLock(20000); result = saveMovementProject(payload); } finally { lock.releaseLock(); } break;
+            case 'submitMovement': try { lock.waitLock(10000); result = submitMovement(payload); } finally { lock.releaseLock(); } break;
+            case 'undoMovement': try { lock.waitLock(10000); result = undoMovement(payload.rowIndices, payload.managerName); } finally { lock.releaseLock(); } break;
+            case 'verifyManager': result = verifyManager(payload.pwd); break;
+            case 'getManagerData': result = getManagerData(payload.eventId); break;
+            case 'toggleStatus': try { lock.waitLock(10000); result = toggleStatus(payload.rowIndices, payload.newStatus, payload.managerName); } finally { lock.releaseLock(); } break;
+            case 'editItem': try { lock.waitLock(10000); result = editItem(payload.rowIndex, payload.newLoc, payload.boxName, payload.managerName); } finally { lock.releaseLock(); } break;
+            case 'syncToMaster': try { lock.waitLock(10000); result = syncToMaster(payload.eventId); } finally { lock.releaseLock(); } break;
+            case 'queryItem': result = queryItem(payload.qrStr); break;
+            case 'registerItem': try { lock.waitLock(10000); result = registerItem(payload); } finally { lock.releaseLock(); } break;
+            case 'batchAddLocations': try { lock.waitLock(15000); result = batchAddLocations(payload); } finally { lock.releaseLock(); } break;
+            case 'batchUpdateLocations': try { lock.waitLock(10000); result = batchUpdateLocations(payload); } finally { lock.releaseLock(); } break;
+            case 'toggleLocStatus': try { lock.waitLock(10000); result = toggleLocStatus(payload); } finally { lock.releaseLock(); } break;
+            case 'deleteLocation': try { lock.waitLock(10000); result = deleteLocation(payload.rowIndex); } finally { lock.releaseLock(); } break;
+            case 'generateHandoff': result = generateHandoff(payload); break;
+            case 'consumeHandoff': result = consumeHandoff(payload); break;
+            default: throw new Error("未知的請求動作：" + action);
+        }
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: result })).setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
+    }
+}
+
+// ================= 💡 RBAC 人員權限驗證 =================
+function verifyManager(pwd) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('管理者密碼');
+    if (!sheet) throw new Error("找不到「管理者密碼」工作表");
+    if (sheet.getLastColumn() < 9 || sheet.getRange("C1").getValue() === "") {
+        var headers = ["姓名", "密碼", "藏品查詢", "建檔列印", "文物盤點", "異動-專案總覽", "異動-專案管理", "異動-執行搬運", "管理員後台"];
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+    var d = sheet.getDataRange().getValues();
+    for(var i = 1; i < d.length; i++) {
+        if(String(d[i][1]).trim() === String(pwd).trim()) {
+            var perms = {
+                query: String(d[i][2] || '').trim().toUpperCase() === 'Y',
+                register: String(d[i][3] || '').trim().toUpperCase() === 'Y',
+                inv: String(d[i][4] || '').trim().toUpperCase() === 'Y',
+                move_overview: String(d[i][5] || '').trim().toUpperCase() === 'Y',
+                move_create: String(d[i][6] || '').trim().toUpperCase() === 'Y',
+                move_execute: String(d[i][7] || '').trim().toUpperCase() === 'Y',
+                mgr: String(d[i][8] || '').trim().toUpperCase() === 'Y'
+            };
+            var hasAnyPerm = perms.query || perms.register || perms.inv || perms.move_overview || perms.move_create || perms.move_execute || perms.mgr;
+            if (!hasAnyPerm) { perms = { query: true, register: true, inv: true, move_overview: true, move_create: true, move_execute: true, mgr: true }; }
+            return { managerName: d[i][0], permissions: perms };
+        }
+    }
+    throw new Error("密碼錯誤或查無此人員！");
+}
+
+// ================= 💡 核心邏輯 =================
+function toText(val) { if (!val && val !== 0) return ""; return "'" + String(val).trim(); }
+
+function getLocationTreeFromSheet(includeHidden) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), sheet = ss.getSheetByName('地點層級架構');
+    if (!sheet) { sheet = ss.insertSheet('地點層級架構'); sheet.appendRow(['大區', '中區', '小區', '狀態']); }
+    var data = sheet.getDataRange().getValues(), map = {}, mainOrder = [];
+    for (var i = 1; i < data.length; i++) {
+        var main = String(data[i][0]).trim(), med = String(data[i][1]).trim(), small = String(data[i][2]).trim(), status = String(data[i][3]).trim();
+        if (!main && !med && !small) continue;
+        if (!main) main = "未分類";
+        var isHidden = (status === '隱藏');
+        if (!includeHidden && isHidden) continue;
+        var fullLoc = smartConcatLoc(main, med, small);
+        if (!map[main]) { map[main] = {}; mainOrder.push(main); }
+        var subKey = med || "(本區)", displayLabel = small || "(無)";
+        if (!map[main][subKey]) { map[main][subKey] = []; }
+        map[main][subKey].push({ label: displayLabel, val: fullLoc, rowIndex: i + 1, isHidden: isHidden });
+    }
+    return mainOrder.map(m => { return { main: m, subs: Object.keys(map[m]).sort().map(s => { return { sub: s, details: map[m][s].sort((a,b) => a.label.localeCompare(b.label)) }; }) }; });
+}
+
+function batchAddLocations(p) { var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('地點層級架構'); if (p.items && p.items.length > 0) { var rows = p.items.map(function(item) { return [toText(item.main), toText(item.medium), toText(item.small), '顯示']; }); sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 4).setValues(rows); SpreadsheetApp.flush(); } return { locTree: getLocationTreeFromSheet(false), mgrLocTree: getLocationTreeFromSheet(true) }; }
+function batchUpdateLocations(p) { var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('地點層級架構'); if (p.updates && p.updates.length > 0) { p.updates.forEach(function(u) { sheet.getRange(u.rowIndex, 1, 1, 3).setValues([[toText(u.main), toText(u.medium), toText(u.small)]]); }); } SpreadsheetApp.flush(); return { locTree: getLocationTreeFromSheet(false), mgrLocTree: getLocationTreeFromSheet(true) }; }
+function toggleLocStatus(p) { var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('地點層級架構'); sheet.getRange(p.rowIndex, 4).setValue(p.setHidden ? '隱藏' : '顯示'); SpreadsheetApp.flush(); return { locTree: getLocationTreeFromSheet(false), mgrLocTree: getLocationTreeFromSheet(true) }; }
+function deleteLocation(rowIndex) { var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('地點層級架構'); sheet.deleteRow(rowIndex); SpreadsheetApp.flush(); return { locTree: getLocationTreeFromSheet(false), mgrLocTree: getLocationTreeFromSheet(true) }; }
+
+function smartConcatLoc(main, med, small) {
+    main = main || ""; med = med || ""; small = small || "";
+    if (!small) return main + med;
+    var prefixMatch = small.match(/^([^\-]+)-/);
+    if (prefixMatch && med.endsWith(prefixMatch[1])) return main + med + small.substring(prefixMatch[1].length);
+    return main + med + small;
+}
+
+const ALIAS_DICT = { "樟": "樟櫃區", "樟櫃": "樟櫃區", "璋櫃": "樟櫃區", "樟木櫃": "樟櫃區", "高櫃": "高櫃區", "矮櫃": "矮櫃區", "書板區": "書板區" };
+function buildTree(locArray) {
+    var map = {}, mainOrder = [];
+    locArray.forEach(loc => {
+        if (!loc) return; var rawStr = String(loc).trim(); if (rawStr === "") return;
+        var main = "其他地點", remainder = rawStr;
+        var mainMatch = rawStr.match(/^.*?(庫|房|室|廳|館)/);
+        if (mainMatch) { main = mainMatch[0]; remainder = rawStr.substring(main.length).trim(); }
+        if (!map[main]) { map[main] = {}; mainOrder.push(main); }
+        var subFolder = "(本區)", detailLabel = rawStr;
+        if (remainder !== "") {
+            var subMatch = remainder.match(/^([^\d()（）\-]+)/);
+            var rawPrefix = subMatch ? subMatch[1].trim() : remainder;
+            if (ALIAS_DICT[rawPrefix]) { subFolder = ALIAS_DICT[rawPrefix]; } else { subFolder = rawPrefix.length > 0 ? (rawPrefix + "區") : "(本區)"; }
+            detailLabel = remainder;
+        }
+        if (!map[main][subFolder]) map[main][subFolder] = [];
+        map[main][subFolder].push({ label: detailLabel, val: rawStr });
+    });
+    mainOrder.sort((a, b) => a === "其他地點" ? 1 : (b === "其他地點" ? -1 : 0));
+    return mainOrder.map(m => { return { main: m, subs: Object.keys(map[m]).sort().map(s => { return { sub: s, details: map[m][s].sort((a,b) => a.label.localeCompare(b.label)) }; }) }; });
+}
+
+function getBaseline() { var prop = PropertiesService.getScriptProperties(); var time = prop.getProperty('INVENTORY_BASELINE'); if (!time || time === "null") time = new Date().getTime().toString(); return isNaN(parseInt(time, 10)) ? new Date().getTime() : parseInt(time, 10); }
+function setBaseline(timeNum) { PropertiesService.getScriptProperties().setProperty('INVENTORY_BASELINE', Math.floor(timeNum).toString()); }
+
+function getInventoryInitData() {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單'), data = sheet ? sheet.getDataRange().getValues() : [], baseline = getBaseline(), catalog = {};
+    for (var i = 1; i < data.length; i++) {
+        var id = String(data[i][0]).trim();
+        if (id) {
+            var timeNum = data[i][5] ? new Date(data[i][5]).getTime() : 0;
+            var tempLoc = String(data[i][3]).trim(), mainLoc = String(data[i][2]).trim();
+            catalog[id] = { id: id, name: String(data[i][1]).trim(), location: tempLoc || mainLoc || "未指定地點", desc: String(data[i][4]).trim(), lastScanStr: timeNum > 0 ? Utilities.formatDate(new Date(timeNum), "GMT+8", "yyyy/MM/dd HH:mm") : "從未盤點", isScanned: timeNum >= baseline, accession: String(data[i][8]).trim(), jiang: String(data[i][9]).trim(), propNum: String(data[i][10]).trim() };
+        }
+    }
+    var manuals = {}; var mSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('模組說明書');
+    if(mSheet) { var mData = mSheet.getDataRange().getValues(); for(var m=1; m<mData.length; m++) { manuals[mData[m][0]] = mData[m][1]; } }
+    return { locTree: getLocationTreeFromSheet(false), baselineTime: baseline, catalog: catalog, manuals: manuals };
+}
+
+// 🔥 修復：加上分頁安全檢查機制
+function getWorkerInitData() {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var pSheet = ss.getSheetByName('異動專案');
+    var proj = pSheet ? pSheet.getDataRange().getValues() : [];
+    var active = [];
+    if(proj.length > 0) {
+        for(var i = proj.length - 1; i >= 1; i--) { if(proj[i][2] !== '已結案' && proj[i][0]) active.push({id: proj[i][0], name: proj[i][1]}); }
+    }
+    
+    var dSheet = ss.getSheetByName('下拉名單');
+    var drop = dSheet ? dSheet.getDataRange().getValues() : [];
+    var si = [];
+    if(drop.length > 0) {
+        for(var j=1;j<drop.length;j++) { if(drop[j][1] && drop[j][0]==='本處人員') si.push(String(drop[j][1]).trim()); }
+    }
+    
+    var trees = { locTree: getLocationTreeFromSheet(false), mgrLocTree: getLocationTreeFromSheet(true) };
+    return { events: active, staffInternal: si, locTree: trees.locTree, mgrLocTree: trees.mgrLocTree };
+}
+
+function queryItem(qrStr) {
+    var cleanId = String(qrStr).split('\n')[0].trim();
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單'), data = sheet.getDataRange().getValues(), baseline = getBaseline();
+    for (var i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim() === cleanId) {
+            var timeNum = data[i][5] ? new Date(data[i][5]).getTime() : 0;
+            var tempLoc = String(data[i][3]).trim(), mainLoc = String(data[i][2]).trim();
+            return { id: cleanId, name: String(data[i][1]).trim(), location: tempLoc || mainLoc || "未指定地點", desc: String(data[i][4]).trim(), lastScanStr: timeNum > 0 ? Utilities.formatDate(new Date(timeNum), "GMT+8", "yyyy/MM/dd HH:mm") : "從未盤點", isScanned: timeNum >= baseline, accession: String(data[i][8]).trim(), jiang: String(data[i][9]).trim(), propNum: String(data[i][10]).trim() };
+        }
+    }
+    throw new Error("查無編號：" + cleanId);
+}
+
+function registerItem(p) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單'), data = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
+    for(var i = 1; i < data.length; i++) { if(String(data[i][0]).trim() === p.id.trim()) throw new Error("此編號已存在！"); }
+    var nextRow = sheet.getLastRow() + 1;
+    sheet.getRange(nextRow, 1, 1, 5).setValues([[p.id.trim(), p.name.trim(), p.loc.trim(), "", p.desc.trim()]]);
+    sheet.getRange(nextRow, 9, 1, 3).setValues([[p.accession.trim(), p.jiang.trim(), p.propNum.trim()]]);
+    SpreadsheetApp.flush(); return true;
+}
+
+function getGlobalProgress(mode, locations) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單'), data = sheet.getDataRange().getValues(), baseline = getBaseline(), total = 0, scanned = 0, itemMap = {};
+    for (var i = 1; i < data.length; i++) {
+        var tempLoc = String(data[i][3]).trim(), mainLoc = String(data[i][2]).trim(), loc = tempLoc ? tempLoc : mainLoc; 
+        if ((mode === 'all') || (locations.indexOf(loc) !== -1)) {
+            total++; var timeVal = data[i][5] ? new Date(data[i][5]).getTime() : 0, isScanned = timeVal >= baseline;
+            if (isScanned) scanned++;
+            itemMap[String(data[i][0]).trim()] = { name: String(data[i][1]).trim(), desc: String(data[i][4] || "").trim(), isScanned: isScanned };
+        }
+    }
+    return { total: total, scanned: scanned, baselineTime: baseline, itemMap: itemMap };
+}
+
+function submitScanWithLock(payload) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單'), qrInputId = payload.qrStr.trim().split('\n')[0], baseline = getBaseline(), lastRow = sheet.getLastRow();
+    if (lastRow < 2) throw new Error('藏品清單為空！');
+    var idRange = sheet.getRange(2, 1, lastRow - 1, 1).getValues(), rowIdx = -1;
+    for (var i = 0; i < idRange.length; i++) { if (String(idRange[i][0]).trim() === qrInputId) { rowIdx = i + 2; break; } }
+    if (rowIdx === -1) throw new Error('找不到此文物編號！');
+    var locAndTime = sheet.getRange(rowIdx, 3, 1, 4).getValues()[0], itemLoc = String(locAndTime[1]).trim() || String(locAndTime[0]).trim();
+    if(payload.mode === 'partial' && payload.locations.indexOf(itemLoc) === -1) throw new Error('不在目前盤點範圍內！');
+    if(locAndTime[3] && new Date(locAndTime[3]).getTime() >= baseline) throw new Error('已盤點過！');
+    sheet.getRange(rowIdx, 6).setValue(new Date()); SpreadsheetApp.flush(); return { success: true };
+}
+
+function exportInventoryReport(p) {
+    var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品清單').getDataRange().getValues(), baseline = getBaseline(), csv = ["QRcode,文物名稱,典藏地點,最近盤點時間,狀態"], count=0;
+    for(var i=1;i<data.length;i++){
+        var loc = String(data[i][3]).trim() || String(data[i][2]).trim();
+        if(p.mode==='all' || p.locations.indexOf(loc)!==-1){
+            var time = data[i][5]?new Date(data[i][5]).getTime():0, isS = time >= baseline;
+            if(p.reportType==='all' || (p.reportType==='scanned'&&isS) || (p.reportType==='unscanned'&&!isS)){
+                csv.push(`${String(data[i][0]).replace(/,/g," ")},${String(data[i][1]).replace(/,/g," ")},${loc},${isS?Utilities.formatDate(new Date(time),"GMT+8","yyyy/MM/dd HH:mm"):""},${isS?"已盤點":"未盤點"}`); count++;
+            }
+        }
+    }
+    MailApp.sendEmail(p.email, "盤點報告", "附件為最新報告，共"+count+"筆", {attachments:[Utilities.newBlob("\uFEFF"+csv.join("\n"), 'text/csv', 'report.csv')]}); return true;
+}
+
+function saveMovementProject(payload) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), pSheet = ss.getSheetByName('異動專案'), mSheet = ss.getSheetByName('藏品異動'), master = ss.getSheetByName('藏品清單');
+    var eventId = payload.eventId === 'NEW' ? 'PRJ-' + Utilities.formatDate(new Date(), "GMT+8", "yyyyMMddHHmmss") : payload.eventId;
+    
+    if (payload.eventId === 'NEW') { pSheet.appendRow([eventId, payload.name, '進行中', Utilities.formatDate(new Date(), "GMT+8", "yyyy/MM/dd"), payload.manager, payload.desc]); } 
+    else {
+        var pData = pSheet.getDataRange().getValues();
+        for(var r=1; r<pData.length; r++) { if(String(pData[r][0]).trim() === eventId) { pSheet.getRange(r+1, 2).setValue(payload.name); pSheet.getRange(r+1, 6).setValue(payload.desc); break; } }
+        var mData = mSheet.getDataRange().getValues();
+        for (var k = mData.length - 1; k >= 1; k--) { if (String(mData[k][1]).trim() === eventId) { mSheet.deleteRow(k + 1); } }
+    }
+    
+    var mDataMaster = master.getDataRange().getValues(), indexMap = {};
+    for(var j = 1; j < mDataMaster.length; j++){ var cid = String(mDataMaster[j][0]).trim().toUpperCase(); if(cid) { indexMap[cid] = { name: mDataMaster[j][1], loc: String(mDataMaster[j][3]).trim() || String(mDataMaster[j][2]).trim() }; } }
+    
+    var rows = [], timeNow = new Date();
+    for (var i = 0; i < payload.itemIds.length; i++) {
+        var fullId = payload.itemIds[i], baseId = String(fullId).split('\n')[0].trim().toUpperCase();
+        var itemName = "未知雜物", oldLoc = "未指定";
+        if (payload.miscDetails && payload.miscDetails[fullId]) { itemName = payload.miscDetails[fullId].name; oldLoc = payload.miscDetails[fullId].loc; } 
+        else if (indexMap[baseId]) { itemName = indexMap[baseId].name; oldLoc = indexMap[baseId].loc; }
+        
+        rows.push([ timeNow, eventId, payload.name, fullId, itemName, oldLoc, "", "", "", "", false, "", "", "", payload.manager, payload.tempCodes&&payload.tempCodes[fullId] ? payload.tempCodes[fullId] : "", payload.expectedLocs&&payload.expectedLocs[fullId] ? payload.expectedLocs[fullId] : "待定", payload.quantities&&payload.quantities[fullId] ? payload.quantities[fullId] : "1" ]);
+    }
+    if (rows.length > 0) mSheet.getRange(mSheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+    SpreadsheetApp.flush(); return true;
+}
+
+function getProjectPendingData(eid) {
+    var mvData = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動').getDataRange().getValues(), items = [], locs = new Set(), total = 0, moved = 0;
+    for(var i = 1; i < mvData.length; i++) {
+        if(mvData[i][1] == eid) { total++;
+            if(mvData[i][6]) { moved++; } else {
+                var loc = String(mvData[i][5]).trim(); locs.add(loc);
+                items.push({ rowIndex: i + 1, qrCode: String(mvData[i][3]).trim(), name: String(mvData[i][4]).trim() || "未知名稱", loc: loc, tempCode: String(mvData[i][15] || '').trim(), expectedLoc: String(mvData[i][16] || '待定').trim(), qty: String(mvData[i][17] || '1').trim() });
+            }
+        }
+    }
+    return { items: items, locTree: buildTree(Array.from(locs)), total: total, moved: moved };
+}
+
+function submitMovement(p) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動'), dataRange = sheet.getDataRange(), values = dataRange.getValues(), ts = new Date(), tsString = Utilities.formatDate(ts, "GMT+8", "yyyyMMddHHmmss");
+    for (var i = 0; i < p.rowIndices.length; i++) { if (values[p.rowIndices[i] - 1][6]) throw new Error("文物已被其他人搬運完成，系統將刷新名單！"); }
+    p.rowIndices.forEach(function(rIdx) {
+        var arrIdx = rIdx - 1; values[arrIdx][0] = "MV-" + tsString + "-" + rIdx;
+        var finalLoc = (p.expectedLocs && p.expectedLocs[rIdx]) ? p.expectedLocs[rIdx] : p.newLoc;
+        var origExp = String(values[arrIdx][16] || '');
+        if (origExp && origExp !== '待定' && finalLoc !== origExp) values[arrIdx][13] = (values[arrIdx][13] || '') + " (⚠️ 變更:由 " + origExp + " 改至 " + finalLoc + ")";
+        values[arrIdx][6] = finalLoc; values[arrIdx][7] = (p.isBox !== undefined && p.isBox !== '') ? p.isBox : values[arrIdx][7]; values[arrIdx][8] = p.boxName ? p.boxName : values[arrIdx][8]; values[arrIdx][9] = ts; values[arrIdx][14] = p.staffInternal || p.manager;
+    });
+    dataRange.setValues(values); SpreadsheetApp.flush(); return true;
+}
+
+function undoMovement(indices, name) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動');
+    var dataRange = sheet.getDataRange();
+    var values = dataRange.getValues();
+    var ts = new Date();
+    var log = Utilities.formatDate(ts,"GMT+8","yyyy/MM/dd HH:mm")+" 退回/撤銷搬運 (by "+name+")\n";
+
+    indices.forEach(function(r) {
+        var arrIdx = r - 1;
+        if(values[arrIdx][10] === true || String(values[arrIdx][10]).toUpperCase() === 'TRUE') {
+            throw new Error("第 " + r + " 列文物已經被核對鎖定，無法退回！");
+        }
+        values[arrIdx][6] = ""; 
+        values[arrIdx][7] = false; 
+        values[arrIdx][8] = ""; 
+        values[arrIdx][9] = ""; 
+        values[arrIdx][13] = (values[arrIdx][13] || "") + log; 
+        values[arrIdx][14] = ""; 
+    });
+    dataRange.setValues(values);
+    SpreadsheetApp.flush();
+    return true;
+}
+
+function getManagerData(eid) {
+    var d = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動').getDataRange().getValues(), p=[], c=[];
+    for(var i=1;i<d.length;i++) {
+        if(d[i][1]==eid && d[i][6]) {
+            var isChanged = String(d[i][13] || '').indexOf('⚠️ 變更') !== -1;
+            var item = { rowIndex: i+1, qrCode: String(d[i][3]), name: String(d[i][4] || ''), oldLoc: String(d[i][5]), newLoc: String(d[i][6]), isBox: d[i][7], boxName: String(d[i][8]||''), manager: String(d[i][11]||''), staff: String(d[i][14]||''), tempCode: String(d[i][15]||''), isExpectedChanged: isChanged, qty: String(d[i][17]||'1').trim() };
+            d[i][10]===true ? c.push(item) : p.push(item);
+        }
+    }
+    return {pending:p, confirmed:c};
+}
+
+function toggleStatus(indices, stat, name) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動'), dataRange = sheet.getDataRange(), values = dataRange.getValues(), ts = new Date();
+    indices.forEach(function(r) { var arrIdx = r - 1; values[arrIdx][10] = stat; values[arrIdx][11] = stat ? ("管理員 " + name) : ""; values[arrIdx][12] = stat ? ts : ""; });
+    dataRange.setValues(values); SpreadsheetApp.flush(); return true;
+}
+
+function editItem(ri, nl, nb, name) {
+    var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('藏品異動');
+    var log = Utilities.formatDate(new Date(),"GMT+8","yyyy/MM/dd HH:mm")+" 修正地點至 "+nl+" (by "+name+")\n";
+    s.getRange(ri,7).setValue(nl); 
+    if(nb !== null && nb !== undefined) s.getRange(ri,9).setValue(nb); 
+    s.getRange(ri,14).setValue((s.getRange(ri,14).getValue()||"")+log);
+    SpreadsheetApp.flush(); return true;
+}
+
+function syncToMaster(eid) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), mMove = ss.getSheetByName('藏品異動').getDataRange().getValues(), master = ss.getSheetByName('藏品清單'), mData = master.getDataRange().getValues(), mTempRange = master.getRange(1, 4, master.getLastRow(), 1), mTempVals = mTempRange.getValues();
+    var indexMap = {}, count = 0, targetEid = String(eid).trim();
+    for(var j = 1; j < mData.length; j++){ var id = String(mData[j][0]).trim().toUpperCase(); if(id) indexMap[id] = j; }
+    for(var i = 1; i < mMove.length; i++){
+        if(String(mMove[i][1]).trim() === targetEid && (mMove[i][10] === true || String(mMove[i][10]).toUpperCase() === 'TRUE')){
+            var sid = String(mMove[i][3]).split('\n')[0].trim().toUpperCase();
+            if (sid.startsWith('MISC-')) continue;
+            if(indexMap[sid] !== undefined && String(mMove[i][6]).trim()){ mTempVals[indexMap[sid]][0] = String(mMove[i][6]).trim(); count++; }
+        }
+    }
+    mTempRange.setValues(mTempVals); SpreadsheetApp.flush();
+    var pSheet = ss.getSheetByName('異動專案'), pData = pSheet.getDataRange().getValues();
+    for(var k = 1; k < pData.length; k++) { if(String(pData[k][0]).trim() === targetEid) { pSheet.getRange(k + 1, 3).setValue('已結案'); } }
+    return {count: count};
+}
+
+// 🔥 修復：加上防錯機制
+function getAllProjects() {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var pSheet = ss.getSheetByName('異動專案');
+    var mSheet = ss.getSheetByName('藏品異動');
+    
+    // 防錯：如果工作表不存在，回傳空陣列
+    if (!pSheet || !mSheet) return [];
+    
+    var pData = pSheet.getDataRange().getValues();
+    var mData = mSheet.getDataRange().getValues();
+    var stats = {};
+    
+    for (var j = 1; j < mData.length; j++) { 
+        var eid = String(mData[j][1]).trim(); 
+        if (!stats[eid]) stats[eid] = { total: 0, moved: 0 }; 
+        stats[eid].total++; 
+        if (mData[j][6]) stats[eid].moved++; 
+    }
+    
+    var results = [];
+    for (var i = pData.length - 1; i >= 1; i--) {
+        var eid = String(pData[i][0]).trim(); 
+        if (!eid) continue;
+        results.push({ 
+            id: eid, 
+            name: String(pData[i][1]).trim(), 
+            status: String(pData[i][2]).trim(), 
+            manager: String(pData[i][4]).trim(), 
+            desc: String(pData[i][5]).trim(), 
+            total: stats[eid] ? stats[eid].total : 0, 
+            moved: stats[eid] ? stats[eid].moved : 0 
+        });
+    }
+    return results;
+}
+
+function getProjectDetails(eventId) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), mData = ss.getSheetByName('藏品異動').getDataRange().getValues(), items = [], targetEid = String(eventId).trim();
+    for (var j = 1; j < mData.length; j++) {
+        if (String(mData[j][1]).trim() === targetEid) {
+            var isConfirmed = (mData[j][10] === true || String(mData[j][10]).toUpperCase() === 'TRUE'), status = isConfirmed ? '已核對' : (mData[j][6] ? '已搬運' : '未搬運');
+            items.push({ rowIndex: j + 1, id: String(mData[j][3]).trim(), name: String(mData[j][4]).trim(), oldLoc: String(mData[j][5]).trim(), newLoc: String(mData[j][6]).trim(), boxName: String(mData[j][8]).trim(), status: status, tempCode: String(mData[j][15] || '').trim(), qty: String(mData[j][17] || '1').trim() });
+        }
+    }
+    return items;
+}
+
+function getProjectDataForEdit(eventId) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), pData = ss.getSheetByName('異動專案').getDataRange().getValues(), name = "", desc = "";
+    for (var i = 1; i < pData.length; i++) { if (pData[i][0] === eventId) { name = pData[i][1]; desc = pData[i][5]; break; } }
+    var mData = ss.getSheetByName('藏品異動').getDataRange().getValues(), items = [];
+    for (var j = 1; j < mData.length; j++) { if (mData[j][1] === eventId) { items.push({ id: String(mData[j][3]).trim(), name: String(mData[j][4]).trim(), loc: String(mData[j][5]).trim(), tempCode: String(mData[j][15] || '').trim(), expectedLoc: String(mData[j][16] || '待定').trim(), qty: String(mData[j][17] || '1').trim() }); } }
+    return { name: name, desc: desc, items: items };
+}
+
+function generateHandoff(payload) { var cache = CacheService.getScriptCache(); var pin = Math.floor(1000 + Math.random() * 9000).toString(); cache.put('HANDOFF_' + pin, JSON.stringify(payload.data), 14400); return { pin: pin }; }
+function consumeHandoff(payload) { var cache = CacheService.getScriptCache(); var dataStr = cache.get('HANDOFF_' + payload.pin); if (!dataStr) throw new Error("無效的交接碼或交接碼已過期！"); return { data: JSON.parse(dataStr) }; }
+function previewLocationOverride(items) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), master = ss.getSheetByName('藏品清單'), mData = master.getDataRange().getValues(), indexMap = {};
+    for(var j = 1; j < mData.length; j++){ var cid = String(mData[j][0]).trim(); if(cid) { indexMap[cid] = { oldLoc: String(mData[j][3]).trim() || String(mData[j][2]).trim(), name: String(mData[j][1]).trim() }; } }
+    var results = [];
+    for(var i = 0; i < items.length; i++) {
+        var req = items[i], id = String(req.id).trim(), newLoc = String(req.newLoc).trim();
+        if (indexMap[id]) { var oldLoc = indexMap[id].oldLoc, status = (oldLoc === newLoc) ? 'no_change' : 'ok'; results.push({ id: id, name: indexMap[id].name, oldLoc: oldLoc, newLoc: newLoc, status: status }); } 
+        else { results.push({ id: id, name: '未知', oldLoc: '', newLoc: newLoc, status: 'not_found' }); }
+    }
+    return { results: results };
+}
+function executeLocationOverride(items) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), master = ss.getSheetByName('藏品清單'), mData = master.getDataRange().getValues(), mTempRange = master.getRange(1, 4, master.getLastRow(), 1), mTempVals = mTempRange.getValues(), indexMap = {};
+    for(var j = 1; j < mData.length; j++){ var cid = String(mData[j][0]).trim(); if(cid) indexMap[cid] = j; }
+    var count = 0;
+    for(var i = 0; i < items.length; i++) { var req = items[i], id = String(req.id).trim(), newLoc = String(req.newLoc).trim(); if(id && indexMap[id] !== undefined) { mTempVals[indexMap[id]][0] = newLoc; count++; } }
+    mTempRange.setValues(mTempVals); SpreadsheetApp.flush(); return { count: count };
+}
