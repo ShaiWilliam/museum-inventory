@@ -39,7 +39,6 @@ html, body {
 .home-card.c-reg { border-bottom-color: #0dcaf0; }
 .home-card.c-inv { border-bottom-color: #198754; }
 .home-card.c-move { border-bottom-color: #0d6efd; }
-.home-card.c-cond { border-bottom-color: #6c757d; }
 .home-card.c-mgr { border-bottom-color: #dc3545; }
 .home-icon { font-size: 2.2rem; margin-bottom: 8px; }
 
@@ -54,58 +53,142 @@ html, body {
 .vault-card { background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); }
 .letter-spacing-2 { letter-spacing: 2px; }
 
-/* 🔥 修復鍵盤被對話框擋住的問題 */
+#reader-container, #query-reader-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; margin-top: 12px; min-height: 300px;}
+#reader, #query-reader, #loc-reader { width: 100% !important; border: none !important; }
+
+#resultOverlay { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 100; display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); border-radius: 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); border: 2px solid #198754; animation: slideIn 0.3s; }
+@keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.accordion-button:not(.collapsed) { background-color: #e8f5e9; color: #198754; }
+.sub-group { border-left: 3px solid #198754; background: #fafafa; }
+.single-item-btn { background-color: #e8f5e9; border: 1px solid #198754 !important; color: #157347; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.bg-zebra-even { background-color: #f0f4f8 !important; border-color: #dbe0e5 !important; }
+.btn-check:checked + .btn-outline-success { background-color: #198754 !important; color: white !important; border-color: #198754 !important; }
+.fake-input-btn { cursor: pointer; text-align: left; background-color: #f8f9fa; }
+.fade-in-section { animation: fadeIn 0.4s ease-out; }
+
+#miniLoading { position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); color: white; padding: 15px 30px; border-radius: 10px; z-index: 9999; display: none; align-items: center; gap: 10px;}
+
+#printListContainer { max-height: 40vh; overflow-y: auto; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; }
+.print-item { border-bottom: 1px solid #e9ecef; }
+.print-item:last-child { border-bottom: none; }
+.modal-dialog { margin-top: max(1.5rem, env(safe-area-inset-top)); }
+.modal-dialog-scrollable .modal-body { overflow-y: auto; }
+
+#syncToast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 10500; display: none; opacity: 0; transition: opacity 0.3s ease; }
+.sync-badge { background: #212529; color: white; padding: 10px 24px; border-radius: 30px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; }
+
+#printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
+#printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+#printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+.preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
+.grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; justify-content: flex-start; }
+.label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; background: white;}
+.title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; }
+.qr-img { width: 3cm; height: 3cm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+.id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
+.name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
+
+.loc-card-new { background: #fff; border: 1px solid #eaeaea; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: 0.2s; }
+.loc-card-new:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+.loc-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.loc-card-title { font-weight: 600; font-size: 1.05rem; color: #212529; word-break: break-word; line-height: 1.4; }
+
+/* =========================================================
+   💡 搬運優化升級 (虛擬鍵盤、底部選單、浮動多選購物車)
+========================================================= */
+
+/* 1. 浮動待搬運清單 (多選購物車) */
+.floating-cart-btn {
+    position: fixed; bottom: 20px; right: 20px; z-index: 1030;
+    border-radius: 50px; padding: 12px 24px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s, background-color 0.2s;
+    display: none; /* 預設隱藏，有選東西才出現 */
+}
+.floating-cart-btn:active { transform: scale(0.95); }
+.cart-badge-count {
+    background-color: #dc3545; color: white; border-radius: 50%;
+    padding: 2px 8px; font-size: 0.85rem; position: absolute;
+    top: -5px; right: -5px; font-weight: bold;
+}
+
+/* 2. 客製化底部滑出選單 (Bottom Sheet) 
+   [修正 z-index 確保蓋過預覽 Modal (Modal 預設為 1050)] */
+.bottom-sheet-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 1060;
+    opacity: 0; visibility: hidden; transition: opacity 0.3s;
+}
+.bottom-sheet-overlay.active { opacity: 1; visibility: visible; }
+.bottom-sheet-container {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #f8f9fa; z-index: 1061;
+    border-radius: 20px 20px 0 0;
+    transform: translateY(100%); transition: transform 0.3s ease-out;
+    max-height: 85vh; display: flex; flex-direction: column;
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+}
+.bottom-sheet-container.active { transform: translateY(0); }
+.bs-header { padding: 15px; border-bottom: 1px solid #dee2e6; text-align: center; font-weight: bold; position: relative; background: #fff; border-radius: 20px 20px 0 0;}
+.bs-drag-handle { width: 40px; height: 5px; background: #ccc; border-radius: 3px; margin: 0 auto 10px auto; }
+.bs-body { overflow-y: auto; padding: 15px; flex-grow: 1; background: #fff;}
+.bs-loc-item { padding: 12px; border-bottom: 1px solid #f1f1f1; font-size: 1.1rem; color: #333; cursor: pointer; }
+.bs-loc-item:active { background-color: #e9ecef; }
+.bs-loc-main { font-weight: bold; color: #0d6efd; padding: 10px; background: #f8f9fa; border-radius: 5px; margin-top: 10px;}
+
+/* 3. 系統專屬虛擬鍵盤 (Morphing Keyboard) */
 .vk-container {
     position: fixed; bottom: 0; left: 0; right: 0;
-    background: #d1d5db; z-index: 1065; /* 提升至 1065 蓋過 Modal */
+    background: #d1d5db; z-index: 1040;
     transform: translateY(100%); transition: transform 0.2s ease-out;
     padding: 10px 10px 25px 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
 }
 .vk-container.active { transform: translateY(0); }
 .vk-prefix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 220px; overflow-y: auto; padding: 5px; }
 .vk-num-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.vk-btn { background: #fff; border: none; border-radius: 8px; padding: 15px 0; font-size: 1.5rem; font-weight: bold; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+.vk-btn {
+    background: #fff; border: none; border-radius: 8px;
+    padding: 15px 0; font-size: 1.5rem; font-weight: bold; color: #333;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    display: flex; align-items: center; justify-content: center;
+}
 .vk-btn:active { background: #e5e7eb; transform: scale(0.98); }
 .vk-btn-action { background: #9ca3af; color: white; }
 .vk-btn-primary { background: #0d6efd; color: white; grid-column: span 3; }
 .vk-btn-prefix { background: #e0f2fe; color: #0369a1; font-size: 1.1rem; padding: 15px 5px; word-break: break-all;}
 
-#printOverlay, #printReportOverlay, #printCondOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
+/* 4. 修改預覽卡片樣式 */
+.preview-card-modified { background-color: #f0fdf4 !important; border-color: #198754 !important; }
+.preview-card-modified .card-header { background-color: #d1fae5 !important; }
+
+/* 防止 iOS 出現選取放大鏡 */
+.no-select { user-select: none; -webkit-user-select: none; }
+
 
 /* =========================================================
-   📋 狀況報告專屬樣式 (前端卡片與 A4 神還原排版)
+   💡 裁切線顯示/隱藏控制 (配合 index.html 開關使用)
 ========================================================= */
-/* A4 官方報告列印表格排版 (完美對齊 PDF) */
-.cond-print-paper { 
-    max-width: 210mm; margin: 0 auto; background: #fff; padding: 15mm; 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 297mm; 
-    font-family: "DFKai-SB", "MingLiU", "標楷體", serif;
-    color: #000; box-sizing: border-box; position: relative;
+.no-border {
+    border-color: transparent !important;
 }
-.cond-pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11.5pt; color: #000; table-layout: fixed; }
-.cond-pdf-table th, .cond-pdf-table td { border: 1px solid #000; padding: 8px; vertical-align: middle; }
-.cond-pdf-table th { font-weight: bold; text-align: center; white-space: nowrap; }
-.cond-pdf-table td { text-align: left; }
+.no-border .fl-crop-tl, 
+.no-border .fl-crop-tr, 
+.no-border .fl-crop-bl, 
+.no-border .fl-crop-br {
+    border-color: transparent !important;
+}
 
-/* 神還原畫圈圈設計 */
-.circle-mark {
-    border: 1.5px solid #000;
-    border-radius: 50%;
-    padding: 2px 4px;
-    display: inline-block;
-    line-height: 1;
-}
 
 @media print {
     body * { visibility: hidden; }
     #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
-    
-    #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay *, #printCondOverlay, #printCondOverlay * { visibility: visible; }
-    #printOverlay, #printReportOverlay, #printCondOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
-    
-    #printOverlayTopBar, #printReportTopBar, #printCondOverlay > div:first-child { display: none !important; }
-    #printOverlayContent, #printReportContent, #printCondContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
-    
-    .preview-paper, .cond-print-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
-    @page { size: A4 portrait; margin: 0; }
+    #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay * { visibility: visible; }
+    #printOverlay, #printReportOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
+    #printOverlayTopBar, #printReportTopBar { display: none !important; }
+    #printOverlayContent, #printReportContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
+    .preview-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
+    .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 1cm; size: A4 portrait; }
 }
+
