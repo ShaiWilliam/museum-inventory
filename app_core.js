@@ -400,5 +400,3 @@ async function triggerBackgroundSync() {
 }
 
 window.addEventListener('online', () => { if(syncQueue.length > 0) triggerBackgroundSync(); });
-
-
