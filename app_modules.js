@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (保留十字裁切線，QR碼靠左)
+// 最新優化：新增「藏品狀況報告表」模組 (含自動壓縮照片、虛擬鍵盤共用、列印排版)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="vk-btn no-select" onclick="vkPress('4')">4</button><button class="vk-btn no-select" onclick="vkPress('5')">5</button><button class="vk-btn no-select" onclick="vkPress('6')">6</button>
             <button class="vk-btn no-select" onclick="vkPress('7')">7</button><button class="vk-btn no-select" onclick="vkPress('8')">8</button><button class="vk-btn no-select" onclick="vkPress('9')">9</button>
             <button class="vk-btn vk-btn-action no-select" onclick="vkBackspace()">⌫</button><button class="vk-btn no-select" onclick="vkPress('0')">0</button><button class="vk-btn vk-btn-action no-select" onclick="vkClear()">C</button>
-            <button class="vk-btn vk-btn-primary no-select" onclick="closeVK(); searchWorkerItems();">🔍 搜尋</button>
+            <button class="vk-btn vk-btn-primary no-select" onclick="closeVK(); dispatchVkSearch();">🔍 搜尋</button>
         </div>
     </div>
 
@@ -222,6 +222,11 @@ let isLocAdding = false;
 let isLocSyncing = false;
 let allProjectsList = [];
 let currentPdItems = [];
+
+// 🔥 狀況報告表專屬變數
+let condCurrentItem = null;
+let condPhotos = [];
+let pendingPhotoBase64 = "";
 
 function smartConcatLoc(main, med, small) {
     main = main || ""; med = med || ""; small = small || "";
@@ -298,13 +303,25 @@ function openLocModal(title, tree) {
 
 function toggleBoxInput() { document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; }
 
-// ================= 💡 虛擬鍵盤 =================
+// ================= 💡 共用虛擬鍵盤 (重構：支援搬運與狀況報告雙模組) =================
+let currentVkInputId = 'mvSearchKw'; // 預設綁定搬運
+
 function toggleInputMode() {
-    useVK = !useVK;
+    useVK = !useVK; currentVkInputId = 'mvSearchKw';
     let input = document.getElementById('mvSearchKw'), btn = document.getElementById('btnToggleInputMode');
+    applyVkState(input, btn);
+}
+
+function toggleCondInputMode() {
+    useVK = !useVK; currentVkInputId = 'condSearchKw';
+    let input = document.getElementById('condSearchKw'), btn = document.getElementById('btnToggleCondInputMode');
+    applyVkState(input, btn);
+}
+
+function applyVkState(input, btn) {
     if (useVK) { 
         input.setAttribute('inputmode', 'none'); input.setAttribute('readonly', 'true'); 
-        input.placeholder = "點擊搜尋編號(虛擬鍵盤)..."; 
+        input.placeholder = "點擊搜尋(虛擬鍵盤)..."; 
         btn.classList.replace('btn-outline-secondary', 'btn-secondary'); 
         input.blur(); openVK(); 
     } else { 
@@ -314,38 +331,79 @@ function toggleInputMode() {
         closeVK(); input.focus(); 
     }
 }
-function handleSearchClick() { if (useVK) openVK(); }
+
+function handleSearchClick() { currentVkInputId = 'mvSearchKw'; if (useVK) openVK(); }
+function handleCondSearchClick() { currentVkInputId = 'condSearchKw'; if (useVK) openVK(); }
+
 function openVK() { 
-    let input = document.getElementById('mvSearchKw');
-    if(input.value.trim() === '') { document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); } 
+    let input = document.getElementById(currentVkInputId);
+    if(input && input.value.trim() === '') { document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); } 
     else { document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; }
     document.getElementById('vkContainer').classList.add('active'); 
 }
 function closeVK() { document.getElementById('vkContainer').classList.remove('active'); }
-function vkPressPrefix(prefix) { document.getElementById('mvSearchKw').value = prefix; document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; searchWorkerItems(); }
+
+function vkPressPrefix(prefix) { 
+    let input = document.getElementById(currentVkInputId);
+    if(input) input.value = prefix; 
+    document.getElementById('vkPrefixCol').style.display = 'none'; 
+    document.getElementById('vkNumCol').style.display = 'grid'; 
+    dispatchVkSearch(); 
+}
 function vkShowNumOnly() { document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; }
-function vkPress(val) { document.getElementById('mvSearchKw').value += val; searchWorkerItems(); }
+function vkPress(val) { 
+    let input = document.getElementById(currentVkInputId);
+    if(input) input.value += val; 
+    dispatchVkSearch(); 
+}
 function vkBackspace() { 
-    let input = document.getElementById('mvSearchKw'); 
+    let input = document.getElementById(currentVkInputId); 
+    if(!input) return;
     input.value = input.value.slice(0, -1); 
     if(input.value === '') { document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; renderVkPrefixes(); } 
-    searchWorkerItems(); 
+    dispatchVkSearch(); 
 }
-function vkClear() { document.getElementById('mvSearchKw').value = ''; document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; renderVkPrefixes(); searchWorkerItems(); }
+function vkClear() { 
+    let input = document.getElementById(currentVkInputId);
+    if(input) input.value = ''; 
+    document.getElementById('vkNumCol').style.display = 'none'; 
+    document.getElementById('vkPrefixCol').style.display = 'grid'; 
+    renderVkPrefixes(); 
+    dispatchVkSearch(); 
+}
+function dispatchVkSearch() {
+    if (currentVkInputId === 'mvSearchKw') searchWorkerItems();
+    else if (currentVkInputId === 'condSearchKw') searchCondItems();
+}
+
 function renderVkPrefixes() {
     let prefixes = new Set();
-    currentProjectItems.forEach(item => { 
-        let tcMatch = String(item.tempCode || '').match(/^([A-Za-z\-_]+)/); if (tcMatch) prefixes.add(tcMatch[1].toUpperCase()); 
-        let idMatch = String(item.qrCode).match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase()); 
-    });
+    if (currentVkInputId === 'mvSearchKw' && currentProjectItems) {
+        currentProjectItems.forEach(item => { 
+            let tcMatch = String(item.tempCode || '').match(/^([A-Za-z\-_]+)/); if (tcMatch) prefixes.add(tcMatch[1].toUpperCase()); 
+            let idMatch = String(item.qrCode).match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase()); 
+        });
+    } else {
+        // 從全局目錄撈取前綴
+        Object.values(globalCatalog).forEach(item => {
+            let idMatch = String(item.id).match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase());
+        });
+    }
+    
     let html = ''; 
     Array.from(prefixes).sort().forEach(p => { html += `<button class="vk-btn vk-btn-prefix no-select" onclick="vkPressPrefix('${p}')">${p}</button>`; });
     html += `<button class="vk-btn vk-btn-primary no-select" style="grid-column: 1 / -1; margin-top: 5px; padding: 12px; border-radius: 8px;" onclick="vkShowNumOnly()"><i class="fas fa-keyboard"></i> 🔢 直接打數字 (無前綴)</button>`;
     document.getElementById('vkPrefixCol').innerHTML = html;
 }
+
 document.addEventListener('click', function(event) { 
-    let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), toggleBtn = document.getElementById('btnToggleInputMode'); 
-    if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
+    let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), condSearchBox = document.getElementById('condSearchKw');
+    let toggleBtn = document.getElementById('btnToggleInputMode'), condToggleBtn = document.getElementById('btnToggleCondInputMode'); 
+    if (vk && vk.classList.contains('active')) { 
+        if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn && event.target !== condSearchBox && event.target !== condToggleBtn) {
+            closeVK(); 
+        }
+    } 
 });
 
 // ================= 💡 層疊下鑽式地點選單 (前台搬運+後台修改共用) =================
@@ -520,7 +578,7 @@ function renderQueryUI(res) {
 function startQueryScanner() { document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block'; if (!queryScanner) queryScanner = new Html5Qrcode("query-reader"); if (queryScanner.getState() !== 2) { queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg)); } }
 async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...'); await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; hideMiniLoading(); }
 
-async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
+async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum, formatMaterial: "", size: "", author: "", note: p.desc }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 
 // 🔥 全域列印中心與多格式選擇機制
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
@@ -1551,3 +1609,441 @@ function submitEditLoc() { const rowIndex = parseInt(document.getElementById('ed
 async function processLocQueue() { if (isLocSyncing || locUpdateQueue.length === 0) return; isLocSyncing = true; const updatesToProcess = [...locUpdateQueue]; locUpdateQueue = []; try { const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`, true); } catch (e) { console.error("背景更新失敗", e); showSyncToast("⚠️ 部分地點背景更新失敗，將於下次重試", true); locUpdateQueue = [...updatesToProcess, ...locUpdateQueue]; renderLocationsList(mgrLocTree); } finally { isLocSyncing = false; if (locUpdateQueue.length > 0) { processLocQueue(); } } }
 async function toggleLocStatus(rowIndex, setHidden) { showSyncToast('狀態更新同步中...'); let found = false; mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => { if(d.rowIndex === rowIndex) { d.isHidden = setHidden; found = true; } }))); if(found) renderLocationsList(mgrLocTree); try { const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast("✅ 狀態已同步", true); } catch(e) { alert("狀態切換失敗：" + e.message); showSyncToast("❌ 同步失敗", true); } }
 async function deleteLoc(rowIndex) { if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return; showMiniLoading('刪除地點中...'); try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); } }
+
+// ================= 💡 藏品狀況報告表 核心邏輯 =================
+
+// 從查詢畫面直接跳轉至填寫狀況報告
+function jumpToConditionReport() {
+    const rawId = document.getElementById('qResId').innerText.trim();
+    if(!rawId || rawId === '--') return alert("無法獲取藏品編號！");
+    enterSystem('cond').then(() => { selectCondTarget(rawId); });
+}
+
+// 載入狀況報告歷史清單
+async function loadConditionReports() {
+    showMiniLoading('載入報告清單...');
+    try {
+        const reports = await callAPI('getConditionReports');
+        const container = document.getElementById('condReportListContainer');
+        if(reports.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4 small">目前尚無任何報告紀錄。</div>';
+            return;
+        }
+        
+        container.innerHTML = reports.map(r => {
+            let badge = '';
+            if(r.reportType === '1') badge = '<span class="badge bg-primary">例行檢視</span>';
+            else if(r.reportType === '2') badge = '<span class="badge bg-warning text-dark">提借修復</span>';
+            else badge = '<span class="badge bg-danger">廠商報告</span>';
+            
+            // 若為廠商報告，點擊直接開新分頁預覽；若為一般報告，點擊可看明細
+            let clickAction = r.reportType === '3' 
+                ? `window.open('${escapeHTML(r.formData.fileUrl)}', '_blank')` 
+                : `openCondPreview('${escapeHTML(r.reportId)}')`;
+            
+            let photoIndicator = r.photos && r.photos.length > 0 ? `<span class="badge bg-light text-secondary border ms-1"><i class="fas fa-image"></i> ${r.photos.length}</span>` : '';
+
+            return `
+            <div class="card border-0 shadow-sm" style="cursor:pointer;" onclick="${clickAction}">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="fw-bold text-dark">${escapeHTML(r.itemId)}</div>
+                        ${badge}
+                    </div>
+                    <div class="small text-primary fw-bold mb-1">${escapeHTML(r.itemName)}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted"><i class="far fa-clock"></i> ${escapeHTML(r.timestamp)}</small>
+                        <div>
+                            <small class="text-muted me-2"><i class="far fa-user"></i> ${escapeHTML(r.managerName)}</small>
+                            ${photoIndicator}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        alert("載入報告失敗：" + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
+
+// 點擊新增按鈕 -> 開啟搜尋 Modal
+function openCondSearchModal() {
+    document.getElementById('condSearchKw').value = '';
+    document.getElementById('condSearchResult').innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+    currentVkInputId = 'condSearchKw';
+    closeVK();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condSearchModal')).show();
+}
+
+// 模糊搜尋藏品清單
+function searchCondItems() {
+    const kwStr = document.getElementById('condSearchKw').value.toLowerCase().trim();
+    const keywords = kwStr ? kwStr.split(/\s+/) : [];
+    const container = document.getElementById('condSearchResult');
+    
+    if(keywords.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+        return;
+    }
+    
+    let results = Object.values(globalCatalog).filter(item => {
+        let targetStr = `${item.id} ${item.name}`.toLowerCase();
+        return keywords.every(k => targetStr.includes(k));
+    }).slice(0, 50); // 最多顯示50筆防卡頓
+    
+    if(results.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">查無藏品</div>';
+        return;
+    }
+    
+    container.innerHTML = results.map(item => `
+        <button class="list-group-item list-group-item-action p-3" onclick="selectCondTarget('${escapeHTML(item.id)}')">
+            <div class="fw-bold text-primary">${escapeHTML(item.id)}</div>
+            <div class="small text-dark">${escapeHTML(item.name)}</div>
+            <div class="small text-muted mt-1">📍 ${escapeHTML(item.location)}</div>
+        </button>
+    `).join('');
+}
+
+// 選定藏品 -> 進入情境選擇
+function selectCondTarget(id) {
+    const cat = globalCatalog[id];
+    if(!cat) return;
+    
+    condCurrentItem = cat;
+    bootstrap.Modal.getInstance(document.getElementById('condSearchModal')).hide();
+    
+    document.getElementById('condDashboard').style.display = 'none';
+    document.getElementById('condFormArea').style.display = 'none';
+    document.getElementById('condVendorUploadArea').style.display = 'none';
+    
+    document.getElementById('condTargetItemLabel').innerText = `${cat.id} - ${cat.name}`;
+    document.getElementById('condScenarioSelect').style.display = 'block';
+}
+
+function backToCondDashboard() {
+    document.getElementById('condScenarioSelect').style.display = 'none';
+    document.getElementById('condFormArea').style.display = 'none';
+    document.getElementById('condVendorUploadArea').style.display = 'none';
+    document.getElementById('condDashboard').style.display = 'block';
+    loadConditionReports();
+}
+
+// 啟動填寫表單 (情境1,2,3)
+function startCondReport(type) {
+    condMode = type;
+    document.getElementById('condScenarioSelect').style.display = 'none';
+    
+    if (type === 3) {
+        // 情境3：外部報告上傳
+        document.getElementById('vendorReportInput').value = '';
+        document.getElementById('vendorFileInfo').innerText = '';
+        document.getElementById('condVendorUploadArea').style.display = 'block';
+    } else {
+        // 情境1, 2：系統線上表單
+        // 清空前次資料
+        condPhotos = [];
+        renderCondPhotos();
+        document.getElementById('btnCondPrint').style.display = 'none';
+        ['cf_oldId','cf_tf_purpose','cf_tf_outDate','cf_tf_outGiver','cf_tf_outTaker','cf_tf_inDate','cf_tf_inGiver','cf_tf_inTaker','cf_tf_note','cf_conditionDesc'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        
+        // 自動帶入藏品基本資料
+        document.getElementById('cf_newId').value = condCurrentItem.id;
+        document.getElementById('cf_name').value = condCurrentItem.name;
+        document.getElementById('cf_propNum').value = condCurrentItem.propNum || '';
+        document.getElementById('cf_loc').value = condCurrentItem.location || '';
+        document.getElementById('cf_material').value = condCurrentItem.formatMaterial || '';
+        document.getElementById('cf_size').value = condCurrentItem.size || '';
+        document.getElementById('cf_author').value = condCurrentItem.author || '';
+        document.getElementById('cf_note').value = condCurrentItem.note || '';
+        document.getElementById('cf_qty').value = '1';
+        
+        // 預設檢視資料
+        document.getElementById('cf_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('cf_viewer').value = currentManager;
+        document.getElementById('cf_overall').value = '良好';
+        
+        // 提借紀錄顯示控制
+        document.getElementById('condTransferSection').style.display = (type === 2) ? 'block' : 'none';
+        
+        document.getElementById('condFormArea').style.display = 'block';
+    }
+}
+
+// ================= 照片壓縮與上傳邏輯 =================
+function handleCondPhotoSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (condPhotos.length >= 3) return alert("最多只能上傳 3 張照片！");
+    
+    showMiniLoading("處理照片中...");
+    
+    // HTML5 Canvas 圖片壓縮 (最大寬度 1200px)
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+            const MAX_WIDTH = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_WIDTH) {
+                height = Math.round((height * MAX_WIDTH) / width);
+                width = MAX_WIDTH;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 壓縮品質 0.7，極大降低 Base64 體積
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            
+            // 開啟預覽註記 Modal
+            pendingPhotoBase64 = compressedBase64;
+            document.getElementById('photoAnnotationPreview').src = compressedBase64;
+            document.getElementById('photoAnnotationText').value = '';
+            document.getElementById('cf_photoInput').value = ''; // reset input
+            
+            hideMiniLoading();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('photoAnnotationModal')).show();
+        };
+    };
+}
+
+function cancelPhotoAnnotation() {
+    pendingPhotoBase64 = "";
+    document.getElementById('photoAnnotationPreview').src = "";
+    document.getElementById('photoAnnotationText').value = '';
+}
+
+function confirmPhotoAnnotation() {
+    const note = document.getElementById('photoAnnotationText').value.trim();
+    if (pendingPhotoBase64) {
+        condPhotos.push({
+            base64: pendingPhotoBase64.split(',')[1], // 移除 data:image/jpeg;base64, 前綴
+            mimeType: 'image/jpeg',
+            note: note,
+            url: '' // 後端上傳後才會產生
+        });
+        renderCondPhotos();
+    }
+    bootstrap.Modal.getInstance(document.getElementById('photoAnnotationModal')).hide();
+}
+
+function renderCondPhotos() {
+    const container = document.getElementById('cf_photoContainer');
+    if (condPhotos.length === 0) {
+        container.innerHTML = '<div class="text-muted small">尚未新增照片。</div>';
+        return;
+    }
+    
+    container.innerHTML = condPhotos.map((p, idx) => `
+        <div class="cond-photo-thumb">
+            <button class="btn-close" onclick="removeCondPhoto(${idx})"></button>
+            <img src="data:${p.mimeType || 'image/jpeg'};base64,${p.base64}" alt="photo">
+            <div class="cond-photo-note" title="${escapeHTML(p.note)}">${escapeHTML(p.note) || '無註記'}</div>
+        </div>
+    `).join('');
+}
+
+function removeCondPhoto(idx) {
+    if(confirm('確定要移除這張照片嗎？')) {
+        condPhotos.splice(idx, 1);
+        renderCondPhotos();
+    }
+}
+
+// ================= 表單送出與列印 =================
+async function submitConditionReport() {
+    const formData = {
+        newId: document.getElementById('cf_newId').value,
+        oldId: document.getElementById('cf_oldId').value,
+        name: document.getElementById('cf_name').value,
+        propNum: document.getElementById('cf_propNum').value,
+        loc: document.getElementById('cf_loc').value,
+        material: document.getElementById('cf_material').value,
+        size: document.getElementById('cf_size').value,
+        author: document.getElementById('cf_author').value,
+        qty: document.getElementById('cf_qty').value,
+        note: document.getElementById('cf_note').value,
+        
+        date: document.getElementById('cf_date').value,
+        viewer: document.getElementById('cf_viewer').value,
+        overall: document.getElementById('cf_overall').value,
+        conditionDesc: document.getElementById('cf_conditionDesc').value,
+        
+        // 提借紀錄
+        tf_purpose: document.getElementById('cf_tf_purpose').value,
+        tf_outDate: document.getElementById('cf_tf_outDate').value,
+        tf_outGiver: document.getElementById('cf_tf_outGiver').value,
+        tf_outTaker: document.getElementById('cf_tf_outTaker').value,
+        tf_inDate: document.getElementById('cf_tf_inDate').value,
+        tf_inGiver: document.getElementById('cf_tf_inGiver').value,
+        tf_inTaker: document.getElementById('cf_tf_inTaker').value,
+        tf_note: document.getElementById('cf_tf_note').value
+    };
+    
+    if(!formData.date || !formData.viewer) return alert("請填寫檢視日期與檢視者！");
+    
+    const payload = {
+        managerName: currentManager,
+        itemId: condCurrentItem.id,
+        itemName: condCurrentItem.name,
+        reportType: condMode.toString(),
+        formData: formData,
+        photos: condPhotos
+    };
+
+    showMiniLoading('正在儲存報告與上傳照片 (可能需要幾秒鐘)...');
+    try {
+        const res = await callAPI('saveConditionReport', payload);
+        alert(`✅ 報告已安全儲存！\n系統編號：${res.reportId}\n您可以點擊下方按鈕預覽並列印 PDF 格式。`);
+        document.getElementById('btnCondPrint').style.display = 'block';
+    } catch(e) {
+        alert("儲存失敗：" + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
+
+function printConditionReport() {
+    // 依據畫面上目前填寫的資料抓取
+    let d = {
+        newId: document.getElementById('cf_newId').value,
+        oldId: document.getElementById('cf_oldId').value,
+        name: document.getElementById('cf_name').value,
+        propNum: document.getElementById('cf_propNum').value,
+        loc: document.getElementById('cf_loc').value,
+        material: document.getElementById('cf_material').value,
+        size: document.getElementById('cf_size').value,
+        author: document.getElementById('cf_author').value,
+        qty: document.getElementById('cf_qty').value,
+        note: document.getElementById('cf_note').value,
+        date: document.getElementById('cf_date').value,
+        viewer: document.getElementById('cf_viewer').value,
+        overall: document.getElementById('cf_overall').value,
+        conditionDesc: document.getElementById('cf_conditionDesc').value,
+        tf_purpose: document.getElementById('cf_tf_purpose').value,
+        tf_outDate: document.getElementById('cf_tf_outDate').value,
+        tf_outGiver: document.getElementById('cf_tf_outGiver').value,
+        tf_outTaker: document.getElementById('cf_tf_outTaker').value,
+        tf_inDate: document.getElementById('cf_tf_inDate').value,
+        tf_inGiver: document.getElementById('cf_tf_inGiver').value,
+        tf_inTaker: document.getElementById('cf_tf_inTaker').value,
+        tf_note: document.getElementById('cf_tf_note').value
+    };
+
+    let html = `
+    <div class="cond-print-paper">
+        <h2 class="text-center fw-bold mb-4">藏品狀況報告表</h2>
+        
+        <h5 class="fw-bold mb-2">一、藏品基本資料</h5>
+        <table class="cond-table">
+            <tr><th>藏品新編號</th><td>${escapeHTML(d.newId)}</td><th>藏品舊編號</th><td>${escapeHTML(d.oldId)}</td></tr>
+            <tr><th>藏品名稱</th><td colspan="3">${escapeHTML(d.name)}</td></tr>
+            <tr><th>藏品儲位</th><td colspan="3">${escapeHTML(d.loc)}</td></tr>
+            <tr><th>財產編號</th><td>${escapeHTML(d.propNum)}</td><th>數量</th><td>${escapeHTML(d.qty)}</td></tr>
+            <tr><th>型制 / 材質</th><td>${escapeHTML(d.material)}</td><th>尺寸</th><td>${escapeHTML(d.size)}</td></tr>
+            <tr><th>備註</th><td colspan="3">${escapeHTML(d.note)}</td></tr>
+        </table>
+
+        <h5 class="fw-bold mb-2 mt-4">二、狀況描述、位置圖示及保存建議</h5>
+        <table class="cond-table">
+            <tr><th>檢視日期</th><td>${escapeHTML(d.date)}</td><th>檢視者</th><td>${escapeHTML(d.viewer)}</td></tr>
+            <tr><th>整體狀況評估</th><td colspan="3">${escapeHTML(d.overall)}</td></tr>
+            <tr>
+                <td colspan="4" style="height: 120px; vertical-align: top;">
+                    <strong>劣化細節描述與保存建議：</strong><br><br>
+                    <span style="white-space: pre-wrap;">${escapeHTML(d.conditionDesc)}</span>
+                </td>
+            </tr>
+        </table>`;
+
+    if (condMode === 2) {
+        html += `
+        <h5 class="fw-bold mb-2 mt-4">三、提借∕還藏紀錄</h5>
+        <table class="cond-table">
+            <tr><th>提借目的</th><td colspan="3">${escapeHTML(d.tf_purpose)}</td></tr>
+            <tr><th>提借日期</th><td colspan="3">${escapeHTML(d.tf_outDate)}</td></tr>
+            <tr><th>點交人(出)</th><td>${escapeHTML(d.tf_outGiver)}</td><th>收交人(出)</th><td>${escapeHTML(d.tf_outTaker)}</td></tr>
+            <tr><th>還藏日期</th><td colspan="3">${escapeHTML(d.tf_inDate)}</td></tr>
+            <tr><th>點交人(入)</th><td>${escapeHTML(d.tf_inGiver)}</td><th>收交人(入)</th><td>${escapeHTML(d.tf_inTaker)}</td></tr>
+            <tr><th>備註</th><td colspan="3">${escapeHTML(d.tf_note)}</td></tr>
+        </table>`;
+    }
+
+    if (condPhotos.length > 0) {
+        html += `<h5 class="fw-bold mb-2 mt-4">照片紀錄</h5><div class="row">`;
+        condPhotos.forEach(p => {
+            html += `
+            <div class="col-6">
+                <div class="cond-photo-box">
+                    <img src="data:${p.mimeType || 'image/jpeg'};base64,${p.base64}">
+                    <p><strong>註記：</strong> ${escapeHTML(p.note || '無')}</p>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    html += `</div>`;
+    
+    document.getElementById('printCondContent').innerHTML = html;
+    document.getElementById('printCondOverlay').style.display = 'flex';
+}
+
+function closePrintCondOverlay() {
+    document.getElementById('printCondOverlay').style.display = 'none';
+}
+
+// ================= 廠商報告上傳邏輯 =================
+let vendorFileData = null;
+function handleVendorFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return alert("檔案不可超過 10MB！"); // 限制 10MB
+    
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        vendorFileData = {
+            fileName: file.name,
+            mimeType: file.type,
+            base64: e.target.result.split(',')[1]
+        };
+        document.getElementById('vendorFileInfo').innerText = `已選擇檔案：${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+    };
+}
+
+async function submitVendorReport() {
+    if (!vendorFileData) return alert("請先選擇要上傳的檔案！");
+    
+    const payload = {
+        managerName: currentManager,
+        itemId: condCurrentItem.id,
+        itemName: condCurrentItem.name,
+        fileName: vendorFileData.fileName,
+        mimeType: vendorFileData.mimeType,
+        fileBase64: vendorFileData.base64
+    };
+
+    showMiniLoading('正在將檔案安全上傳至 Google Drive ...');
+    try {
+        const res = await callAPI('uploadVendorReport', payload);
+        alert(`✅ 檔案上傳成功！\n紀錄已建立完成，可於歷史清單中檢視。`);
+        backToCondDashboard();
+    } catch(e) {
+        alert("上傳失敗：" + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
