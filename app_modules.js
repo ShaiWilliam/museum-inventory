@@ -137,7 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="p-3 border-top bg-light"><button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button></div>
     </div>
 
-    <!-- 🔥 共用的虛擬鍵盤 (z-index 已在 style.css 調高至 1065) -->
     <div class="vk-container" id="vkContainer">
         <div class="d-flex justify-content-between mb-2 px-1">
             <span class="text-muted fw-bold small">專屬數字鍵盤</span>
@@ -307,7 +306,7 @@ function openLocModal(title, tree) {
 
 function toggleBoxInput() { document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; }
 
-// ================= 💡 共用虛擬鍵盤 =================
+// ================= 💡 共用虛擬鍵盤 (重構：支援搬運與狀況報告雙模組) =================
 let currentVkInputId = 'mvSearchKw'; 
 
 function toggleInputMode() {
