@@ -82,30 +82,79 @@ html, body {
 #printOverlay, #printReportOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #e9ecef; z-index: 10500; display: none; flex-direction: column; overflow: hidden; }
 #printOverlayTopBar, #printReportTopBar { padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 #printOverlayContent, #printReportContent { flex-grow: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
-.preview-paper { background: #fff; max-width: 21cm; margin: 0 auto; padding: 1cm; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; }
-.grid-container { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; justify-content: flex-start; }
-.label-box { width: 3.2cm; height: 4.2cm; border: 1px dashed #999; box-sizing: border-box; margin: -1px 0 0 -1px; padding: 0.1cm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; background: white;}
-.title-label { background-color: #f8f9fa; border: 2px solid #198754; z-index: 1; }
-.qr-img { width: 3cm; height: 3cm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
-.id-text { font-size: 8pt; font-weight: bold; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #000; line-height: 1.1; }
-.name-text { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: #555; line-height: 1.1; }
 
+/* 標籤列印版型 */
+.preview-paper {
+    background: #fff;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 13.5mm 0; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(3, 70mm);
+    grid-auto-rows: 30mm;
+    gap: 0;
+    justify-content: center;
+    align-content: start;
+}
+
+.label-box {
+    width: 70mm;
+    height: 30mm;
+    box-sizing: border-box;
+    border-right: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    border-top: 0;
+    border-left: 0;
+    padding: 2mm 3mm 2mm 12mm;
+    background: white;
+    page-break-inside: avoid;
+    overflow: hidden;
+    position: relative;
+    display: grid;
+    grid-template-columns: 24mm 1fr;
+    grid-template-rows: 1fr 1fr;
+    column-gap: 2mm;
+    align-items: center;
+}
+.label-box:nth-child(-n+3) { border-top: 1px solid transparent; }
+.label-box:nth-child(3n+1) { border-left: 1px solid transparent; }
+
+.label-box.with-border {
+    border-right-color: #000;
+    border-bottom-color: #000;
+}
+.label-box.with-border:nth-child(-n+3) { border-top-color: #000; }
+.label-box.with-border:nth-child(3n+1) { border-left-color: #000; }
+
+.qr-img { width: 24mm; height: 24mm; grid-column: 1 / 2; grid-row: 1 / 3; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+.id-text { grid-column: 2 / 3; grid-row: 1 / 2; font-size: 9pt; font-weight: bold; color: #000; line-height: 1.2; align-self: end; padding-bottom: 0.5mm; min-width: 0; }
+.name-text { grid-column: 2 / 3; grid-row: 2 / 3; font-size: 7.5pt; color: #555; line-height: 1.2; align-self: start; padding-top: 0.5mm; min-width: 0; }
+
+.no-border { border-color: transparent !important; }
+.no-border .fl-crop-tl, .no-border .fl-crop-tr, .no-border .fl-crop-bl, .no-border .fl-crop-br { border-color: transparent !important; }
+
+
+/* =========================================================
+   💡 搬運優化升級 (虛擬鍵盤、底部選單、浮動多選購物車)
+========================================================= */
 .loc-card-new { background: #fff; border: 1px solid #eaeaea; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: 0.2s; }
 .loc-card-new:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
 .loc-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .loc-card-title { font-weight: 600; font-size: 1.05rem; color: #212529; word-break: break-word; line-height: 1.4; }
 
-/* =========================================================
-   💡 搬運優化升級 (虛擬鍵盤、底部選單、浮動多選購物車)
-========================================================= */
-
-/* 1. 浮動待搬運清單 (多選購物車) */
 .floating-cart-btn {
     position: fixed; bottom: 20px; right: 20px; z-index: 1030;
     border-radius: 50px; padding: 12px 24px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s, background-color 0.2s;
-    display: none; /* 預設隱藏，有選東西才出現 */
+    display: none;
 }
 .floating-cart-btn:active { transform: scale(0.95); }
 .cart-badge-count {
@@ -114,8 +163,6 @@ html, body {
     top: -5px; right: -5px; font-weight: bold;
 }
 
-/* 2. 客製化底部滑出選單 (Bottom Sheet) 
-   [修正 z-index 確保蓋過預覽 Modal (Modal 預設為 1050)] */
 .bottom-sheet-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5); z-index: 1060;
@@ -134,54 +181,29 @@ html, body {
 .bs-header { padding: 15px; border-bottom: 1px solid #dee2e6; text-align: center; font-weight: bold; position: relative; background: #fff; border-radius: 20px 20px 0 0;}
 .bs-drag-handle { width: 40px; height: 5px; background: #ccc; border-radius: 3px; margin: 0 auto 10px auto; }
 .bs-body { overflow-y: auto; padding: 15px; flex-grow: 1; background: #fff;}
-.bs-loc-item { padding: 12px; border-bottom: 1px solid #f1f1f1; font-size: 1.1rem; color: #333; cursor: pointer; }
-.bs-loc-item:active { background-color: #e9ecef; }
-.bs-loc-main { font-weight: bold; color: #0d6efd; padding: 10px; background: #f8f9fa; border-radius: 5px; margin-top: 10px;}
 
-/* 3. 系統專屬虛擬鍵盤 (Morphing Keyboard) */
+/* 🔥 虛擬鍵盤修復：提升 z-index 確保壓過對話框 */
 .vk-container {
     position: fixed; bottom: 0; left: 0; right: 0;
-    background: #d1d5db; z-index: 1040;
+    background: #d1d5db; z-index: 1065; /* 從 1040 升級為 1065 */
     transform: translateY(100%); transition: transform 0.2s ease-out;
     padding: 10px 10px 25px 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
 }
 .vk-container.active { transform: translateY(0); }
 .vk-prefix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 220px; overflow-y: auto; padding: 5px; }
 .vk-num-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.vk-btn {
-    background: #fff; border: none; border-radius: 8px;
-    padding: 15px 0; font-size: 1.5rem; font-weight: bold; color: #333;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    display: flex; align-items: center; justify-content: center;
-}
+.vk-btn { background: #fff; border: none; border-radius: 8px; padding: 15px 0; font-size: 1.5rem; font-weight: bold; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
 .vk-btn:active { background: #e5e7eb; transform: scale(0.98); }
 .vk-btn-action { background: #9ca3af; color: white; }
 .vk-btn-primary { background: #0d6efd; color: white; grid-column: span 3; }
 .vk-btn-prefix { background: #e0f2fe; color: #0369a1; font-size: 1.1rem; padding: 15px 5px; word-break: break-all;}
 
-/* 4. 修改預覽卡片樣式 */
 .preview-card-modified { background-color: #f0fdf4 !important; border-color: #198754 !important; }
 .preview-card-modified .card-header { background-color: #d1fae5 !important; }
-
-/* 防止 iOS 出現選取放大鏡 */
 .no-select { user-select: none; -webkit-user-select: none; }
 
-
 /* =========================================================
-   💡 裁切線顯示/隱藏控制 (配合 index.html 開關使用)
-========================================================= */
-.no-border {
-    border-color: transparent !important;
-}
-.no-border .fl-crop-tl, 
-.no-border .fl-crop-tr, 
-.no-border .fl-crop-bl, 
-.no-border .fl-crop-br {
-    border-color: transparent !important;
-}
-
-/* =========================================================
-   📋 狀況報告專屬樣式 (前端照片卡片與 A4 列印排版)
+   📋 狀況報告專屬樣式 (前端卡片與 A4 神還原排版)
 ========================================================= */
 .cond-photo-thumb {
     position: relative; width: 100%; max-width: 150px; background: #fff; border: 1px solid #ccc;
@@ -191,32 +213,39 @@ html, body {
 .cond-photo-thumb .btn-close { position: absolute; top: 5px; right: 5px; background-color: rgba(255,255,255,0.9); padding: 5px; border-radius: 50%; border: 1px solid #ddd; }
 .cond-photo-note { font-size: 0.75rem; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* A4 官方報告列印表格排版 */
+/* A4 官方報告列印表格排版 (完美對齊 PDF) */
 .cond-print-paper { 
-    max-width: 21cm; margin: 0 auto; background: #fff; padding: 1.5cm; 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 29.7cm; 
-    font-family: "DFKai-SB", "MingLiU", "標楷體", serif; /* 報告表通常使用明體或楷體 */
-    color: #000;
+    max-width: 210mm; margin: 0 auto; background: #fff; padding: 15mm; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; min-height: 297mm; 
+    font-family: "DFKai-SB", "MingLiU", "標楷體", serif;
+    color: #000; box-sizing: border-box; position: relative;
 }
-.cond-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11pt; }
-.cond-table th, .cond-table td { border: 1px solid #000; padding: 10px; vertical-align: middle; }
-.cond-table th { background-color: #f2f2f2; font-weight: bold; text-align: center; white-space: nowrap; width: 15%; }
-.cond-photo-box { border: 1px solid #000; padding: 10px; text-align: center; margin-bottom: 15px; page-break-inside: avoid; }
-.cond-photo-box img { max-width: 100%; max-height: 350px; object-fit: contain; display: block; margin: 0 auto 10px auto; }
-.cond-photo-box p { margin: 0; font-size: 10pt; color: #333; text-align: left; }
+.cond-pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11.5pt; color: #000; table-layout: fixed; }
+.cond-pdf-table th, .cond-pdf-table td { border: 1px solid #000; padding: 8px; vertical-align: middle; }
+.cond-pdf-table th { font-weight: bold; text-align: center; white-space: nowrap; }
+.cond-pdf-table td { text-align: left; }
+
+/* 神還原畫圈圈設計 */
+.circle-mark {
+    border: 1.5px solid #000;
+    border-radius: 50%;
+    padding: 2px 4px;
+    display: inline-block;
+    line-height: 1;
+}
 
 @media print {
     body * { visibility: hidden; }
     #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
-    /* 🔥 新增對 printCondOverlay 的列印支援 */
+    
     #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay *, #printCondOverlay, #printCondOverlay * { visibility: visible; }
     #printOverlay, #printReportOverlay, #printCondOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
-    /* 隱藏上方導覽列 */
+    
     #printOverlayTopBar, #printReportTopBar, #printCondOverlay > div:first-child { display: none !important; }
     #printOverlayContent, #printReportContent, #printCondContent { padding: 0 !important; background: transparent !important; overflow: visible !important; height: auto; }
     
     .preview-paper, .cond-print-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
-    .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     
-    @page { margin: 1cm; size: A4 portrait; }
+    /* 強制清除所有硬體邊距 */
+    @page { size: A4 portrait; margin: 0; }
 }
