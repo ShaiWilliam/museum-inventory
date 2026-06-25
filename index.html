@@ -518,55 +518,261 @@
                  <h5 class="mb-0 fw-bold text-primary" id="condFormTitle">📝 填寫報告</h5>
                  <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="backToCondDashboard()">🔙 放棄</button>
              </div>
+             
+             <!-- 隱藏的目標藏品 ID -->
              <input type="hidden" id="condTargetId">
 
-             <h6 class="fw-bold text-dark border-bottom pb-2 mt-3">一、藏品基本資料</h6>
-             <div class="row g-2 mb-3">
-                 <div class="col-6"><label class="small text-muted fw-bold">藏品新編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_newId" readonly></div>
-                 <div class="col-6"><label class="small text-muted fw-bold">藏品舊編號</label><input type="text" class="form-control form-control-sm" id="cf_oldId"></div>
-                 <div class="col-12"><label class="small text-muted fw-bold">藏品名稱</label><input type="text" class="form-control form-control-sm border-info" id="cf_name"></div>
-                 <div class="col-6"><label class="small text-muted fw-bold">財產編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_propNum"></div>
-                 <div class="col-6"><label class="small text-muted fw-bold">藏品儲位</label><input type="text" class="form-control form-control-sm border-info" id="cf_loc"></div>
-                 <div class="col-6"><label class="small text-muted fw-bold">型制/材質</label><input type="text" class="form-control form-control-sm border-info" id="cf_material"></div>
-                 <div class="col-6"><label class="small text-muted fw-bold">尺寸</label><input type="text" class="form-control form-control-sm border-info" id="cf_size"></div>
-                 <div class="col-10"><label class="small text-muted fw-bold">作者/捐贈者</label><input type="text" class="form-control form-control-sm border-info" id="cf_author"></div>
-                 <div class="col-2"><label class="small text-muted fw-bold">數量</label><input type="number" class="form-control form-control-sm" id="cf_qty" value="1"></div>
-                 <div class="col-12"><label class="small text-muted fw-bold">備註</label><textarea class="form-control form-control-sm border-info" id="cf_note" rows="2"></textarea></div>
+             <!-- 案名手動輸入 -->
+             <div class="mb-3 border-bottom pb-3">
+                 <label class="form-label fw-bold text-dark">案名</label>
+                 <input type="text" class="form-control border-primary" id="cf_projectName" placeholder="請輸入案名...">
              </div>
 
-             <h6 class="fw-bold text-dark border-bottom pb-2 mt-4">二、狀況描述、位置圖示及保存建議</h6>
+             <h6 class="fw-bold text-dark border-bottom pb-2 mt-3 bg-light p-2 rounded">一、藏品基本資料</h6>
              <div class="row g-2 mb-3">
-                 <div class="col-6"><label class="small text-muted fw-bold">檢視日期</label><input type="date" class="form-control form-control-sm" id="cf_date"></div>
-                 <div class="col-6"><label class="small text-muted fw-bold">檢視者</label><input type="text" class="form-control form-control-sm" id="cf_viewer"></div>
-                 <div class="col-12"><label class="small text-muted fw-bold">整體狀況評估</label>
-                     <select class="form-select form-select-sm" id="cf_overall">
-                        <option value="良好">良好</option><option value="尚可">尚可</option><option value="差">差</option><option value="極差">極差</option>
-                     </select>
+                 <div class="col-12 col-md-6"><label class="small text-muted fw-bold">藏品新編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_newId" readonly></div>
+                 <div class="col-12 col-md-6"><label class="small text-muted fw-bold">藏品舊編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_oldId" placeholder="手動輸入"></div>
+                 <div class="col-12"><label class="small text-muted fw-bold">藏品名稱</label><input type="text" class="form-control form-control-sm border-info" id="cf_name"></div>
+                 <div class="col-12 col-md-6"><label class="small text-muted fw-bold">藏品儲位</label><input type="text" class="form-control form-control-sm border-info" id="cf_loc"></div>
+                 <div class="col-12 col-md-6"><label class="small text-muted fw-bold">財產編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_propNum"></div>
+                 <div class="col-12"><label class="small text-muted fw-bold">作者/捐贈者</label><input type="text" class="form-control form-control-sm border-info" id="cf_author"></div>
+                 
+                 <div class="col-8 col-md-5"><label class="small text-muted fw-bold">型制/材質</label><input type="text" class="form-control form-control-sm border-info" id="cf_material"></div>
+                 <div class="col-4 col-md-2"><label class="small text-muted fw-bold">數量</label><input type="number" class="form-control form-control-sm border-info" id="cf_qty" value="1"></div>
+                 <div class="col-12 col-md-5"><label class="small text-muted fw-bold">尺寸</label><input type="text" class="form-control form-control-sm border-info" id="cf_size"></div>
+                 <div class="col-12"><label class="small text-muted fw-bold">備註</label><textarea class="form-control form-control-sm border-info" id="cf_note" rows="2"></textarea></div>
+                 
+                 <!-- 藏品全景圖片 (單張、無說明) -->
+                 <div class="col-12 mt-2">
+                     <label class="small text-muted fw-bold">藏品圖片 (全景照，單張)</label>
+                     <div class="d-flex align-items-center gap-2">
+                         <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('cf_mainPhotoInput').click()"><i class="fas fa-camera"></i> 上傳圖片</button>
+                         <button class="btn btn-sm btn-outline-danger" id="cf_mainPhotoRemove" style="display:none;" onclick="removeMainPhoto()">移除</button>
+                     </div>
+                     <input type="file" id="cf_mainPhotoInput" accept="image/*" style="display:none;" onchange="handleMainPhotoSelect(event)">
+                     <div id="cf_mainPhotoContainer" class="mt-2"></div>
                  </div>
-                 <div class="col-12"><label class="small text-muted fw-bold">劣化細節描述與保存建議</label><textarea class="form-control form-control-sm" id="cf_conditionDesc" rows="4"></textarea></div>
              </div>
+
+             <h6 class="fw-bold text-dark border-bottom pb-2 mt-4 bg-light p-2 rounded">二、狀況描述、位置圖示及保存建議</h6>
              
-             <!-- 狀況照片上傳區塊 -->
-             <div class="mb-3 p-2 bg-light rounded border">
-                 <label class="small text-muted fw-bold mb-2">📸 狀況照片 (最多 3 張，上傳自動壓縮)</label>
-                 <div id="cf_photoContainer" class="d-flex flex-wrap gap-2 mb-2"></div>
-                 <button class="btn btn-sm btn-outline-primary fw-bold w-100" onclick="document.getElementById('cf_photoInput').click()">+ 選擇照片與註記</button>
-                 <input type="file" id="cf_photoInput" accept="image/*" style="display:none;" onchange="handleCondPhotoSelect(event)">
+             <!-- 複雜勾選區塊 -->
+             <div class="row g-3 mb-3">
+                 <!-- 外觀 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">外觀</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_1" value="灰塵"><label class="form-check-label" for="c_app_1">灰塵</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_2" value="異物"><label class="form-check-label" for="c_app_2">異物</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_3" value="氧化"><label class="form-check-label" for="c_app_3">氧化</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_4" value="黃化"><label class="form-check-label" for="c_app_4">黃化</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_5" value="漬痕"><label class="form-check-label" for="c_app_5">漬痕</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_6" value="膠帶"><label class="form-check-label" for="c_app_6">膠帶</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_7" value="標籤"><label class="form-check-label" for="c_app_7">標籤</label></div>
+                         <div class="form-check"><input class="form-check-input chk-appearance" type="checkbox" id="c_app_8" value="前人修補"><label class="form-check-label" for="c_app_8">前人修補</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-appearance me-1" type="checkbox" id="c_app_other_chk" value="其他" onchange="toggleOtherInput('c_app_other_chk', 'c_app_other_txt')">
+                             <label class="form-check-label me-2" for="c_app_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_app_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+                 
+                 <!-- 結構 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">結構</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_1" value="變形"><label class="form-check-label" for="c_str_1">變形</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_2" value="脆化"><label class="form-check-label" for="c_str_2">脆化</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_3" value="鬆脫"><label class="form-check-label" for="c_str_3">鬆脫</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_4" value="缺失"><label class="form-check-label" for="c_str_4">缺失</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_5" value="刮痕"><label class="form-check-label" for="c_str_5">刮痕</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_6" value="摺痕"><label class="form-check-label" for="c_str_6">摺痕</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_7" value="裂痕"><label class="form-check-label" for="c_str_7">裂痕</label></div>
+                         <div class="form-check"><input class="form-check-input chk-structure" type="checkbox" id="c_str_8" value="斷裂"><label class="form-check-label" for="c_str_8">斷裂</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-structure me-1" type="checkbox" id="c_str_other_chk" value="其他" onchange="toggleOtherInput('c_str_other_chk', 'c_str_other_txt')">
+                             <label class="form-check-label me-2" for="c_str_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_str_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 媒材 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">媒材</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_1" value="變色"><label class="form-check-label" for="c_med_1">變色</label></div>
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_2" value="褪色"><label class="form-check-label" for="c_med_2">褪色</label></div>
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_3" value="掉色"><label class="form-check-label" for="c_med_3">掉色</label></div>
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_4" value="剝落"><label class="form-check-label" for="c_med_4">剝落</label></div>
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_5" value="移染"><label class="form-check-label" for="c_med_5">移染</label></div>
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_6" value="霧化"><label class="form-check-label" for="c_med_6">霧化</label></div>
+                         <div class="form-check"><input class="form-check-input chk-medium" type="checkbox" id="c_med_7" value="硬化"><label class="form-check-label" for="c_med_7">硬化</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-medium me-1" type="checkbox" id="c_med_other_chk" value="其他" onchange="toggleOtherInput('c_med_other_chk', 'c_med_other_txt')">
+                             <label class="form-check-label me-2" for="c_med_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_med_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 生物性 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">生物性</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-bio" type="checkbox" id="c_bio_1" value="發霉"><label class="form-check-label" for="c_bio_1">發霉</label></div>
+                         <div class="form-check"><input class="form-check-input chk-bio" type="checkbox" id="c_bio_2" value="褐斑"><label class="form-check-label" for="c_bio_2">褐斑</label></div>
+                         <div class="form-check"><input class="form-check-input chk-bio" type="checkbox" id="c_bio_3" value="蛀孔"><label class="form-check-label" for="c_bio_3">蛀孔</label></div>
+                         <div class="form-check"><input class="form-check-input chk-bio" type="checkbox" id="c_bio_4" value="嚙咬"><label class="form-check-label" for="c_bio_4">嚙咬</label></div>
+                         <div class="form-check"><input class="form-check-input chk-bio" type="checkbox" id="c_bio_5" value="排遺"><label class="form-check-label" for="c_bio_5">排遺</label></div>
+                         <div class="form-check"><input class="form-check-input chk-bio" type="checkbox" id="c_bio_6" value="卵鞘"><label class="form-check-label" for="c_bio_6">卵鞘</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-bio me-1" type="checkbox" id="c_bio_other_chk" value="其他" onchange="toggleOtherInput('c_bio_other_chk', 'c_bio_other_txt')">
+                             <label class="form-check-label me-2" for="c_bio_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_bio_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 其他 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">其他狀況描述</label>
+                     <textarea class="form-control form-control-sm" id="cf_otherCond" rows="2" placeholder="綜合描述..."></textarea>
+                 </div>
+
+                 <!-- 狀況圖示上傳區塊 (無上限，需描述，左右並排) -->
+                 <div class="col-12 mt-3">
+                     <div class="p-3 border border-secondary rounded bg-light">
+                         <div class="d-flex justify-content-between align-items-center mb-2">
+                             <label class="fw-bold text-dark mb-0">📸 狀況圖示 (可多張)</label>
+                             <button class="btn btn-sm btn-secondary fw-bold" onclick="document.getElementById('cf_photoInput').click()">+ 新增狀況圖示與描述</button>
+                         </div>
+                         <input type="file" id="cf_photoInput" accept="image/*" style="display:none;" onchange="handleCondPhotoSelect(event)">
+                         <!-- 預覽容器改為更適合左右圖文並排的樣式 -->
+                         <div id="cf_photoContainer" class="d-flex flex-column gap-2 mt-2"></div>
+                     </div>
+                 </div>
+
+                 <!-- 分級 (單選) -->
+                 <div class="col-12 mt-3">
+                     <label class="small text-muted fw-bold d-block mb-1">分級</label>
+                     <div class="d-flex flex-wrap gap-3 align-items-center">
+                         <div class="form-check"><input class="form-check-input" type="radio" name="c_rating" id="c_rate_1" value="1良好(無修護需求)"><label class="form-check-label" for="c_rate_1">1良好(無修護需求)</label></div>
+                         <div class="form-check"><input class="form-check-input" type="radio" name="c_rating" id="c_rate_2" value="2尚可(需維護處理)"><label class="form-check-label" for="c_rate_2">2尚可(需維護處理)</label></div>
+                         <div class="form-check"><input class="form-check-input" type="radio" name="c_rating" id="c_rate_3" value="3不佳(需修護處理)"><label class="form-check-label" for="c_rate_3">3不佳(需修護處理)</label></div>
+                         <div class="form-check"><input class="form-check-input" type="radio" name="c_rating" id="c_rate_4" value="4緊急(需優先處理)"><label class="form-check-label" for="c_rate_4">4緊急(需優先處理)</label></div>
+                     </div>
+                 </div>
+
+                 <!-- 保存建議 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">保存建議</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_1" value="修護處理"><label class="form-check-label" for="c_pre_1">修護處理</label></div>
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_2" value="現況保存"><label class="form-check-label" for="c_pre_2">現況保存</label></div>
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_3" value="維護包裝"><label class="form-check-label" for="c_pre_3">維護包裝</label></div>
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_4" value="溫濕度控制"><label class="form-check-label" for="c_pre_4">溫濕度控制</label></div>
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_5" value="光照控制"><label class="form-check-label" for="c_pre_5">光照控制</label></div>
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_6" value="隔離存放"><label class="form-check-label" for="c_pre_6">隔離存放</label></div>
+                         <div class="form-check"><input class="form-check-input chk-preserv" type="checkbox" id="c_pre_7" value="非文保人員檢視(不予建議)"><label class="form-check-label" for="c_pre_7">非文保人員檢視(不予建議)</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-preserv me-1" type="checkbox" id="c_pre_other_chk" value="其他" onchange="toggleOtherInput('c_pre_other_chk', 'c_pre_other_txt')">
+                             <label class="form-check-label me-2" for="c_pre_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_pre_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 修護建議 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">修護建議</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-treat" type="checkbox" id="c_tre_1" value="除膠帶或標籤"><label class="form-check-label" for="c_tre_1">除膠帶或標籤</label></div>
+                         <div class="form-check"><input class="form-check-input chk-treat" type="checkbox" id="c_tre_2" value="外觀修護"><label class="form-check-label" for="c_tre_2">外觀修護</label></div>
+                         <div class="form-check"><input class="form-check-input chk-treat" type="checkbox" id="c_tre_3" value="結構修護"><label class="form-check-label" for="c_tre_3">結構修護</label></div>
+                         <div class="form-check"><input class="form-check-input chk-treat" type="checkbox" id="c_tre_4" value="媒材修護"><label class="form-check-label" for="c_tre_4">媒材修護</label></div>
+                         <div class="form-check"><input class="form-check-input chk-treat" type="checkbox" id="c_tre_5" value="生物性修護"><label class="form-check-label" for="c_tre_5">生物性修護</label></div>
+                         <div class="form-check"><input class="form-check-input chk-treat" type="checkbox" id="c_tre_6" value="非文保人員檢視(不予建議)"><label class="form-check-label" for="c_tre_6">非文保人員檢視(不予建議)</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-treat me-1" type="checkbox" id="c_tre_other_chk" value="其他" onchange="toggleOtherInput('c_tre_other_chk', 'c_tre_other_txt')">
+                             <label class="form-check-label me-2" for="c_tre_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_tre_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 借展建議 -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">借展建議</label>
+                     <div class="d-flex flex-wrap gap-2 align-items-center">
+                         <div class="form-check"><input class="form-check-input chk-loan" type="checkbox" id="c_loan_1" value="尚可借出展示"><label class="form-check-label" for="c_loan_1">尚可借出展示</label></div>
+                         <div class="form-check"><input class="form-check-input chk-loan" type="checkbox" id="c_loan_2" value="不建議借出展示"><label class="form-check-label" for="c_loan_2">不建議借出展示</label></div>
+                         <div class="form-check"><input class="form-check-input chk-loan" type="checkbox" id="c_loan_3" value="館方人員檢視(不予建議)"><label class="form-check-label" for="c_loan_3">館方人員檢視(不予建議)</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-loan me-1" type="checkbox" id="c_loan_other_chk" value="其他" onchange="toggleOtherInput('c_loan_other_chk', 'c_loan_other_txt')">
+                             <label class="form-check-label me-2" for="c_loan_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_loan_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 第一區的檢視目的 (維護/提借/返還/其他) -->
+                 <div class="col-12">
+                     <label class="small text-muted fw-bold d-block mb-1">檢視目的</label>
+                     <div class="d-flex flex-wrap gap-3 align-items-center">
+                         <div class="form-check d-flex align-items-center bg-light px-3 py-1 rounded border border-info">
+                             <input class="form-check-input chk-purp me-1" type="checkbox" id="c_purp_1" value="維護" onchange="toggleMaintOpt()">
+                             <label class="form-check-label fw-bold me-2" for="c_purp_1">維護 (前/後)</label>
+                             <div id="c_purp_maint_opt_area" style="display:none;" class="ms-2 border-start ps-2 border-2 border-info">
+                                 <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="radio" name="maint_state" id="c_purp_maint_bf" value="修護前"><label class="form-check-label small" for="c_purp_maint_bf">前</label></div>
+                                 <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="radio" name="maint_state" id="c_purp_maint_af" value="修護後"><label class="form-check-label small" for="c_purp_maint_af">後</label></div>
+                             </div>
+                         </div>
+                         <div class="form-check"><input class="form-check-input chk-purp" type="checkbox" id="c_purp_2" value="提借"><label class="form-check-label" for="c_purp_2">提借</label></div>
+                         <div class="form-check"><input class="form-check-input chk-purp" type="checkbox" id="c_purp_3" value="返還"><label class="form-check-label" for="c_purp_3">返還</label></div>
+                         <div class="form-check d-flex align-items-center">
+                             <input class="form-check-input chk-purp me-1" type="checkbox" id="c_purp_other_chk" value="其他" onchange="toggleOtherInput('c_purp_other_chk', 'c_purp_other_txt')">
+                             <label class="form-check-label me-2" for="c_purp_other_chk">其他:</label>
+                             <input type="text" class="form-control form-control-sm" id="c_purp_other_txt" style="width: 150px; display:none;" placeholder="請輸入...">
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- 檢視紀錄 (日期/單位/人員) -->
+                 <div class="col-12 mt-3 pt-3 border-top">
+                     <label class="small text-muted fw-bold d-block mb-2">檢視紀錄</label>
+                     <div class="row g-2">
+                         <div class="col-4"><input type="date" class="form-control form-control-sm border-secondary" id="cf_date"></div>
+                         <div class="col-4"><input type="text" class="form-control form-control-sm border-secondary" id="cf_unit" placeholder="單位 (例: 研典組)"></div>
+                         <div class="col-4"><input type="text" class="form-control form-control-sm border-secondary" id="cf_viewer" placeholder="人員"></div>
+                     </div>
+                 </div>
              </div>
 
              <!-- 提借紀錄 (僅情境 2 顯示) -->
              <div id="condTransferSection" style="display:none;">
-                 <h6 class="fw-bold text-dark border-bottom pb-2 mt-4">三、提借∕還藏紀錄</h6>
+                 <h6 class="fw-bold text-dark border-bottom pb-2 mt-4 bg-light p-2 rounded">三、提借∕還藏紀錄</h6>
                  <div class="row g-2 mb-3">
-                     <div class="col-12"><label class="small text-muted fw-bold">提借目的</label><input type="text" class="form-control form-control-sm" id="cf_tf_purpose"></div>
-                     <div class="col-12"><label class="small text-muted fw-bold">提借日期</label><input type="date" class="form-control form-control-sm" id="cf_tf_outDate"></div>
-                     <div class="col-6"><label class="small text-muted fw-bold">點交人 (出)</label><input type="text" class="form-control form-control-sm" id="cf_tf_outGiver"></div>
-                     <div class="col-6"><label class="small text-muted fw-bold">收交人 (出)</label><input type="text" class="form-control form-control-sm" id="cf_tf_outTaker"></div>
+                     <div class="col-12 mb-2">
+                         <label class="small text-muted fw-bold d-block mb-1">檢視目的 (本區)</label>
+                         <div class="d-flex gap-3">
+                             <div class="form-check"><input class="form-check-input chk-tf-purp" type="checkbox" id="c_tf_purp_1" value="提借"><label class="form-check-label" for="c_tf_purp_1">提借</label></div>
+                             <div class="form-check"><input class="form-check-input chk-tf-purp" type="checkbox" id="c_tf_purp_2" value="返還"><label class="form-check-label" for="c_tf_purp_2">返還</label></div>
+                         </div>
+                     </div>
+                     <div class="col-12"><label class="small text-muted fw-bold">日期</label><input type="date" class="form-control form-control-sm border-secondary" id="cf_tf_date"></div>
                      
-                     <div class="col-12 mt-2"><label class="small text-muted fw-bold">還藏日期</label><input type="date" class="form-control form-control-sm" id="cf_tf_inDate"></div>
-                     <div class="col-6"><label class="small text-muted fw-bold">點交人 (入)</label><input type="text" class="form-control form-control-sm" id="cf_tf_inGiver"></div>
-                     <div class="col-6"><label class="small text-muted fw-bold">收交人 (入)</label><input type="text" class="form-control form-control-sm" id="cf_tf_inTaker"></div>
-                     <div class="col-12"><label class="small text-muted fw-bold">提借備註</label><input type="text" class="form-control form-control-sm" id="cf_tf_note"></div>
+                     <div class="col-12 mt-2">
+                         <label class="small text-muted fw-bold d-block mb-1">附件</label>
+                         <div class="form-check"><input class="form-check-input chk-tf-attach" type="checkbox" id="c_tf_att_1" value="提借清單或相關公文"><label class="form-check-label" for="c_tf_att_1">提借清單或相關公文</label></div>
+                     </div>
+                     
+                     <div class="col-12 mt-2"><label class="small text-muted fw-bold">特別聲明</label><textarea class="form-control form-control-sm" id="cf_tf_special" rows="2"></textarea></div>
+                     <div class="col-12 mt-2"><label class="small text-muted fw-bold">備註</label><textarea class="form-control form-control-sm" id="cf_tf_note" rows="2"></textarea></div>
+                     
+                     <!-- 實體列印的簽名欄位在此處不需要對應輸入框，因為是印出來才蓋章 -->
+                     <div class="col-12 mt-2"><small class="text-info"><i class="fas fa-info-circle"></i> 提示：提借還藏單位與典藏單位的簽章欄位，將於預覽列印時自動生成空白格供實體用印。</small></div>
                  </div>
              </div>
 
@@ -585,7 +791,7 @@
              <p class="text-muted small">上傳廠商提供的 PDF、Word 或壓縮圖片檔案。系統將安全存入 Drive 並建立雲端連結。</p>
              <div class="mb-3">
                  <label class="form-label fw-bold">選擇檔案 (單檔)</label>
-                 <input class="form-control" type="file" id="vendorReportInput" onchange="handleVendorFileSelect(event)">
+                 <input class="form-control border-danger" type="file" id="vendorReportInput" onchange="handleVendorFileSelect(event)">
                  <small class="text-muted mt-1 d-block" id="vendorFileInfo"></small>
              </div>
              <button class="btn btn-danger w-100 fw-bold py-3 fs-5 shadow-sm" id="btnSubmitVendor" onclick="submitVendorReport()">☁️ 上傳並建立紀錄</button>
@@ -827,7 +1033,7 @@
       <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0 shadow-lg">
               <div class="modal-header bg-dark text-white">
-                  <h5 class="modal-title fw-bold">✏️ 照片預覽與註記</h5>
+                  <h5 class="modal-title fw-bold">✏️ 狀況圖示照片預覽與註記</h5>
                   <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cancelPhotoAnnotation()"></button>
               </div>
               <div class="modal-body p-3 text-center">
