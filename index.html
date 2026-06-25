@@ -57,6 +57,16 @@
     </div>
     <div id="printReportContent"></div>
   </div>
+  
+  <!-- 狀況報告專屬的列印預覽視窗 -->
+  <div id="printCondOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#e9ecef; z-index:10500; flex-direction:column; overflow:hidden;">
+      <div style="padding: max(15px, env(safe-area-inset-top)) 15px 15px 15px; background: #fff; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+          <button class="btn btn-outline-secondary fw-bold" onclick="closePrintCondOverlay()">🔙 返回</button>
+          <h6 class="mb-0 fw-bold text-dark">列印狀況報告表</h6>
+          <button class="btn btn-success fw-bold px-4" onclick="window.print()">🖨️ 列印報告</button>
+      </div>
+      <div id="printCondContent" style="flex-grow: 1; overflow-y: auto; padding: 20px;"></div>
+  </div>
 
   <div id="authScreen">
     <div class="vault-card p-4 rounded-4 shadow-lg text-center" style="max-width: 400px; width: 100%;">
@@ -97,12 +107,12 @@
   </div>
 
   <div id="homeMenu">
-    <div id="profileBanner" class="bg-white rounded-3 shadow p-3 mb-4 mx-auto d-flex justify-content-between align-items-center border-start border-4 border-primary">
+    <div id="profileBanner" class="bg-white rounded-3 shadow p-3 mb-4 mx-auto d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 border-start border-4 border-primary" style="max-width: 800px;">
       <div>
         <h5 class="fw-bold mb-1 text-dark" id="welcomeName">👋 歡迎歸隊，管理員！</h5>
         <small class="text-muted" id="tokenCountdown">🔐 授權憑證有效期限剩餘：-- 天</small>
       </div>
-      <button class="btn btn-sm btn-outline-danger px-3 fw-bold" onclick="logoutSystem()">登出</button>
+      <button class="btn btn-sm btn-outline-danger px-4 py-2 fw-bold align-self-stretch align-self-sm-auto" onclick="logoutSystem()">登出</button>
     </div>
 
     <h5 class="fw-bold mb-3 text-dark text-center">請選擇系統模組</h5>
@@ -137,6 +147,12 @@
         <h5 class="fw-bold text-primary mb-1">文物異動搬運</h5>
         <p class="text-muted small mb-0">專案管理、地點轉換與裝箱</p>
       </div>
+      <!-- 狀況報告模組入口 -->
+      <div class="home-card c-cond border-bottom border-4 border-secondary" onclick="enterSystem('cond')">
+        <div class="home-icon">📋</div>
+        <h5 class="fw-bold text-secondary mb-1">狀況報告管理</h5>
+        <p class="text-muted small mb-0">檢視、建檔、上傳廠商紀錄</p>
+      </div>
       <div class="home-card c-mgr" onclick="enterSystem('mgr')">
         <div class="home-icon">⚙️</div>
         <h5 class="fw-bold text-danger mb-1">管理員後台</h5>
@@ -165,6 +181,7 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#register">建檔</button></li>
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#inv">盤點</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#move">異動</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cond">報告</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mgr">管理</button></li>
       </ul>
 
@@ -191,7 +208,11 @@
                   <div class="row g-2 mb-2"><div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div><div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div></div>
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
-                <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mt-4" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢下一件</button>
+                <!-- 查詢結果中加入跳轉至狀況報告的按鈕 -->
+                <div class="d-flex gap-2 mt-4">
+                    <button class="btn btn-outline-primary w-100 fw-bold py-3 fs-5 shadow-sm" onclick="jumpToConditionReport()">📝 狀況報告</button>
+                    <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢</button>
+                </div>
               </div>
             </div>
             <button class="btn btn-dark w-100 fw-bold py-3 fs-5 shadow-sm" onclick="startQueryScanner()" id="btnStartQueryCam">📷 啟動掃描器</button>
@@ -459,6 +480,118 @@
           </div>
         </div>
 
+        <!-- 🔥 新增：狀況報告管理模組 -->
+        <div class="tab-pane fade" id="cond">
+          <!-- 狀況報告總覽介面 -->
+          <div id="condDashboard" class="step-card active">
+             <div class="d-flex justify-content-between align-items-center mb-3">
+                 <h5 class="mb-0 fw-bold text-secondary">📋 狀況報告總覽</h5>
+                 <button class="btn btn-sm btn-outline-secondary" onclick="loadConditionReports()">🔄 刷新</button>
+             </div>
+             <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mb-3" onclick="openCondSearchModal()">➕ 新增狀況報告</button>
+             <div id="condReportListContainer" class="d-flex flex-column gap-2">
+                 <div class="text-center text-muted py-4 small">載入中...</div>
+             </div>
+          </div>
+
+          <!-- 情境選擇介面 -->
+          <div id="condScenarioSelect" class="step-card fade-in-section" style="display:none;">
+             <button class="btn btn-sm btn-outline-secondary mb-3 fw-bold" onclick="backToCondDashboard()">🔙 返回總覽</button>
+             <h5 class="fw-bold text-dark mb-2">請選擇報告情境</h5>
+             <p class="text-muted small mb-4">目標藏品：<span id="condTargetItemLabel" class="fw-bold text-primary"></span></p>
+             <div class="d-grid gap-3">
+                 <button class="btn btn-outline-primary btn-lg fw-bold py-3 text-start px-3" onclick="startCondReport(1)">
+                    <div class="fs-5">1. 例行盤點檢視</div><small class="text-muted">僅基礎資料與狀況描述</small>
+                 </button>
+                 <button class="btn btn-outline-warning text-dark btn-lg fw-bold py-3 text-start px-3" onclick="startCondReport(2)">
+                    <div class="fs-5">2. 提借/修復檢視</div><small class="text-muted">含提借還藏與點交紀錄</small>
+                 </button>
+                 <button class="btn btn-outline-danger btn-lg fw-bold py-3 text-start px-3" onclick="startCondReport(3)">
+                    <div class="fs-5">3. 外部廠商報告</div><small class="text-muted">上傳 PDF 或圖片檔案</small>
+                 </button>
+             </div>
+          </div>
+
+          <!-- 表單填寫介面 (情境 1 & 2) -->
+          <div id="condFormArea" class="step-card fade-in-section" style="display:none;">
+             <div class="d-flex justify-content-between align-items-center mb-3">
+                 <h5 class="mb-0 fw-bold text-primary" id="condFormTitle">📝 填寫報告</h5>
+                 <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="backToCondDashboard()">🔙 放棄</button>
+             </div>
+             <input type="hidden" id="condTargetId">
+
+             <h6 class="fw-bold text-dark border-bottom pb-2 mt-3">一、藏品基本資料</h6>
+             <div class="row g-2 mb-3">
+                 <div class="col-6"><label class="small text-muted fw-bold">藏品新編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_newId" readonly></div>
+                 <div class="col-6"><label class="small text-muted fw-bold">藏品舊編號</label><input type="text" class="form-control form-control-sm" id="cf_oldId"></div>
+                 <div class="col-12"><label class="small text-muted fw-bold">藏品名稱</label><input type="text" class="form-control form-control-sm border-info" id="cf_name"></div>
+                 <div class="col-6"><label class="small text-muted fw-bold">財產編號</label><input type="text" class="form-control form-control-sm border-info" id="cf_propNum"></div>
+                 <div class="col-6"><label class="small text-muted fw-bold">藏品儲位</label><input type="text" class="form-control form-control-sm border-info" id="cf_loc"></div>
+                 <div class="col-6"><label class="small text-muted fw-bold">型制/材質</label><input type="text" class="form-control form-control-sm border-info" id="cf_material"></div>
+                 <div class="col-6"><label class="small text-muted fw-bold">尺寸</label><input type="text" class="form-control form-control-sm border-info" id="cf_size"></div>
+                 <div class="col-10"><label class="small text-muted fw-bold">作者/捐贈者</label><input type="text" class="form-control form-control-sm border-info" id="cf_author"></div>
+                 <div class="col-2"><label class="small text-muted fw-bold">數量</label><input type="number" class="form-control form-control-sm" id="cf_qty" value="1"></div>
+                 <div class="col-12"><label class="small text-muted fw-bold">備註</label><textarea class="form-control form-control-sm border-info" id="cf_note" rows="2"></textarea></div>
+             </div>
+
+             <h6 class="fw-bold text-dark border-bottom pb-2 mt-4">二、狀況描述、位置圖示及保存建議</h6>
+             <div class="row g-2 mb-3">
+                 <div class="col-6"><label class="small text-muted fw-bold">檢視日期</label><input type="date" class="form-control form-control-sm" id="cf_date"></div>
+                 <div class="col-6"><label class="small text-muted fw-bold">檢視者</label><input type="text" class="form-control form-control-sm" id="cf_viewer"></div>
+                 <div class="col-12"><label class="small text-muted fw-bold">整體狀況評估</label>
+                     <select class="form-select form-select-sm" id="cf_overall">
+                        <option value="良好">良好</option><option value="尚可">尚可</option><option value="差">差</option><option value="極差">極差</option>
+                     </select>
+                 </div>
+                 <div class="col-12"><label class="small text-muted fw-bold">劣化細節描述與保存建議</label><textarea class="form-control form-control-sm" id="cf_conditionDesc" rows="4"></textarea></div>
+             </div>
+             
+             <!-- 狀況照片上傳區塊 -->
+             <div class="mb-3 p-2 bg-light rounded border">
+                 <label class="small text-muted fw-bold mb-2">📸 狀況照片 (最多 3 張，上傳自動壓縮)</label>
+                 <div id="cf_photoContainer" class="d-flex flex-wrap gap-2 mb-2"></div>
+                 <button class="btn btn-sm btn-outline-primary fw-bold w-100" onclick="document.getElementById('cf_photoInput').click()">+ 選擇照片與註記</button>
+                 <input type="file" id="cf_photoInput" accept="image/*" style="display:none;" onchange="handleCondPhotoSelect(event)">
+             </div>
+
+             <!-- 提借紀錄 (僅情境 2 顯示) -->
+             <div id="condTransferSection" style="display:none;">
+                 <h6 class="fw-bold text-dark border-bottom pb-2 mt-4">三、提借∕還藏紀錄</h6>
+                 <div class="row g-2 mb-3">
+                     <div class="col-12"><label class="small text-muted fw-bold">提借目的</label><input type="text" class="form-control form-control-sm" id="cf_tf_purpose"></div>
+                     <div class="col-12"><label class="small text-muted fw-bold">提借日期</label><input type="date" class="form-control form-control-sm" id="cf_tf_outDate"></div>
+                     <div class="col-6"><label class="small text-muted fw-bold">點交人 (出)</label><input type="text" class="form-control form-control-sm" id="cf_tf_outGiver"></div>
+                     <div class="col-6"><label class="small text-muted fw-bold">收交人 (出)</label><input type="text" class="form-control form-control-sm" id="cf_tf_outTaker"></div>
+                     
+                     <div class="col-12 mt-2"><label class="small text-muted fw-bold">還藏日期</label><input type="date" class="form-control form-control-sm" id="cf_tf_inDate"></div>
+                     <div class="col-6"><label class="small text-muted fw-bold">點交人 (入)</label><input type="text" class="form-control form-control-sm" id="cf_tf_inGiver"></div>
+                     <div class="col-6"><label class="small text-muted fw-bold">收交人 (入)</label><input type="text" class="form-control form-control-sm" id="cf_tf_inTaker"></div>
+                     <div class="col-12"><label class="small text-muted fw-bold">提借備註</label><input type="text" class="form-control form-control-sm" id="cf_tf_note"></div>
+                 </div>
+             </div>
+
+             <div class="d-flex gap-2 mt-4">
+                 <button class="btn btn-success fw-bold py-3 flex-grow-1 shadow-sm" onclick="submitConditionReport()">💾 儲存並提交報告</button>
+                 <button class="btn btn-dark fw-bold py-3 px-4 shadow-sm" id="btnCondPrint" style="display:none;" onclick="printConditionReport()">🖨️ 預覽列印</button>
+             </div>
+          </div>
+
+          <!-- 廠商報告上傳介面 (情境 3) -->
+          <div id="condVendorUploadArea" class="step-card fade-in-section" style="display:none;">
+             <div class="d-flex justify-content-between align-items-center mb-3">
+                 <h5 class="mb-0 fw-bold text-danger">📥 上傳廠商報告</h5>
+                 <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="backToCondDashboard()">🔙 放棄</button>
+             </div>
+             <p class="text-muted small">上傳廠商提供的 PDF、Word 或壓縮圖片檔案。系統將安全存入 Drive 並建立雲端連結。</p>
+             <div class="mb-3">
+                 <label class="form-label fw-bold">選擇檔案 (單檔)</label>
+                 <input class="form-control" type="file" id="vendorReportInput" onchange="handleVendorFileSelect(event)">
+                 <small class="text-muted mt-1 d-block" id="vendorFileInfo"></small>
+             </div>
+             <button class="btn btn-danger w-100 fw-bold py-3 fs-5 shadow-sm" id="btnSubmitVendor" onclick="submitVendorReport()">☁️ 上傳並建立紀錄</button>
+          </div>
+        </div>
+
         <div class="tab-pane fade" id="mgr">
           <div id="mgrDashboard" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -668,192 +801,42 @@
     </div>
   </div>
 
-  <div class="modal fade" id="projectDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-      <div class="modal-content border-0 shadow-lg">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold text-info" style="color: #0dcaf0 !important;" id="pdModalTitle">專案明細</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-3">
-          <div class="row mb-3 bg-light rounded p-2 mx-0 border">
-              <div class="col-sm-6 mb-2 mb-sm-0"><small class="text-muted d-block">專案代號</small><div class="fw-bold" id="pdId" style="word-break: break-all;"></div></div>
-              <div class="col-sm-6"><small class="text-muted d-block">目前狀態</small><div class="fw-bold" id="pdStatus"></div></div>
-          </div>
-          <div class="mb-3 px-2"><small class="text-muted d-block">專案說明</small><div class="fw-bold text-secondary" id="pdDesc"></div></div>
-          
-          <div class="row g-2 mb-2 px-2 fade-in-section">
-            <div class="col-12 col-md-6"><input type="search" id="pdSearchKw" class="form-control form-control-sm border-info" placeholder="🔍 模糊搜尋編號/名稱/臨時編碼..." onkeyup="renderPdTable()" onsearch="renderPdTable()"></div>
-            <div class="col-12 col-md-6"><select id="pdPrefixFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">🏷️ 所有前綴</option></select></div>
-            <div class="col-12 col-md-6"><select id="pdOldLocFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">📍 所有原地點</option></select></div>
-            <div class="col-12 col-md-6"><select id="pdNewLocFilter" class="form-select form-select-sm border-info" onchange="renderPdTable()"><option value="">📍 所有新地點</option></select></div>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border">
-              <span class="fw-bold text-dark">顯示項目：<span id="pdCount" class="text-danger fs-5">0</span> 件</span>
-          </div>
-          <div class="table-responsive border rounded" style="max-height: 350px; overflow-y: auto;">
-              <table class="table table-bordered table-sm table-striped text-center align-middle mb-0" style="font-size: 0.9rem;">
-                  <thead class="table-light sticky-top">
-                      <tr>
-                          <th width="25%">編號 / 臨時碼</th>
-                          <th width="30%">名稱</th>
-                          <th width="20%">原地點</th>
-                          <th width="25%">新地點</th>
-                      </tr>
-                  </thead>
-                  <tbody id="pdTableBody"></tbody>
-              </table>
-          </div>
-        </div>
-        <div class="modal-footer bg-light p-2 d-flex justify-content-end">
-           <button class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">關閉</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="cartModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-      <div class="modal-content border-0 shadow-lg">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold text-primary">🛒 檢視與精修已選清單</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-3">
-          <div class="alert alert-info small py-2 mb-3">
-              在此可總覽您已加入專案的文物。您可以透過搜尋或前綴過濾，並進行多選批次修改或移除。
-          </div>
-          
-          <div class="row g-2 mb-2">
-            <div class="col-7">
-                <input type="search" id="cartSearchKw" class="form-control form-control-sm border-primary" placeholder="🔍 搜尋編號/名稱/臨時編碼..." onkeyup="filterCartList()" onsearch="filterCartList()">
-            </div>
-            <div class="col-5">
-                <select id="cartPrefixFilter" class="form-select form-select-sm border-primary" onchange="filterCartList()">
-                    <option value="">所有前綴</option>
-                </select>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border">
-              <div>
-                  <button class="btn btn-sm btn-outline-secondary" onclick="toggleCartAll(true)">全選</button>
-                  <button class="btn btn-sm btn-outline-secondary" onclick="toggleCartAll(false)">清除</button>
-              </div>
-              <div>
-                  <button class="btn btn-sm btn-outline-info fw-bold me-1 text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#cartBatchEditArea" aria-expanded="false"><i class="fas fa-tags"></i> 批次改編碼</button>
-                  <button class="btn btn-sm btn-outline-danger fw-bold" onclick="batchRemoveCartItems()"><i class="fas fa-trash"></i> 移除勾選</button>
-              </div>
-          </div>
-
-          <div class="collapse mb-2" id="cartBatchEditArea">
-              <div class="card card-body bg-white border-info shadow-sm">
-                  <h6 class="fw-bold text-info mb-2 small"><i class="fas fa-edit"></i> 重新配發臨時編碼至勾選項目</h6>
-                  <div class="row g-2 mb-2">
-                      <div class="col-6">
-                          <input type="text" id="cartBatchPrefix" class="form-control form-control-sm border-info" placeholder="新英文前綴 (例: L)">
-                      </div>
-                      <div class="col-6">
-                          <input type="number" id="cartBatchStart" class="form-control form-control-sm border-info" placeholder="起始流水號" value="1" min="1">
-                      </div>
-                  </div>
-                  <button class="btn btn-sm btn-info fw-bold text-white w-100" onclick="applyCartBatchEdit()">確認套用</button>
-              </div>
-          </div>
-
-          <div class="d-flex justify-content-between mb-1 small text-muted px-1">
-              <span>顯示項目：<span id="cartCountText" class="fw-bold text-dark">0</span></span>
-          </div>
-          
-          <div id="cartItemList" class="bg-white border rounded shadow-sm p-1" style="max-height: 350px; overflow-y: auto;">
-          </div>
-        </div>
-        <div class="modal-footer bg-light p-2 d-flex justify-content-between">
-           <button class="btn btn-outline-danger fw-bold" onclick="clearNewMvSelection(true, 'cartModal')">清空全部</button>
-           <button class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">完成精修</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="tempCodeModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content border-0 shadow-lg">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold text-info" style="color: #0dcaf0 !important;"><i class="fas fa-tags"></i> 批次設定臨時編碼</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-4">
-          <div class="alert alert-info small py-2 mb-3">臨時編碼僅供本次搬運快速點交核對使用，結案後<strong>不會</strong>寫入藏品總表。</div>
-          <div class="row g-2 mb-3 border-bottom pb-3">
-            <div class="col-6">
-              <label class="form-label fw-bold">英文前綴 (選填)</label>
-              <input type="text" id="tcPrefix" class="form-control border-info" placeholder="例: L">
-            </div>
-            <div class="col-6">
-              <label class="form-label fw-bold">起始流水號</label>
-              <input type="number" id="tcStartNum" class="form-control border-info" value="1" min="1">
-            </div>
-          </div>
-          <div class="d-flex justify-content-between mb-2 align-items-center flex-wrap gap-2">
-            <span class="fw-bold text-dark">請勾選要套用的項目：</span>
-            <div>
-              <button class="btn btn-sm btn-outline-primary fw-bold" onclick="toggleTcUncoded()"><i class="fas fa-search"></i> 僅選未編碼</button>
-              <button class="btn btn-sm btn-outline-secondary" onclick="toggleTcAll(true)">全選</button>
-              <button class="btn btn-sm btn-outline-secondary" onclick="toggleTcAll(false)">清除</button>
-            </div>
-          </div>
-          <div id="tcItemList" style="max-height: 250px; overflow-y: auto;" class="bg-light p-2 rounded border mb-3">
-          </div>
-          <button class="btn btn-info w-100 fw-bold py-3 fs-5 text-white shadow-sm" onclick="applyTempCodes()">✅ 確認套用並儲存</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="importModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+  <!-- 狀況報告：搜尋目標藏品的 Modal (綁定特製鍵盤) -->
+  <div class="modal fade" id="condSearchModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0 shadow-lg">
               <div class="modal-header bg-light">
-                  <h5 class="modal-title fw-bold text-dark"><i class="fas fa-file-import text-primary"></i> 批次匯入待搬運清單</h5>
+                  <h5 class="modal-title fw-bold text-primary">🔍 搜尋報告目標藏品</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
-              <div class="modal-body p-3">
-                  <div class="alert alert-info small py-2 mb-3">
-                      <i class="fas fa-info-circle"></i> 支援從 Excel 直接複製貼上，請確保欄位順序為：<br>
-                      <b class="text-danger">臨時編碼 (Tab) 藏品編號 (Tab) 名稱 (Tab) 數量 (Tab) 預計搬運地點</b><br>
-                      <span class="text-muted">※ 若無臨時編碼、數量或預計地點，可以留白，系統會自動預設數量為 1 及地點待定。</span>
+              <div class="modal-body p-4">
+                  <div class="input-group mb-3">
+                      <button class="btn btn-secondary text-white fw-bold px-2" type="button" onclick="toggleCondInputMode()" id="btnToggleCondInputMode">⌨️ 切換</button>
+                      <input type="search" id="condSearchKw" class="form-control border-primary fs-5 fw-bold" placeholder="點擊搜尋編號..." onclick="handleCondSearchClick()" oninput="searchCondItems()" inputmode="none" readonly>
                   </div>
-                  <textarea id="importTextarea" class="form-control mb-3 border-primary" rows="6" placeholder="請將 Excel 資料貼在此處...&#10;範例：&#10;A01&#9;112-001&#9;青花瓷&#9;3&#9;庫房B區&#10;A02&#9;112-002&#9;木雕神像&#9;1&#9;庫房C區&#10;&#9;112-003&#9;無臨時碼範例&#9;1&#9;庫房A區"></textarea>
-                  <button class="btn btn-primary w-100 fw-bold shadow-sm" onclick="parseImportData()">🔍 預覽解析結果</button>
+                  <div id="condSearchResult" class="list-group shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                      <div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
 
-                  <div id="importPreviewSection" style="display: none;" class="mt-4 pt-3 border-top fade-in-section">
-                      <div class="d-flex justify-content-between align-items-end mb-2">
-                          <h6 class="fw-bold mb-0 text-success">📋 解析預覽</h6>
-                          <span class="badge bg-light text-dark border" id="importStats"></span>
-                      </div>
-                      <div class="table-responsive border rounded bg-white shadow-sm mb-3">
-                          <table class="table table-hover table-sm mb-0 align-middle">
-                              <thead class="table-light text-muted small">
-                                  <tr>
-                                      <th width="15%">狀態</th>
-                                      <th width="30%">編號</th>
-                                      <th width="30%">名稱 / 數量 / 預計地點</th>
-                                      <th width="25%">原典藏地點</th>
-                                  </tr>
-                              </thead>
-                              <tbody id="importPreviewTableBody" style="font-size: 0.9rem;"></tbody>
-                          </table>
-                      </div>
-                      <div id="importWarningMsg" class="alert alert-warning small py-2 mb-3" style="display: none;">
-                          ⚠️ 發現部分編號在總表中查無資料。您可以將這些未知項目轉為「雜物」強行搬運。
-                      </div>
-                      <div class="d-flex gap-2">
-                          <button class="btn btn-warning fw-bold text-dark flex-grow-1" id="btnConvertMisc" style="display: none;" onclick="convertUnmatchedToMisc()">📦 將未知轉為雜物</button>
-                          <button class="btn btn-success fw-bold flex-grow-1" id="btnConfirmImport" onclick="confirmImport()" disabled>✅ 確認匯入</button>
-                      </div>
-                  </div>
+  <!-- 狀況報告：照片註記專用 Modal -->
+  <div class="modal fade" id="photoAnnotationModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content border-0 shadow-lg">
+              <div class="modal-header bg-dark text-white">
+                  <h5 class="modal-title fw-bold">✏️ 照片預覽與註記</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cancelPhotoAnnotation()"></button>
+              </div>
+              <div class="modal-body p-3 text-center">
+                  <img id="photoAnnotationPreview" src="" class="img-fluid rounded mb-3 shadow-sm" style="max-height: 300px; object-fit: contain;">
+                  <textarea class="form-control border-primary" id="photoAnnotationText" rows="3" placeholder="請輸入這張照片的重點描述 (例如: 左下角有2公分乾裂)..."></textarea>
+              </div>
+              <div class="modal-footer bg-light p-2 d-flex justify-content-between">
+                  <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal" onclick="cancelPhotoAnnotation()">取消</button>
+                  <button class="btn btn-primary fw-bold px-4" onclick="confirmPhotoAnnotation()">✅ 確認並加入</button>
               </div>
           </div>
       </div>
