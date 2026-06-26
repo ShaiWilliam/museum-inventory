@@ -198,11 +198,11 @@ function logoutSystem() {
 
 // 進入指定模組 (防呆跳轉)
 async function enterSystem(sys) {
-    const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
+    const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', cond: '狀況報告管理', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
     
     // 💡 修正：強制重置主模組 Bootstrap 分頁狀態，防止系統判斷錯誤導致的黑畫面
-    ['query', 'register', 'inv', 'move', 'mgr'].forEach(id => {
+    ['query', 'register', 'inv', 'move', 'cond', 'mgr'].forEach(id => {
         let pane = document.getElementById(id);
         if (pane) pane.classList.remove('active', 'show');
     });
@@ -438,3 +438,11 @@ async function triggerBackgroundSync() {
 }
 
 window.addEventListener('online', () => { if(syncQueue.length > 0) triggerBackgroundSync(); });
+
+// ================= 💡 查詢模組輔助工具 =================
+function resetQueryUI() {
+    document.getElementById('queryResultBox').style.display = 'none';
+    document.getElementById('btnStartQueryCam').style.display = 'block';
+    document.getElementById('queryManualInput').value = '';
+    document.getElementById('queryManualInput').focus();
+}
