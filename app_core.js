@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統前端核心 (app_core.js)
 // 包含：API通訊(Fetch跨網域)、七天免登入記憶、全域變數、權限控管 (RBAC)、離線快取、基礎工具
-// 最新優化：自動預設「操作人員」為當前登入者、修復盤點基準日與地點樹狀圖渲染斷層
+// 最新優化：自動預設「操作人員」為當前登入者、修復盤點基準日與地點樹狀圖渲染斷層、修復 GAS Fetch API 快取陷阱
 // ==========================================
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
@@ -95,10 +95,18 @@ async function callAPI(action, payload = {}) {
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: action, payload: payload })
+            body: JSON.stringify({ action: action, payload: payload }),
+            cache: 'no-store' // 🔥 強制停用快取，解決 Unexpected token 'A' 錯誤
         });
         if (!response.ok) throw new Error("網路連線異常，狀態碼：" + response.status);
-        const res = await response.json();
+        
+        // 🔥 攔截防呆：先讀取為純文字，避免直接用 json() 解析導致系統崩潰
+        const textRes = await response.text();
+        if (textRes.includes("API 正常運作中")) {
+            throw new Error("遭遇瀏覽器快取干擾，請重新整理頁面再試一次。");
+        }
+        
+        const res = JSON.parse(textRes);
         if (res.success) return res.data;
         else throw new Error(res.error || "後端處理發生未知錯誤");
     } catch (err) {
