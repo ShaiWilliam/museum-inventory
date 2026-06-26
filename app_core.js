@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統前端核心 (app_core.js)
 // 包含：API通訊(Fetch跨網域)、七天免登入記憶、全域變數、權限控管 (RBAC)、離線快取、基礎工具
-// 最新優化：自動預設「操作人員」為當前登入者
+// 最新優化：自動預設「操作人員」為當前登入者、修復盤點基準日與地點樹狀圖渲染斷層
 // ==========================================
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
@@ -111,6 +111,19 @@ function preloadBaseData() {
     callAPI('getInventoryInitData').then(res => {
         globalCatalog = res.catalog || {};
         globalLocTree = res.locTree || [];
+        
+        // 💡 修正：將後端回傳的基準日綁定到大廳與盤點設定畫面上
+        if (res.baselineTime) {
+            const d = new Date(res.baselineTime);
+            const timeStr = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            
+            let mqBaseline = document.getElementById('mqBaseline');
+            if (mqBaseline) mqBaseline.innerText = `📅 本期盤點基準日：${timeStr}`;
+            
+            let baselineInfo = document.getElementById('baselineInfo');
+            if (baselineInfo) baselineInfo.innerText = `📅 本期盤點基準日：${timeStr} (在此之後的掃描才算「已盤點」)`;
+        }
+
         if (res.manuals) {
             let html = '';
             for (let mod in res.manuals) { html += `<h6 class="fw-bold mt-3 text-dark border-bottom pb-1">${mod}</h6><p class="small text-muted" style="white-space: pre-wrap;">${res.manuals[mod]}</p>`; }
@@ -194,6 +207,15 @@ async function enterSystem(sys) {
     window.scrollTo(0, 0);
 
     if (sys === 'query') { document.getElementById('queryManualInput').focus(); }
+    
+    // 💡 修正：進入盤點系統時，主動渲染地點清單，並檢查是否有進度暫存
+    if (sys === 'inv') {
+        renderTreeHTML(globalLocTree, 'locCheckboxes', 'inv', true);
+        if (typeof checkSavedSession === 'function') {
+            checkSavedSession();
+        }
+    }
+    
     if (sys === 'move' || sys === 'mgr') {
         showMiniLoading('載入動態資料中...');
         try {
