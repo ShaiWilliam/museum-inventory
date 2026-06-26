@@ -1,8 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (保留十字裁切線，QR碼靠左)
-// 崩潰修復：補齊 checkSavedSession、exportReport，修復離線佇列衝突與 Dual-QR Code 雙條碼邏輯
+// 最新優化：新增「藏品狀況報告表」模組 (含歷史編輯、直接列印、PDF 100% 完美排版)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -138,21 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="p-3 border-top bg-light"><button class="btn btn-outline-primary w-100 fw-bold py-2" onclick="enableManualLocInput()">⌨️ 找不到？手動輸入特殊地點</button></div>
     </div>
 
-    <div class="vk-container" id="vkContainer">
-        <div class="d-flex justify-content-between mb-2 px-1">
-            <span class="text-muted fw-bold small">專屬數字鍵盤</span>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold" onclick="closeVK()">▼ 收起</button>
-        </div>
-        <div class="vk-prefix-grid" id="vkPrefixCol"></div>
-        <div class="vk-num-col" id="vkNumCol" style="display:none;">
-            <button class="vk-btn no-select" onclick="vkPress('1')">1</button><button class="vk-btn no-select" onclick="vkPress('2')">2</button><button class="vk-btn no-select" onclick="vkPress('3')">3</button>
-            <button class="vk-btn no-select" onclick="vkPress('4')">4</button><button class="vk-btn no-select" onclick="vkPress('5')">5</button><button class="vk-btn no-select" onclick="vkPress('6')">6</button>
-            <button class="vk-btn no-select" onclick="vkPress('7')">7</button><button class="vk-btn no-select" onclick="vkPress('8')">8</button><button class="vk-btn no-select" onclick="vkPress('9')">9</button>
-            <button class="vk-btn vk-btn-action no-select" onclick="vkBackspace()">⌫</button><button class="vk-btn no-select" onclick="vkPress('0')">0</button><button class="vk-btn vk-btn-action no-select" onclick="vkClear()">C</button>
-            <button class="vk-btn vk-btn-primary no-select" onclick="closeVK(); searchWorkerItems();">🔍 搜尋</button>
-        </div>
-    </div>
-
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050; display:flex; flex-direction:column; gap:10px;">
         <button class="btn btn-warning rounded-circle shadow-lg text-dark fw-bold border border-light" id="floatingUndoBtn" style="width: 60px; height: 60px; display:none;" onclick="openUndoMoveModal()" title="撤銷搬運">
             <i class="fas fa-undo fs-4"></i>
@@ -223,6 +207,15 @@ let isLocAdding = false;
 let isLocSyncing = false;
 let allProjectsList = [];
 let currentPdItems = [];
+
+// 🔥 狀況報告表專屬變數
+let condCurrentItem = null;
+let condPhotos = [];
+let mainPhotoBase64 = "";
+let mainPhotoMime = "";
+let pendingPhotoBase64 = "";
+let condMode = 1;
+let condReportsCache = []; // 用於儲存歷史報告清單
 
 function smartConcatLoc(main, med, small) {
     main = main || ""; med = med || ""; small = small || "";
@@ -299,13 +292,25 @@ function openLocModal(title, tree) {
 
 function toggleBoxInput() { document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; }
 
-// ================= 💡 虛擬鍵盤 =================
+// ================= 💡 共用虛擬鍵盤 (重構：支援搬運與狀況報告雙模組) =================
+let currentVkInputId = 'mvSearchKw'; 
+
 function toggleInputMode() {
-    useVK = !useVK;
+    useVK = !useVK; currentVkInputId = 'mvSearchKw';
     let input = document.getElementById('mvSearchKw'), btn = document.getElementById('btnToggleInputMode');
+    applyVkState(input, btn);
+}
+
+function toggleCondInputMode() {
+    useVK = !useVK; currentVkInputId = 'condSearchKw';
+    let input = document.getElementById('condSearchKw'), btn = document.getElementById('btnToggleCondInputMode');
+    applyVkState(input, btn);
+}
+
+function applyVkState(input, btn) {
     if (useVK) { 
         input.setAttribute('inputmode', 'none'); input.setAttribute('readonly', 'true'); 
-        input.placeholder = "點擊搜尋編號(虛擬鍵盤)..."; 
+        input.placeholder = "點擊搜尋(虛擬鍵盤)..."; 
         btn.classList.replace('btn-outline-secondary', 'btn-secondary'); 
         input.blur(); openVK(); 
     } else { 
@@ -315,38 +320,78 @@ function toggleInputMode() {
         closeVK(); input.focus(); 
     }
 }
-function handleSearchClick() { if (useVK) openVK(); }
+
+function handleSearchClick() { currentVkInputId = 'mvSearchKw'; if (useVK) openVK(); }
+function handleCondSearchClick() { currentVkInputId = 'condSearchKw'; if (useVK) openVK(); }
+
 function openVK() { 
-    let input = document.getElementById('mvSearchKw');
-    if(input.value.trim() === '') { document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); } 
+    let input = document.getElementById(currentVkInputId);
+    if(input && input.value.trim() === '') { document.getElementById('vkPrefixCol').style.display = 'grid'; document.getElementById('vkNumCol').style.display = 'none'; renderVkPrefixes(); } 
     else { document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; }
     document.getElementById('vkContainer').classList.add('active'); 
 }
 function closeVK() { document.getElementById('vkContainer').classList.remove('active'); }
-function vkPressPrefix(prefix) { document.getElementById('mvSearchKw').value = prefix; document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; searchWorkerItems(); }
+
+function vkPressPrefix(prefix) { 
+    let input = document.getElementById(currentVkInputId);
+    if(input) input.value = prefix; 
+    document.getElementById('vkPrefixCol').style.display = 'none'; 
+    document.getElementById('vkNumCol').style.display = 'grid'; 
+    dispatchVkSearch(); 
+}
 function vkShowNumOnly() { document.getElementById('vkPrefixCol').style.display = 'none'; document.getElementById('vkNumCol').style.display = 'grid'; }
-function vkPress(val) { document.getElementById('mvSearchKw').value += val; searchWorkerItems(); }
+function vkPress(val) { 
+    let input = document.getElementById(currentVkInputId);
+    if(input) input.value += val; 
+    dispatchVkSearch(); 
+}
 function vkBackspace() { 
-    let input = document.getElementById('mvSearchKw'); 
+    let input = document.getElementById(currentVkInputId); 
+    if(!input) return;
     input.value = input.value.slice(0, -1); 
     if(input.value === '') { document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; renderVkPrefixes(); } 
-    searchWorkerItems(); 
+    dispatchVkSearch(); 
 }
-function vkClear() { document.getElementById('mvSearchKw').value = ''; document.getElementById('vkNumCol').style.display = 'none'; document.getElementById('vkPrefixCol').style.display = 'grid'; renderVkPrefixes(); searchWorkerItems(); }
+function vkClear() { 
+    let input = document.getElementById(currentVkInputId);
+    if(input) input.value = ''; 
+    document.getElementById('vkNumCol').style.display = 'none'; 
+    document.getElementById('vkPrefixCol').style.display = 'grid'; 
+    renderVkPrefixes(); 
+    dispatchVkSearch(); 
+}
+function dispatchVkSearch() {
+    if (currentVkInputId === 'mvSearchKw') searchWorkerItems();
+    else if (currentVkInputId === 'condSearchKw') searchCondItems();
+}
+
 function renderVkPrefixes() {
     let prefixes = new Set();
-    currentProjectItems.forEach(item => { 
-        let tcMatch = String(item.tempCode || '').match(/^([A-Za-z\-_]+)/); if (tcMatch) prefixes.add(tcMatch[1].toUpperCase()); 
-        let idMatch = String(item.qrCode).match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase()); 
-    });
+    if (currentVkInputId === 'mvSearchKw' && currentProjectItems) {
+        currentProjectItems.forEach(item => { 
+            let tcMatch = String(item.tempCode || '').match(/^([A-Za-z\-_]+)/); if (tcMatch) prefixes.add(tcMatch[1].toUpperCase()); 
+            let idMatch = String(item.qrCode).match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase()); 
+        });
+    } else {
+        Object.values(globalCatalog).forEach(item => {
+            let idMatch = String(item.id).match(/^([A-Za-z\-_]+)/); if (idMatch) prefixes.add(idMatch[1].toUpperCase());
+        });
+    }
+    
     let html = ''; 
     Array.from(prefixes).sort().forEach(p => { html += `<button class="vk-btn vk-btn-prefix no-select" onclick="vkPressPrefix('${p}')">${p}</button>`; });
     html += `<button class="vk-btn vk-btn-primary no-select" style="grid-column: 1 / -1; margin-top: 5px; padding: 12px; border-radius: 8px;" onclick="vkShowNumOnly()"><i class="fas fa-keyboard"></i> 🔢 直接打數字 (無前綴)</button>`;
     document.getElementById('vkPrefixCol').innerHTML = html;
 }
+
 document.addEventListener('click', function(event) { 
-    let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), toggleBtn = document.getElementById('btnToggleInputMode'); 
-    if (vk && vk.classList.contains('active')) { if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn) closeVK(); } 
+    let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), condSearchBox = document.getElementById('condSearchKw');
+    let toggleBtn = document.getElementById('btnToggleInputMode'), condToggleBtn = document.getElementById('btnToggleCondInputMode'); 
+    if (vk && vk.classList.contains('active')) { 
+        if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn && event.target !== condSearchBox && event.target !== condToggleBtn) {
+            closeVK(); 
+        }
+    } 
 });
 
 // ================= 💡 層疊下鑽式地點選單 (前台搬運+後台修改共用) =================
@@ -446,7 +491,7 @@ function enableManualLocInput() {
     closeBottomSheet(); 
     if (String(currentBsTargetRow).startsWith('MGR_')) {
         let rIdx = parseInt(String(currentBsTargetRow).replace('MGR_', ''));
-        let manualLoc = prompt("請輸入手動特殊地點：");
+        let manualLoc = prompt("請輸入手 manualLoc 特殊地點：");
         if (manualLoc !== null && manualLoc.trim() !== '') {
             let input = document.getElementById(`mgrLoc_${rIdx}`);
             if (input) input.value = manualLoc.trim();
@@ -521,7 +566,7 @@ function renderQueryUI(res) {
 function startQueryScanner() { document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block'; if (!queryScanner) queryScanner = new Html5Qrcode("query-reader"); if (queryScanner.getState() !== 2) { queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg)); } }
 async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...'); await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; hideMiniLoading(); }
 
-async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
+async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum, formatMaterial: "", size: "", author: "", note: p.desc }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 
 // 🔥 全域列印中心與多格式選擇機制
 async function loadPrintList() { if(allPrintItems && allPrintItems.length > 0) return; const items = Object.values(globalCatalog); allPrintItems = items.map(i => ({ id: i.id, name: i.name, loc: i.location })).reverse(); const locs = [...new Set(allPrintItems.map(i => i.loc))].sort(); let locHtml = '<option value="">所有地點</option>'; locs.forEach(l => locHtml += `<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`); document.getElementById('printLocFilter').innerHTML = locHtml; filterPrintList(); }
@@ -607,7 +652,7 @@ function generateBasicPrintHtml() {
     document.getElementById('printOverlayContent').innerHTML = printHtml;
 }
 
-// 🔥 產生完整藏品吊牌 (6x3cm) - 移除打洞區、QR靠左、文字在右垂直堆疊
+// 🔥 產生完整藏品吊牌 (6x3cm) - 保留十字線、取消打洞
 function generateFullPrintHtml() {
     let itemsToPrint = [];
     printCartMap.forEach((data, id) => {
@@ -1615,40 +1660,7 @@ function optimisticToggleStatus(rows, stat) {
 
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 
-function printLocationLabels() { 
-    let activeLocs = []; 
-    mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); 
-    if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); 
-    showMiniLoading("生成地點標籤中..."); 
-    
-    setTimeout(() => { 
-        try { 
-            let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; 
-            activeLocs.sort().forEach(loc => { 
-                let qrData = "LOC:" + loc; 
-                const qr = new QRious({ value: qrData, size: 150, level: 'M' }); 
-                const base64Img = qr.toDataURL('image/png'); 
-                printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; 
-            }); 
-            printHtml += `</div></div>`; 
-            
-            document.getElementById('printOverlayContent').innerHTML = printHtml; 
-            
-            // 🔥 安全檢查：防止找不到標籤而導致崩潰
-            let topBarH6 = document.getElementById('printOverlayTopBar').querySelector('h6');
-            if (topBarH6) {
-                topBarH6.innerText = "地點 QR 標籤預覽"; 
-            }
-
-            document.getElementById('printOverlay').style.display = 'flex'; 
-            hideMiniLoading(); 
-        } catch (e) { 
-            hideMiniLoading(); 
-            alert("產生列印畫面時發生錯誤：" + e.message); 
-        } 
-    }, 50); 
-}
-
+function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = String(r.main).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = String(displayMedium).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = String(r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
 
 async function addNewLocation() { 
@@ -1695,3 +1707,707 @@ function submitEditLoc() { const rowIndex = parseInt(document.getElementById('ed
 async function processLocQueue() { if (isLocSyncing || locUpdateQueue.length === 0) return; isLocSyncing = true; const updatesToProcess = [...locUpdateQueue]; locUpdateQueue = []; try { const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`, true); } catch (e) { console.error("背景更新失敗", e); showSyncToast("⚠️ 部分地點背景更新失敗，將於下次重試", true); locUpdateQueue = [...updatesToProcess, ...locUpdateQueue]; renderLocationsList(mgrLocTree); } finally { isLocSyncing = false; if (locUpdateQueue.length > 0) { processLocQueue(); } } }
 async function toggleLocStatus(rowIndex, setHidden) { showSyncToast('狀態更新同步中...'); let found = false; mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => { if(d.rowIndex === rowIndex) { d.isHidden = setHidden; found = true; } }))); if(found) renderLocationsList(mgrLocTree); try { const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast("✅ 狀態已同步", true); } catch(e) { alert("狀態切換失敗：" + e.message); showSyncToast("❌ 同步失敗", true); } }
 async function deleteLoc(rowIndex) { if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return; showMiniLoading('刪除地點中...'); try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); } }
+
+// ================= 💡 藏品狀況報告表 核心邏輯 =================
+
+// 控制「其他：」文字輸入框的顯示隱藏
+function toggleOtherInput(chkId, txtId) {
+    const chk = document.getElementById(chkId);
+    const txt = document.getElementById(txtId);
+    if (chk && txt) {
+        txt.style.display = chk.checked ? 'inline-block' : 'none';
+        if (!chk.checked) txt.value = '';
+    }
+}
+
+// 控制「維護(前/後)」選項的顯示隱藏
+function toggleMaintOpt() {
+    const chk = document.getElementById('c_purp_1');
+    const area = document.getElementById('c_purp_maint_opt_area');
+    if (chk && area) {
+        area.style.display = chk.checked ? 'inline-block' : 'none';
+        if (!chk.checked) {
+            document.getElementById('c_purp_maint_bf').checked = false;
+            document.getElementById('c_purp_maint_af').checked = false;
+        }
+    }
+}
+
+// 取得多選框的文字陣列
+function getCheckedValues(selector) {
+    return Array.from(document.querySelectorAll(selector + ':checked')).map(cb => cb.value);
+}
+
+// 從查詢畫面直接跳轉至填寫狀況報告
+function jumpToConditionReport() {
+    const rawId = document.getElementById('qResId').innerText.trim();
+    if(!rawId || rawId === '--') return alert("無法獲取藏品編號！");
+    enterSystem('cond').then(() => { selectCondTarget(rawId); });
+}
+
+// 載入狀況報告歷史清單
+async function loadConditionReports() {
+    showMiniLoading('載入報告清單...');
+    try {
+        const reports = await callAPI('getConditionReports');
+        condReportsCache = reports; // 存入全域變數供後續編輯使用
+        const container = document.getElementById('condReportListContainer');
+        if(reports.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4 small">目前尚無任何報告紀錄。</div>';
+            return;
+        }
+        
+        container.innerHTML = reports.map(r => {
+            let badge = '';
+            if(r.reportType === '1') badge = '<span class="badge bg-primary">例行檢視</span>';
+            else if(r.reportType === '2') badge = '<span class="badge bg-warning text-dark">提借修復</span>';
+            else badge = '<span class="badge bg-danger">廠商報告</span>';
+            
+            let photoIndicator = r.photos && r.photos.length > 0 ? `<span class="badge bg-light text-secondary border ms-1"><i class="fas fa-image"></i> ${r.photos.length}</span>` : '';
+
+            // 🔥 新增：依據報告類型顯示不同的操作按鈕 (編輯 / 列印 / 預覽連結)
+            let actionBtns = '';
+            if (r.reportType === '3') {
+                actionBtns = `<button class="btn btn-sm btn-outline-danger fw-bold w-100 mt-2" onclick="window.open('${escapeHTML(r.formData.fileUrl)}', '_blank')">🔗 檢視外部檔案</button>`;
+            } else {
+                actionBtns = `
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-sm btn-outline-primary fw-bold flex-grow-1" onclick="editCondReport('${escapeHTML(r.reportId)}')">✏️ 編輯</button>
+                    <button class="btn btn-sm btn-dark fw-bold flex-grow-1" onclick="printHistoricalCondReport('${escapeHTML(r.reportId)}')">🖨️ 列印</button>
+                </div>`;
+            }
+
+            return `
+            <div class="card border-0 shadow-sm mb-2">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="fw-bold text-dark">${escapeHTML(r.itemId)}</div>
+                        ${badge}
+                    </div>
+                    <div class="small text-primary fw-bold mb-1">${escapeHTML(r.itemName)}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 border-bottom pb-2">
+                        <small class="text-muted"><i class="far fa-clock"></i> ${escapeHTML(r.timestamp)}</small>
+                        <div>
+                            <small class="text-muted me-2"><i class="far fa-user"></i> ${escapeHTML(r.managerName)}</small>
+                            ${photoIndicator}
+                        </div>
+                    </div>
+                    ${actionBtns}
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        alert("載入報告失敗：" + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
+
+function openCondSearchModal() {
+    document.getElementById('condSearchKw').value = '';
+    document.getElementById('condSearchResult').innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+    currentVkInputId = 'condSearchKw';
+    closeVK();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condSearchModal')).show();
+}
+
+function searchCondItems() {
+    const kwStr = document.getElementById('condSearchKw').value.toLowerCase().trim();
+    const keywords = kwStr ? kwStr.split(/\s+/) : [];
+    const container = document.getElementById('condSearchResult');
+    
+    if(keywords.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+        return;
+    }
+    
+    let results = Object.values(globalCatalog).filter(item => {
+        let targetStr = `${item.id} ${item.name}`.toLowerCase();
+        return keywords.every(k => targetStr.includes(k));
+    }).slice(0, 50);
+    
+    if(results.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">查無藏品</div>';
+        return;
+    }
+    
+    container.innerHTML = results.map(item => `
+        <button class="list-group-item list-group-item-action p-3" onclick="selectCondTarget('${escapeHTML(item.id)}')">
+            <div class="fw-bold text-primary">${escapeHTML(item.id)}</div>
+            <div class="small text-dark">${escapeHTML(item.name)}</div>
+            <div class="small text-muted mt-1">📍 ${escapeHTML(item.location)}</div>
+        </button>
+    `).join('');
+}
+
+function selectCondTarget(id) {
+    const cat = globalCatalog[id];
+    if(!cat) return;
+    
+    condCurrentItem = cat;
+    bootstrap.Modal.getInstance(document.getElementById('condSearchModal')).hide();
+    
+    document.getElementById('condDashboard').style.display = 'none';
+    document.getElementById('condFormArea').style.display = 'none';
+    document.getElementById('condVendorUploadArea').style.display = 'none';
+    
+    document.getElementById('condTargetItemLabel').innerText = `${cat.id} - ${cat.name}`;
+    document.getElementById('condScenarioSelect').style.display = 'block';
+}
+
+function backToCondDashboard() {
+    document.getElementById('condScenarioSelect').style.display = 'none';
+    document.getElementById('condFormArea').style.display = 'none';
+    document.getElementById('condVendorUploadArea').style.display = 'none';
+    document.getElementById('condDashboard').style.display = 'block';
+    loadConditionReports();
+}
+
+function startCondReport(type) {
+    condMode = type;
+    document.getElementById('condScenarioSelect').style.display = 'none';
+    
+    if (type === 3) {
+        document.getElementById('vendorReportInput').value = '';
+        document.getElementById('vendorFileInfo').innerText = '';
+        document.getElementById('condVendorUploadArea').style.display = 'block';
+    } else {
+        condPhotos = [];
+        removeMainPhoto();
+        renderCondPhotos();
+        document.getElementById('btnCondPrint').style.display = 'none';
+        document.getElementById('cf_reportId').value = ''; // 確保是新報告
+        document.getElementById('condFormTitle').innerText = '📝 填寫新報告';
+        
+        // 清空表單
+        let txtIds = [
+            'cf_projectName', 'cf_oldId', 'cf_tf_purpose', 'cf_tf_outDate', 'cf_tf_outGiver', 
+            'cf_tf_outTaker', 'cf_tf_inDate', 'cf_tf_inGiver', 'cf_tf_inTaker', 'cf_tf_note', 
+            'cf_conditionDesc', 'cf_otherCond', 'cf_unit', 'cf_viewer', 'cf_tf_special',
+            'c_app_other_txt', 'c_str_other_txt', 'c_med_other_txt', 'c_bio_other_txt',
+            'c_pre_other_txt', 'c_tre_other_txt', 'c_loan_other_txt', 'c_purp_other_txt'
+        ];
+        txtIds.forEach(id => { let el = document.getElementById(id); if(el) { el.value = ''; el.style.display = el.id.includes('other_txt') ? 'none' : el.style.display; } });
+        
+        // 取消所有勾選
+        document.querySelectorAll('.chk-appearance, .chk-structure, .chk-medium, .chk-bio, .chk-preserv, .chk-treat, .chk-loan, .chk-purp, .chk-tf-purp, .chk-tf-attach').forEach(cb => cb.checked = false);
+        document.getElementById('c_purp_maint_opt_area').style.display = 'none';
+        document.getElementById('c_purp_maint_bf').checked = false;
+        document.getElementById('c_purp_maint_af').checked = false;
+        let rate1 = document.getElementById('c_rate_1'); if(rate1) rate1.checked = false;
+        let rate2 = document.getElementById('c_rate_2'); if(rate2) rate2.checked = false;
+        let rate3 = document.getElementById('c_rate_3'); if(rate3) rate3.checked = false;
+        let rate4 = document.getElementById('c_rate_4'); if(rate4) rate4.checked = false;
+        
+        // 帶入預設值
+        document.getElementById('cf_newId').value = condCurrentItem.id;
+        document.getElementById('cf_name').value = condCurrentItem.name;
+        document.getElementById('cf_propNum').value = condCurrentItem.propNum || '';
+        document.getElementById('cf_loc').value = condCurrentItem.location || '';
+        document.getElementById('cf_material').value = condCurrentItem.formatMaterial || '';
+        document.getElementById('cf_size').value = condCurrentItem.size || '';
+        document.getElementById('cf_author').value = condCurrentItem.author || '';
+        document.getElementById('cf_note').value = condCurrentItem.note || '';
+        document.getElementById('cf_qty').value = '1';
+        
+        document.getElementById('cf_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('cf_viewer').value = currentManager;
+        
+        document.getElementById('condTransferSection').style.display = (type === 2) ? 'block' : 'none';
+        document.getElementById('condFormArea').style.display = 'block';
+    }
+}
+
+// 🔥 新增：重新載入與編輯歷史報告
+function editCondReport(reportId) {
+    const report = condReportsCache.find(r => r.reportId === reportId);
+    if (!report) return alert("找不到該筆報告資料！");
+    
+    // 設定全域狀態
+    condCurrentItem = { id: report.itemId, name: report.itemName }; // 簡單回補
+    condMode = parseInt(report.reportType);
+    
+    document.getElementById('condDashboard').style.display = 'none';
+    document.getElementById('condFormTitle').innerText = '✏️ 編輯歷史報告';
+    document.getElementById('cf_reportId').value = report.reportId;
+    document.getElementById('btnCondPrint').style.display = 'block'; // 編輯模式可直接預覽列印
+    
+    const d = report.formData;
+    if(!d) return alert("報告資料遺失");
+
+    // 還原文字欄位
+    const txtMapping = {
+        'cf_projectName': 'projectName', 'cf_newId': 'newId', 'cf_oldId': 'oldId', 'cf_name': 'name',
+        'cf_propNum': 'propNum', 'cf_loc': 'loc', 'cf_material': 'material', 'cf_size': 'size',
+        'cf_author': 'author', 'cf_qty': 'qty', 'cf_note': 'note', 'cf_date': 'date', 'cf_unit': 'unit',
+        'cf_viewer': 'viewer', 'cf_otherCond': 'otherCond', 'cf_conditionDesc': 'conditionDesc',
+        'cf_tf_purpose': 'tf_purpose', 'cf_tf_outDate': 'tf_outDate', 'cf_tf_outGiver': 'tf_outGiver',
+        'cf_tf_outTaker': 'tf_outTaker', 'cf_tf_inDate': 'tf_inDate', 'cf_tf_inGiver': 'tf_inGiver',
+        'cf_tf_inTaker': 'tf_inTaker', 'cf_tf_note': 'tfNote', 'cf_tf_special': 'tfSpecial', 'cf_tf_date': 'tfDate'
+    };
+    for (let id in txtMapping) {
+        let el = document.getElementById(id);
+        if (el) el.value = d[txtMapping[id]] || '';
+    }
+
+    // 還原 Checkboxes 的 helper 函數
+    const restoreCheckboxes = (selector, valuesArray, otherTxtId, otherTxtValue) => {
+        const arr = valuesArray || [];
+        document.querySelectorAll(selector).forEach(cb => {
+            cb.checked = arr.includes(cb.value);
+        });
+        if (otherTxtId) {
+            let txtEl = document.getElementById(otherTxtId);
+            if (arr.includes('其他')) {
+                txtEl.style.display = 'inline-block';
+                txtEl.value = otherTxtValue || '';
+            } else {
+                txtEl.style.display = 'none';
+                txtEl.value = '';
+            }
+        }
+    };
+
+    restoreCheckboxes('.chk-appearance', d.appVals, 'c_app_other_txt', d.appOther);
+    restoreCheckboxes('.chk-structure', d.strVals, 'c_str_other_txt', d.strOther);
+    restoreCheckboxes('.chk-medium', d.medVals, 'c_med_other_txt', d.medOther);
+    restoreCheckboxes('.chk-bio', d.bioVals, 'c_bio_other_txt', d.bioOther);
+    restoreCheckboxes('.chk-preserv', d.preVals, 'c_pre_other_txt', d.preOther);
+    restoreCheckboxes('.chk-treat', d.treVals, 'c_tre_other_txt', d.treOther);
+    restoreCheckboxes('.chk-loan', d.loanVals, 'c_loan_other_txt', d.loanOther);
+    restoreCheckboxes('.chk-tf-purp', d.tfPurpVals, null, null);
+    restoreCheckboxes('.chk-tf-attach', d.tfAttach, null, null);
+
+    // 檢視目的與維護前/後特殊邏輯
+    restoreCheckboxes('.chk-purp', d.purpVals, 'c_purp_other_txt', d.purpOther);
+    toggleMaintOpt();
+    if (d.purpVals && d.purpVals.includes('維護')) {
+        if (d.maintState === '修護前') document.getElementById('c_purp_maint_bf').checked = true;
+        if (d.maintState === '修護後') document.getElementById('c_purp_maint_af').checked = true;
+    }
+
+    // 還原分級 Radio
+    document.querySelectorAll('input[name="c_rating"]').forEach(rb => {
+        rb.checked = (rb.value === d.rating);
+    });
+
+    // 還原照片 (分類 Main Photo 與 Detail Photos)
+    removeMainPhoto();
+    condPhotos = [];
+    if (report.photos && report.photos.length > 0) {
+        let pIndex = 0;
+        // 第一張可能是 Main Photo
+        if (report.photos[0] && report.photos[0].includes('photo')) { // 簡單判定
+            // 由於 Drive URL 無法直接用 img src (需公開權限或 proxy)，這裡暫時僅保存 url 以供列印使用
+            // 若為 Base64 (剛存檔)，則可直接顯示。為求穩定，我們以 URL 呈現
+            // 實作上，如果需要預覽舊照片，通常依賴 Google Drive 共用連結
+            // 這裡將歷史照片塞入陣列
+            report.photos.forEach(url => {
+                if (url) condPhotos.push({ base64: '', mimeType: '', url: url, note: '歷史照片 (列印時可見)' });
+            });
+            // (註：因跨域限制，Drive 圖片難以直接轉回 Canvas 預覽，故以提示文字代替，但在列印時會作為 img src 印出)
+        }
+    }
+    renderCondPhotos();
+
+    document.getElementById('condTransferSection').style.display = (condMode === 2) ? 'block' : 'none';
+    document.getElementById('condFormArea').style.display = 'block';
+}
+
+// ================= 照片雙軌上傳壓縮邏輯 =================
+function handleMainPhotoSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    showMiniLoading("處理全景照中...");
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1200;
+            let width = img.width, height = img.height;
+            if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            
+            mainPhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            mainPhotoMime = 'image/jpeg';
+            
+            document.getElementById('cf_mainPhotoContainer').innerHTML = `<img src="${mainPhotoBase64}" class="img-fluid rounded border shadow-sm" style="max-height: 200px;">`;
+            document.getElementById('cf_mainPhotoRemove').style.display = 'inline-block';
+            document.getElementById('cf_mainPhotoInput').value = ''; 
+            hideMiniLoading();
+        };
+    };
+}
+function removeMainPhoto() {
+    mainPhotoBase64 = "";
+    mainPhotoMime = "";
+    document.getElementById('cf_mainPhotoContainer').innerHTML = "";
+    document.getElementById('cf_mainPhotoRemove').style.display = 'none';
+}
+
+function handleCondPhotoSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    showMiniLoading("處理狀況圖示中...");
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+            const MAX_WIDTH = 1200;
+            let width = img.width, height = img.height;
+            if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            
+            pendingPhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            document.getElementById('photoAnnotationPreview').src = pendingPhotoBase64;
+            document.getElementById('photoAnnotationText').value = '';
+            document.getElementById('cf_photoInput').value = ''; 
+            hideMiniLoading();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('photoAnnotationModal')).show();
+        };
+    };
+}
+
+function cancelPhotoAnnotation() {
+    pendingPhotoBase64 = "";
+    document.getElementById('photoAnnotationPreview').src = "";
+    document.getElementById('photoAnnotationText').value = '';
+}
+
+function confirmPhotoAnnotation() {
+    const note = document.getElementById('photoAnnotationText').value.trim();
+    if (pendingPhotoBase64) {
+        condPhotos.push({
+            base64: pendingPhotoBase64.split(',')[1],
+            mimeType: 'image/jpeg',
+            note: note,
+            url: ''
+        });
+        renderCondPhotos();
+    }
+    bootstrap.Modal.getInstance(document.getElementById('photoAnnotationModal')).hide();
+}
+
+function renderCondPhotos() {
+    const container = document.getElementById('cf_photoContainer');
+    if (condPhotos.length === 0) {
+        container.innerHTML = '<div class="text-muted small p-2">尚未新增狀況圖示。</div>';
+        return;
+    }
+    container.innerHTML = condPhotos.map((p, idx) => {
+        let imgSrc = p.base64 ? `data:${p.mimeType || 'image/jpeg'};base64,${p.base64}` : p.url;
+        return `
+        <div class="cond-photo-thumb" style="width: 120px;">
+            <button class="btn-close" onclick="removeCondPhoto(${idx})"></button>
+            <img src="${imgSrc}" alt="photo" style="height:80px; object-fit:cover;">
+            <div class="cond-photo-note" title="${escapeHTML(p.note)}">${escapeHTML(p.note) || '無註記'}</div>
+        </div>`;
+    }).join('');
+}
+
+function removeCondPhoto(idx) {
+    if(confirm('確定要移除這張圖示嗎？')) { condPhotos.splice(idx, 1); renderCondPhotos(); }
+}
+
+// ================= 收集表單資料與生成完美 A4 列印排版 =================
+function getFormData() {
+    return {
+        projectName: document.getElementById('cf_projectName').value,
+        newId: document.getElementById('cf_newId').value,
+        oldId: document.getElementById('cf_oldId').value,
+        name: document.getElementById('cf_name').value,
+        propNum: document.getElementById('cf_propNum').value,
+        loc: document.getElementById('cf_loc').value,
+        material: document.getElementById('cf_material').value,
+        size: document.getElementById('cf_size').value,
+        author: document.getElementById('cf_author').value,
+        qty: document.getElementById('cf_qty').value,
+        note: document.getElementById('cf_note').value,
+        
+        appVals: getCheckedValues('.chk-appearance'),
+        appOther: document.getElementById('c_app_other_txt').value,
+        strVals: getCheckedValues('.chk-structure'),
+        strOther: document.getElementById('c_str_other_txt').value,
+        medVals: getCheckedValues('.chk-medium'),
+        medOther: document.getElementById('c_med_other_txt').value,
+        bioVals: getCheckedValues('.chk-bio'),
+        bioOther: document.getElementById('c_bio_other_txt').value,
+        
+        otherCond: document.getElementById('cf_otherCond').value,
+        
+        rating: document.querySelector('input[name="c_rating"]:checked') ? document.querySelector('input[name="c_rating"]:checked').value : '',
+        
+        preVals: getCheckedValues('.chk-preserv'),
+        preOther: document.getElementById('c_pre_other_txt').value,
+        treVals: getCheckedValues('.chk-treat'),
+        treOther: document.getElementById('c_tre_other_txt').value,
+        loanVals: getCheckedValues('.chk-loan'),
+        loanOther: document.getElementById('c_loan_other_txt').value,
+        
+        purpVals: getCheckedValues('.chk-purp'),
+        purpOther: document.getElementById('c_purp_other_txt').value,
+        maintState: document.querySelector('input[name="maint_state"]:checked') ? document.querySelector('input[name="maint_state"]:checked').value : '',
+        
+        date: document.getElementById('cf_date').value,
+        unit: document.getElementById('cf_unit').value,
+        viewer: document.getElementById('cf_viewer').value,
+        
+        tfPurpVals: getCheckedValues('.chk-tf-purp'),
+        tfDate: document.getElementById('cf_tf_date').value,
+        tfAttach: getCheckedValues('.chk-tf-attach'),
+        tfSpecial: document.getElementById('cf_tf_special').value,
+        tfNote: document.getElementById('cf_tf_note').value
+    };
+}
+
+async function submitConditionReport() {
+    const d = getFormData();
+    if(!d.date || !d.viewer) return alert("請填寫檢視紀錄的「日期」與「人員」！");
+    
+    let allPhotos = [...condPhotos];
+    if (mainPhotoBase64) {
+        allPhotos.unshift({ base64: mainPhotoBase64.split(',')[1], mimeType: mainPhotoMime, note: 'MAIN_PHOTO', url: '' });
+    }
+    
+    // 檢查是否有歷史 reportId
+    let rId = document.getElementById('cf_reportId').value;
+
+    const payload = {
+        reportId: rId || null,
+        managerName: currentManager,
+        itemId: condCurrentItem.id,
+        itemName: condCurrentItem.name,
+        reportType: condMode.toString(),
+        formData: d,
+        photos: allPhotos
+    };
+
+    showMiniLoading('正在儲存報告與上傳照片...');
+    try {
+        const res = await callAPI('saveConditionReport', payload);
+        alert(`✅ 報告已安全儲存！\n系統編號：${res.reportId}\n您可以點擊下方按鈕預覽並列印 PDF 格式。`);
+        document.getElementById('cf_reportId').value = res.reportId;
+        document.getElementById('btnCondPrint').style.display = 'block';
+    } catch(e) { alert("儲存失敗：" + e.message); } finally { hideMiniLoading(); }
+}
+
+// 產生列印用 Checkbox 字串
+function buildCheckStr(options, selectedVals, otherTxt) {
+    if(!selectedVals) selectedVals = [];
+    return options.map(opt => {
+        let isChecked = selectedVals.includes(opt) ? '☑' : '☐';
+        if(opt === '其他') { return `${isChecked} 其他：<u>&nbsp;${escapeHTML(selectedVals.includes('其他') ? (otherTxt||'') : '')}&nbsp;</u>`; }
+        return `${isChecked} ${escapeHTML(opt)}`;
+    }).join('&nbsp;&nbsp;');
+}
+
+// 🔥 新增：從總覽直接列印歷史報告
+function printHistoricalCondReport(reportId) {
+    const report = condReportsCache.find(r => r.reportId === reportId);
+    if (!report) return alert("找不到報告資料");
+    
+    let photosForPrint = [];
+    if(report.photos) {
+        report.photos.forEach(url => {
+            if(url) photosForPrint.push({ url: url, note: '歷史照片' });
+        });
+    }
+    
+    executePrintLayout(report.formData, photosForPrint, parseInt(report.reportType));
+}
+
+// 印正在填寫的表單
+function printConditionReport() {
+    executePrintLayout(getFormData(), condPhotos, condMode, mainPhotoBase64);
+}
+
+function executePrintLayout(d, photosArray, mode, currentMainBase64 = null) {
+    let mainPhotoImgTag = '<span class="text-muted small">無圖片</span>';
+    let detailPhotos = [...photosArray];
+    
+    // 如果有當前上傳的 mainBase64 (代表剛填寫完還沒存入歷史)
+    if (currentMainBase64) {
+        mainPhotoImgTag = `<img src="${currentMainBase64}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    } 
+    // 或者歷史陣列中的第一張是主圖 (假設有URL)
+    else if (detailPhotos.length > 0 && detailPhotos[0].note === 'MAIN_PHOTO') {
+        let mainP = detailPhotos.shift(); // 抽出來
+        mainPhotoImgTag = `<img src="${mainP.url}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    }
+
+    // 狀況描述 Checkboxes
+    let appOpts = ['灰塵','異物','氧化','黃化','漬痕','膠帶','標籤','前人修補','其他'];
+    let strOpts = ['變形','脆化','鬆脫','缺失','刮痕','摺痕','裂痕','斷裂','其他'];
+    let medOpts = ['變色','褪色','掉色','剝落','移染','霧化','硬化','其他'];
+    let bioOpts = ['發霉','褐斑','蛀孔','嚙咬','排遺','卵鞘','其他'];
+    let preOpts = ['修護處理','現況保存','維護包裝','溫濕度控制','光照控制','隔離存放','非文保人員檢視(不予建議)','其他'];
+    let treOpts = ['除膠帶或標籤','外觀修護','結構修護','媒材修護','生物性修護','非文保人員檢視(不予建議)','其他'];
+    let loanOpts = ['尚可借出展示','不建議借出展示','館方人員檢視(不予建議)','其他'];
+    
+    let purpVals = d.purpVals || [];
+    let isMaint = purpVals.includes('維護');
+    let bfMark = (isMaint && d.maintState === '修護前') ? '<span class="circle-mark">前</span>' : '前';
+    let afMark = (isMaint && d.maintState === '修護後') ? '<span class="circle-mark">後</span>' : '後';
+    let maintOptHtml = `${isMaint?'☑':'☐'} 維護(${bfMark}/${afMark})`;
+    let purpOptHtml = ['提借','返還'].map(o => `${purpVals.includes(o)?'☑':'☐'} ${o}`).join('&nbsp;&nbsp;');
+    let purpOtherHtml = `${purpVals.includes('其他')?'☑':'☐'} 其他：<u>&nbsp;${escapeHTML(purpVals.includes('其他')?d.purpOther:'')}&nbsp;</u>`;
+    let finalPurpStr = `${maintOptHtml}&nbsp;&nbsp;${purpOptHtml}&nbsp;&nbsp;${purpOtherHtml}`;
+
+    let rateOpts = ['1良好(無修護需求)','2尚可(需維護處理)','3不佳(需修護處理)','4緊急(需優先處理)'];
+    let rateStr = rateOpts.map(o => `${d.rating === o ? '☑' : '☐'} ${escapeHTML(o)}`).join('&nbsp;&nbsp;');
+
+    let condPhotosHtml = detailPhotos.length === 0 ? '<div style="height:30px;"></div>' : detailPhotos.map(p => {
+        let imgSrc = p.base64 ? `data:${p.mimeType};base64,${p.base64}` : p.url;
+        return `
+        <div style="display: flex; border: 1px solid #999; margin-bottom: 5px; page-break-inside: avoid; border-radius:4px; overflow:hidden;">
+            <div style="width: 50%; border-right: 1px solid #999; padding: 5px; background:#fefefe; text-align: center;">
+                <img src="${imgSrc}" style="max-width: 100%; max-height: 200px; object-fit: contain;">
+            </div>
+            <div style="width: 50%; padding: 8px; vertical-align: top; font-size: 10pt; white-space: pre-wrap;">
+                ${escapeHTML(p.note || '')}
+            </div>
+        </div>`;
+    }).join('');
+
+    let dateSafe = d.date ? d.date.replace(/-/g, '/') : '';
+    let tfDateSafe = d.tfDate ? d.tfDate.replace(/-/g, '/') : '';
+    let tfAttach = d.tfAttach || [];
+    let tfPurpVals = d.tfPurpVals || [];
+
+    let html = `
+    <div class="cond-print-paper">
+        <div class="text-end fw-bold mb-2">附件 1</div>
+        <h4 class="text-center fw-bold mb-4">國立中正紀念堂管理處藏品狀況報告表</h4>
+        <div class="fw-bold mb-2">【案名: ${escapeHTML(d.projectName || '')}】</div>
+        
+        <h6 class="fw-bold mb-1">一、藏品基本資料</h6>
+        <table class="cond-pdf-table">
+            <tr><th width="15%">藏品新編號</th><td width="35%">${escapeHTML(d.newId||'')}</td><th width="50%" colspan="2" class="text-center">藏品圖片</th></tr>
+            <tr><th>藏品舊編號</th><td>${escapeHTML(d.oldId||'')}</td><td colspan="2" rowspan="5" class="text-center align-middle p-2" style="height: 180px;">${mainPhotoImgTag}</td></tr>
+            <tr><th>藏品名稱</th><td>${escapeHTML(d.name||'')}</td></tr>
+            <tr><th>藏品儲位</th><td>${escapeHTML(d.loc||'')}</td></tr>
+            <tr><th>財產編號</th><td>${escapeHTML(d.propNum||'')}</td></tr>
+            <tr><th>作者/捐贈者</th><td>${escapeHTML(d.author||'')}</td></tr>
+            <tr><th>型制/材質</th><td>${escapeHTML(d.material||'')}</td><th width="15%">數量</th><td width="35%">${escapeHTML(d.qty||'1')}</td></tr>
+            <tr><th>尺寸</th><td colspan="3">${escapeHTML(d.size||'')}</td></tr>
+            <tr><th>備註</th><td colspan="3">${escapeHTML(d.note||'')}</td></tr>
+        </table>
+
+        <h6 class="fw-bold mb-1 mt-3">二、狀況描述、位置圖示及保存建議</h6>
+        <table class="cond-pdf-table">
+            <tr><th width="12%">外觀</th><td colspan="3" class="small">${buildCheckStr(appOpts, d.appVals, d.appOther)}</td></tr>
+            <tr><th>結構</th><td colspan="3" class="small">${buildCheckStr(strOpts, d.strVals, d.strOther)}</td></tr>
+            <tr><th>媒材</th><td colspan="3" class="small">${buildCheckStr(medOpts, d.medVals, d.medOther)}</td></tr>
+            <tr><th>生物性</th><td colspan="3" class="small">${buildCheckStr(bioOpts, d.bioVals, d.bioOther)}</td></tr>
+            <tr><th>其他</th><td colspan="3" style="height: 50px; vertical-align:top; white-space:pre-wrap;">${escapeHTML(d.otherCond||'')}</td></tr>
+            <tr>
+                <th>狀況圖示<br><div class="text-start fw-normal mt-2 small">說明:</div></th>
+                <td colspan="3" class="p-2 border-0" style="border-bottom: 1px solid #000 !important; border-right: 1px solid #000 !important;">
+                    ${condPhotosHtml}
+                </td>
+            </tr>
+            <tr><th>分級</th><td colspan="3" class="small">${rateStr}</td></tr>
+            <tr><th>保存建議</th><td colspan="3" class="small">${buildCheckStr(preOpts, d.preVals, d.preOther)}</td></tr>
+            <tr><th>修護建議</th><td colspan="3" class="small">${buildCheckStr(treOpts, d.treVals, d.treOther)}</td></tr>
+            <tr><th>借展建議</th><td colspan="3" class="small">${buildCheckStr(loanOpts, d.loanVals, d.loanOther)}</td></tr>
+            <tr><th>檢視目的</th><td colspan="3" class="small">${finalPurpStr}</td></tr>
+            <tr>
+                <th>檢視記錄</th>
+                <td colspan="3">
+                    <span class="me-5">單位: ${escapeHTML(d.unit||'')}</span>
+                    <span class="me-5">人員: ${escapeHTML(d.viewer||'')}</span>
+                    <span>日期: ${escapeHTML(dateSafe)}</span>
+                </td>
+            </tr>
+        </table>
+        <div class="text-end small text-muted">第 1 頁 / 共 2 頁</div>`;
+
+    if (mode === 2) {
+        html += `
+        <div style="page-break-before: always;"></div>
+        <h6 class="fw-bold mb-1 mt-4">三、提借/還藏紀錄</h6>
+        <table class="cond-pdf-table">
+            <tr>
+                <th width="15%">檢視目的</th>
+                <td width="35%">
+                    ${tfPurpVals.includes('提借')?'☑':'☐'} 提借 &nbsp; 
+                    ${tfPurpVals.includes('返還')?'☑':'☐'} 返還
+                </td>
+                <th width="15%">日期:</th>
+                <td width="35%">${escapeHTML(tfDateSafe)}</td>
+            </tr>
+            <tr>
+                <th>附件</th>
+                <td colspan="3">${tfAttach.includes('提借清單或相關公文')?'☑':'☐'} 提借清單或相關公文</td>
+            </tr>
+            <tr><th>特別聲明</th><td colspan="3" style="height: 80px; vertical-align:top; white-space:pre-wrap;">${escapeHTML(d.tfSpecial||'')}</td></tr>
+            <tr><th>備註</th><td colspan="3" style="height: 80px; vertical-align:top; white-space:pre-wrap;">${escapeHTML(d.tfNote||'')}</td></tr>
+            <tr>
+                <td colspan="2" style="height: 200px; vertical-align: top;" class="text-center">
+                    <div class="fw-bold mt-2 fs-5">提借還藏單位</div>
+                </td>
+                <td colspan="2" style="height: 200px; vertical-align: top;" class="text-center">
+                    <div class="fw-bold mt-2 fs-5">典藏單位</div>
+                </td>
+            </tr>
+        </table>
+        <div class="text-end small text-muted mt-1">第 2 頁 / 共 2 頁</div>`;
+    }
+
+    html += `</div>`;
+    document.getElementById('printCondContent').innerHTML = html;
+    document.getElementById('printCondOverlay').style.display = 'flex';
+}
+
+function closePrintCondOverlay() { document.getElementById('printCondOverlay').style.display = 'none'; }
+
+// ================= 廠商報告上傳邏輯 =================
+let vendorFileData = null;
+function handleVendorFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return alert("檔案不可超過 10MB！"); 
+    
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        vendorFileData = {
+            fileName: file.name,
+            mimeType: file.type,
+            base64: e.target.result.split(',')[1]
+        };
+        document.getElementById('vendorFileInfo').innerText = `已選擇檔案：${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+    };
+}
+
+async function submitVendorReport() {
+    if (!vendorFileData) return alert("請先選擇要上傳的檔案！");
+    
+    const payload = {
+        managerName: currentManager,
+        itemId: condCurrentItem.id,
+        itemName: condCurrentItem.name,
+        fileName: vendorFileData.fileName,
+        mimeType: vendorFileData.mimeType,
+        fileBase64: vendorFileData.base64
+    };
+
+    showMiniLoading('正在將檔案安全上傳至 Google Drive ...');
+    try {
+        const res = await callAPI('uploadVendorReport', payload);
+        alert(`✅ 檔案上傳成功！\n紀錄已建立完成，可於歷史清單中檢視。`);
+        backToCondDashboard();
+    } catch(e) {
+        alert("上傳失敗：" + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
