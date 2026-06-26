@@ -2,7 +2,7 @@
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
 // 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (保留十字裁切線，QR碼靠左)
-// 崩潰修復：補齊遺失的 checkSavedSession() 函數，防止盤點模組卡死
+// 崩潰修復：補齊 checkSavedSession、exportReport，修復離線佇列衝突與 Dual-QR Code 雙條碼邏輯
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -684,12 +684,106 @@ function toggleLocBox() { document.getElementById('locBox').style.display = docu
 async function startInventorySession() { sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial'; sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value); if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！'); try { localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations})); } catch(e) {} await executeInventoryStart(); }
 async function resumeInventorySession() { try { const saved = JSON.parse(localStorage.getItem('invSession')); if(!saved) return; sysState.mode = saved.mode; sysState.locations = saved.locations; } catch(e) {} await executeInventoryStart(); }
 function clearInventorySession() { try { localStorage.removeItem('invSession'); } catch(e) {} document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
-async function executeInventoryStart() { showMiniLoading('準備盤點...'); try { const res = await callAPI('startInventory', sysState); sysState.total = res.total; sysState.scanned = res.scanned; localItemCache = res.itemMap || {}; updateProgressUI(); document.getElementById('step1').style.display = 'none'; document.getElementById('step2').style.display = 'block'; hideMiniLoading(); if (!scanner) scanner = new Html5Qrcode("reader"); if (scanner.getState() !== 2) { scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); } } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); } }
+
+// 🔥 離線進度修復：比對 syncQueue，強制覆蓋伺服器未更新的狀態
+async function executeInventoryStart() { 
+    showMiniLoading('準備盤點...'); 
+    try { 
+        const res = await callAPI('startInventory', sysState); 
+        sysState.total = res.total; 
+        sysState.scanned = res.scanned; 
+        localItemCache = res.itemMap || {}; 
+        
+        if (syncQueue && syncQueue.length > 0) {
+            syncQueue.forEach(id => {
+                if (localItemCache[id] && !localItemCache[id].isScanned) {
+                    localItemCache[id].isScanned = true;
+                    sysState.scanned++;
+                }
+            });
+        }
+
+        updateProgressUI(); 
+        document.getElementById('step1').style.display = 'none'; 
+        document.getElementById('step2').style.display = 'block'; 
+        hideMiniLoading(); 
+        if (!scanner) scanner = new Html5Qrcode("reader"); 
+        if (scanner.getState() !== 2) { 
+            scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }, msg => processScanLocal(msg)); 
+        } 
+    } catch (e) { hideMiniLoading(); alert("錯誤：" + e.message); } 
+}
+
 function updateProgressUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned); document.getElementById('progressBar').style.width = (sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100)) + '%'; }
-async function processScanLocal(msg) { if (isProc || Date.now() - lastScan < 800) return; isProc = true; lastScan = Date.now(); let cleanMsg = msg.includes('?id=') ? new URL(msg).searchParams.get('id') : msg.trim().split('\n')[0]; const item = localItemCache[cleanMsg]; const overlay = document.getElementById('resultOverlay'); overlay.style.display = 'block'; if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在範圍</span>'; document.getElementById('resName').innerText = cleanMsg; } else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點</span>'; document.getElementById('resName').innerText = item.name; } else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 成功</span>'; document.getElementById('resName').innerText = item.name; syncQueue.push(cleanMsg); saveSyncQueue(); triggerBackgroundSync(); } setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200); }
-function pauseAndSave() { document.getElementById('step2').style.display = 'none'; document.getElementById('step1').style.display = 'block'; checkSavedSession(); if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
-function finishInventory() { if(!confirm("確定結束進入結算？")) return; document.getElementById('step2').style.display = 'none'; document.getElementById('step3').style.display = 'block'; if (scanner) { scanner.stop().then(()=>{scanner.clear(); scanner=null;}).catch(()=>{scanner=null;}); } }
+
+// 🔥 新增：Dual-QR Code 地點條碼攔截 (WMS 邏輯)
+async function processScanLocal(msg) { 
+    if (isProc || Date.now() - lastScan < 800) return; 
+    isProc = true; lastScan = Date.now(); 
+    
+    let cleanMsg = msg.trim();
+    if (cleanMsg.startsWith("LOC:")) {
+        let locName = cleanMsg.substring(4);
+        playSound('success');
+        const overlay = document.getElementById('resultOverlay');
+        overlay.style.display = 'block';
+        overlay.style.borderColor = '#0d6efd';
+        document.getElementById('resStatus').innerHTML = '<span class="text-primary">📍 盤點區域切換</span>';
+        document.getElementById('resName').innerText = escapeHTML(locName);
+        let descEl = document.getElementById('resDesc');
+        if(descEl) descEl.innerText = "接下來掃描的文物將被視為在此地點盤點";
+        setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200);
+        return;
+    }
+
+    cleanMsg = cleanMsg.includes('?id=') ? new URL(cleanMsg).searchParams.get('id') : cleanMsg.split('\n')[0]; 
+    const item = localItemCache[cleanMsg]; 
+    const overlay = document.getElementById('resultOverlay'); 
+    overlay.style.display = 'block'; 
+    if (!item) { playSound('error'); overlay.style.borderColor = '#dc3545'; document.getElementById('resStatus').innerHTML = '<span class="text-danger">❌ 不在範圍</span>'; document.getElementById('resName').innerText = cleanMsg; let descEl = document.getElementById('resDesc'); if(descEl) descEl.innerText = ""; } 
+    else if (item.isScanned) { playSound('error'); overlay.style.borderColor = '#ffc107'; document.getElementById('resStatus').innerHTML = '<span class="text-warning">⚠️ 已盤點</span>'; document.getElementById('resName').innerText = item.name; let descEl = document.getElementById('resDesc'); if(descEl) descEl.innerText = ""; } 
+    else { playSound('success'); item.isScanned = true; sysState.scanned++; updateProgressUI(); overlay.style.borderColor = '#198754'; document.getElementById('resStatus').innerHTML = '<span class="text-success">✅ 成功</span>'; document.getElementById('resName').innerText = item.name; let descEl = document.getElementById('resDesc'); if(descEl) descEl.innerText = ""; syncQueue.push(cleanMsg); saveSyncQueue(); triggerBackgroundSync(); } 
+    setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200); 
+}
+
+// 🔥 解決相機資源未釋放導致的崩潰
+async function pauseAndSave() { 
+    document.getElementById('step2').style.display = 'none'; 
+    document.getElementById('step1').style.display = 'block'; 
+    checkSavedSession(); 
+    if (scanner) { 
+        await stopScannerSafe(scanner); 
+        scanner = null; 
+    } 
+}
+
+async function finishInventory() { 
+    if(!confirm("確定結束進入結算？")) return; 
+    document.getElementById('step2').style.display = 'none'; 
+    document.getElementById('step3').style.display = 'block'; 
+    if (scanner) { 
+        await stopScannerSafe(scanner); 
+        scanner = null; 
+    } 
+}
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
+
+// 🔥 補齊結算寄送報表功能
+async function exportReport() {
+    const email = document.getElementById('exportEmail').value.trim();
+    const type = document.getElementById('exportType').value;
+    if(!email) return alert('請輸入接收報表的 Email！');
+    showMiniLoading('正在產出報表並寄送...');
+    try {
+        await callAPI('exportInventoryReport', { mode: sysState.mode, locations: sysState.locations, reportType: type, email: email });
+        alert('✅ 結算報表寄送成功！');
+        clearAndBackToHome();
+    } catch(e) {
+        alert('報表寄送失敗：' + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
 
 // ================= 💡 專案異動管理 (總覽與明細) =================
 function backToOverviewTab() { document.querySelector('button[data-bs-target="#moveOverviewTab"]').click(); window.scrollTo(0, 0); }
@@ -1521,7 +1615,40 @@ function optimisticToggleStatus(rows, stat) {
 
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 
-function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
+function printLocationLabels() { 
+    let activeLocs = []; 
+    mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); 
+    if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); 
+    showMiniLoading("生成地點標籤中..."); 
+    
+    setTimeout(() => { 
+        try { 
+            let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; 
+            activeLocs.sort().forEach(loc => { 
+                let qrData = "LOC:" + loc; 
+                const qr = new QRious({ value: qrData, size: 150, level: 'M' }); 
+                const base64Img = qr.toDataURL('image/png'); 
+                printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; 
+            }); 
+            printHtml += `</div></div>`; 
+            
+            document.getElementById('printOverlayContent').innerHTML = printHtml; 
+            
+            // 🔥 安全檢查：防止找不到標籤而導致崩潰
+            let topBarH6 = document.getElementById('printOverlayTopBar').querySelector('h6');
+            if (topBarH6) {
+                topBarH6.innerText = "地點 QR 標籤預覽"; 
+            }
+
+            document.getElementById('printOverlay').style.display = 'flex'; 
+            hideMiniLoading(); 
+        } catch (e) { 
+            hideMiniLoading(); 
+            alert("產生列印畫面時發生錯誤：" + e.message); 
+        } 
+    }, 50); 
+}
+
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = String(r.main).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = String(displayMedium).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = String(r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
 
 async function addNewLocation() { 
