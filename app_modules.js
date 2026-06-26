@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <i class="fas fa-qrcode fs-2 me-3"></i>
                                 <div>
                                     <div class="fs-5">純 QR Code 標籤</div>
-                                    <small class="fw-normal text-muted">包含地點分類標題，適合黏貼於一般平面</small>
+                                    <small class="fw-normal text-muted">單純輸出條碼圖檔陣列，適合自訂標籤機</small>
                                 </div>
                             </div>
                         </button>
@@ -35,6 +35,134 @@ document.addEventListener("DOMContentLoaded", () => {
                             </div>
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="importModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-success"><i class="fas fa-file-import"></i> 批次匯入搬運清單</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info small py-2 mb-3">
+                        💡 建議格式：[臨時編碼] (Tab空白) [藏品編號] (Tab空白) [名稱] (Tab空白) [數量] (Tab空白) [預計搬往地點]<br>
+                        * 若僅貼上「藏品編號」單欄亦可支援。
+                    </div>
+                    <textarea id="importTextarea" class="form-control border-success mb-3" rows="6" placeholder="請在此貼上 Excel 內容..."></textarea>
+                    <button class="btn btn-secondary w-100 fw-bold mb-4" onclick="parseImportData()">🔍 預覽解析結果</button>
+
+                    <div id="importPreviewSection" style="display:none;" class="fade-in-section">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-dark mb-0">比對預覽：</h6>
+                            <span class="small fw-bold text-secondary" id="importStats">共 0 筆資料</span>
+                        </div>
+                        <div class="alert alert-warning small py-2 mb-2" id="importWarningMsg" style="display:none;">
+                            ⚠️ 發現系統中查無此物的編號，您可以選擇直接忽略，或將它們轉換為「雜物」一併搬運。
+                        </div>
+                        <div class="table-responsive border rounded mb-3" style="max-height: 40vh; overflow-y: auto;">
+                            <table class="table table-bordered table-sm text-center align-middle mb-0" style="font-size: 0.9rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th width="15%">狀態</th><th width="25%">藏品編號</th><th width="35%">名稱與數量</th><th width="25%">目前地點/雜物地點</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="importPreviewTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-warning fw-bold text-dark flex-grow-1 shadow-sm" id="btnConvertMisc" onclick="convertUnmatchedToMisc()" style="display:none;">📦 將未知項目轉為雜物</button>
+                            <button class="btn btn-success fw-bold flex-grow-1 shadow-sm" id="btnConfirmImport" onclick="confirmImport()" disabled>✅ 確認匯入</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="cartModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-primary">🛒 購物車檢視與精修</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6"><input type="search" id="cartSearchKw" class="form-control" placeholder="🔍 搜尋..." onkeyup="filterCartList()" onsearch="filterCartList()"></div>
+                        <div class="col-12 col-md-6"><select id="cartPrefixFilter" class="form-select" onchange="filterCartList()"></select></div>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 align-items-center">
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="toggleCartAll(true)">全選</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleCartAll(false)">清除</button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-info fw-bold" data-bs-toggle="collapse" data-bs-target="#cartBatchEditArea">✏️ 批次修改編碼</button>
+                            <button class="btn btn-sm btn-outline-danger fw-bold" onclick="batchRemoveCartItems()">❌ 批次移除</button>
+                        </div>
+                    </div>
+                    
+                    <div class="collapse mb-3" id="cartBatchEditArea">
+                        <div class="card card-body bg-light border-info">
+                            <h6 class="fw-bold text-info small mb-2">針對勾選項目重新發配編碼</h6>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">前綴</span>
+                                <input type="text" id="cartBatchPrefix" class="form-control" placeholder="例: M">
+                                <span class="input-group-text">起始號</span>
+                                <input type="number" id="cartBatchStart" class="form-control" value="1" min="1">
+                                <button class="btn btn-info text-white fw-bold" onclick="applyCartBatchEdit()">套用</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="cartItemList" class="border rounded bg-white" style="max-height: 50vh; overflow-y: auto;"></div>
+                </div>
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <span class="text-muted small fw-bold">已顯示項目: <span id="cartCountText">0</span></span>
+                    <button class="btn btn-secondary fw-bold" data-bs-dismiss="modal">完成</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="tempCodeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-info" style="color: #0dcaf0 !important;"><i class="fas fa-tags"></i> 批次自動配發臨時編碼</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small py-2 mb-3 text-muted">
+                        設定前綴與起始號碼，系統將依序為下方勾選的文物配發臨時編碼（例如 M1, M2...）。
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark">自訂前綴字</label>
+                            <input type="text" id="tcPrefix" class="form-control border-info" placeholder="例: M">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark">起始數字</label>
+                            <input type="number" id="tcStartNum" class="form-control border-info" value="1" min="1">
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-1 py-0" onclick="toggleTcAll(true)">全選</button>
+                            <button class="btn btn-sm btn-outline-secondary py-0" onclick="toggleTcAll(false)">清除</button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-info text-dark py-0" onclick="toggleTcUncoded()">僅選未編碼</button>
+                    </div>
+                    <div id="tcItemList" class="border rounded p-2 bg-light" style="max-height: 35vh; overflow-y: auto;"></div>
+                </div>
+                <div class="modal-footer bg-light p-2">
+                    <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">取消</button>
+                    <button class="btn btn-info fw-bold text-white px-4" onclick="applyTempCodes()">✅ 確認套用</button>
                 </div>
             </div>
         </div>
@@ -630,7 +758,7 @@ function togglePrintBorders() {
     });
 }
 
-// 產生純 QR Code 格式
+// 🔥 修正：產生純粹乾淨的 QR Code 格式，拔除多餘文字與標題
 function generateBasicPrintHtml() {
     const groups = {}; 
     printCartMap.forEach((data, id) => { 
@@ -640,12 +768,11 @@ function generateBasicPrintHtml() {
     }); 
     let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; 
     for(let loc of Object.keys(groups).sort()) { 
-        printHtml += `<div class="label-box title-label" style="background: white;"><div style="font-size:10pt; font-weight:bold; margin-bottom:5px;">📍 典藏地點</div><div style="font-size:11pt; font-weight:bold; color:#198754; line-height:1.2;">${escapeHTML(loc)}</div><div style="font-size:8pt; margin-top:5px; color:#555;">共 ${groups[loc].length} 張</div></div>`; 
         for(let item of groups[loc]) { 
             const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; 
             const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); 
             const base64Img = qr.toDataURL('image/png'); 
-            printHtml += `<div class="label-box" style="background: white;"><img src="${base64Img}" class="qr-img" alt="QR"><div class="id-text">${escapeHTML(item.id)}</div><div class="name-text">${escapeHTML(item.name)}</div></div>`; 
+            printHtml += `<div class="label-box" style="background: white; display: flex; justify-content: center; align-items: center; padding: 0;"><img src="${base64Img}" alt="QR" style="width: 25mm; height: 25mm; object-fit: contain;"></div>`; 
         } 
     } 
     printHtml += `</div></div>`; 
@@ -1135,9 +1262,15 @@ async function submitNewProject() {
 async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     let undoBtn = document.getElementById('floatingUndoBtn');
-    if (undoBtn) undoBtn.style.display = eid ? 'block' : 'none';
-
-    if (!eid) { document.getElementById('mvProgressBox').style.display = 'none'; document.getElementById('mvPhase2').style.display = 'none'; return; }
+    
+    if (!eid) { 
+        if (undoBtn) undoBtn.style.display = 'none';
+        document.getElementById('mvProgressBox').style.display = 'none'; 
+        document.getElementById('mvPhase2').style.display = 'none'; 
+        return; 
+    }
+    
+    if (undoBtn) undoBtn.style.display = 'block';
     showMiniLoading('載入專案資料中...'); workerCart.clear(); updateFloatingCartUI(); 
     try {
         const res = await callAPI('getProjectPendingData', { eventId: eid }); currentProjectItems = res.items || []; 
@@ -1271,7 +1404,7 @@ async function confirmBulkMovement() {
 }
 
 async function openUndoMoveModal() {
-    if(!currentMvEventId) return alert("請先選擇專案！");
+    if(!currentMvEventId) return alert("請先在上方選擇 1.異動專案事件！");
     showMiniLoading('讀取可撤銷清單...');
     try {
         const res = await callAPI('getProjectDetails', { eventId: currentMvEventId });
@@ -1660,7 +1793,7 @@ function optimisticToggleStatus(rows, stat) {
 
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 
-function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTopBar').querySelector('h6').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
+function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTitle').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = String(r.main).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = String(displayMedium).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = String(r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
 
 async function addNewLocation() { 
@@ -1742,7 +1875,16 @@ function getCheckedValues(selector) {
 function jumpToConditionReport() {
     const rawId = document.getElementById('qResId').innerText.trim();
     if(!rawId || rawId === '--') return alert("無法獲取藏品編號！");
-    enterSystem('cond').then(() => { selectCondTarget(rawId); });
+    enterSystem('cond').then(() => { 
+        setTimeout(() => {
+            if(globalCatalog[rawId]) {
+                selectCondTarget(rawId); 
+            } else {
+                alert("請先手動搜尋藏品。");
+                openCondSearchModal();
+            }
+        }, 300); // 確保系統 UI 動畫完成再呼叫
+    });
 }
 
 // 載入狀況報告歷史清單
@@ -1845,7 +1987,11 @@ function selectCondTarget(id) {
     if(!cat) return;
     
     condCurrentItem = cat;
-    bootstrap.Modal.getInstance(document.getElementById('condSearchModal')).hide();
+    let modalEl = document.getElementById('condSearchModal');
+    if (modalEl) {
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+    }
     
     document.getElementById('condDashboard').style.display = 'none';
     document.getElementById('condFormArea').style.display = 'none';
