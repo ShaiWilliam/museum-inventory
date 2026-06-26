@@ -2,6 +2,7 @@
 // 博物館系統前端核心 (app_core.js)
 // 包含：API通訊(Fetch跨網域)、七天免登入記憶、全域變數、權限控管 (RBAC)、離線快取、基礎工具
 // 最新優化：自動預設「操作人員」為當前登入者、修復盤點基準日與地點樹狀圖渲染斷層、修復 GAS Fetch API 快取陷阱
+// 崩潰修復：強制重置 Bootstrap 狀態，解決重新進入模組時發生的黑畫面 (Blank Screen) 錯誤
 // ==========================================
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyqp0mjDTKBN0-qru1ITtgvxXKsFq96V-WmUEzK5ZxcjUyxonLX8Wd9xeXqBmWZ95yS/exec";
@@ -200,6 +201,13 @@ async function enterSystem(sys) {
     const sysNames = { query: '藏品狀態查詢', register: '建檔與列印中心', inv: '文物盤點系統', move: '文物異動搬運', mgr: '管理員後台' };
     document.getElementById('sysTitle').innerText = sysNames[sys];
     
+    // 💡 修正：強制重置主模組 Bootstrap 分頁狀態，防止系統判斷錯誤導致的黑畫面
+    ['query', 'register', 'inv', 'move', 'mgr'].forEach(id => {
+        let pane = document.getElementById(id);
+        if (pane) pane.classList.remove('active', 'show');
+    });
+    document.querySelectorAll('#systemTabs .nav-link').forEach(btn => btn.classList.remove('active'));
+
     document.querySelector(`button[data-bs-target="#${sys}"]`).click();
     
     if(sys === 'move') {
