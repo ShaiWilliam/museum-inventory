@@ -2,6 +2,7 @@
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
 // 最新優化：新增 6x3cm 完整藏品吊牌列印功能 (保留十字裁切線，QR碼靠左)
+// 崩潰修復：補齊遺失的 checkSavedSession() 函數，防止盤點模組卡死
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -662,6 +663,22 @@ function generateFullPrintHtml() {
 
 function closePrintOverlay() { document.getElementById('printOverlay').style.display = 'none'; document.getElementById('printOverlayContent').innerHTML = ''; }
 function closePrintReport() { document.getElementById('printReportOverlay').style.display = 'none'; document.getElementById('printReportContent').innerHTML = ''; }
+
+// 🔥 新增：檢查是否有未完成的盤點進度
+function checkSavedSession() {
+    try {
+        const saved = localStorage.getItem('invSession');
+        if (saved) {
+            document.getElementById('continueInvBox').style.display = 'block';
+            document.getElementById('invSettingsArea').style.display = 'none';
+        } else {
+            document.getElementById('continueInvBox').style.display = 'none';
+            document.getElementById('invSettingsArea').style.display = 'block';
+        }
+    } catch(e) {
+        console.warn("無法存取 localStorage", e);
+    }
+}
 
 function toggleLocBox() { document.getElementById('locBox').style.display = document.getElementById('modePartial').checked ? 'block' : 'none'; }
 async function startInventorySession() { sysState.mode = document.getElementById('modeAll').checked ? 'all' : 'partial'; sysState.locations = Array.from(document.querySelectorAll('.leaf-cb:checked')).map(cb => cb.value); if(sysState.mode === 'partial' && sysState.locations.length === 0) return alert('請先選擇地點！'); try { localStorage.setItem('invSession', JSON.stringify({mode: sysState.mode, locations: sysState.locations})); } catch(e) {} await executeInventoryStart(); }
