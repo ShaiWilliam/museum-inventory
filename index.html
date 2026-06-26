@@ -37,6 +37,9 @@
     <div id="printOverlayTopBar">
       <button class="btn btn-outline-secondary fw-bold" onclick="closePrintOverlay()">🔙 返回系統</button>
       
+      <!-- 遺失補回：提供 JS 修改標題的目標元素 -->
+      <h6 id="printOverlayTitle" class="mb-0 fw-bold text-dark d-none d-sm-block">列印預覽</h6>
+      
       <div class="d-flex align-items-center gap-2 gap-sm-3">
         <div class="form-check form-switch mb-0" style="background: rgba(255,255,255,0.8); padding: 5px 10px 5px 40px; border-radius: 20px; border: 1px solid #ccc;">
           <input class="form-check-input" type="checkbox" id="toggleBorderCheck" onchange="togglePrintBorders()" checked>
@@ -207,10 +210,14 @@
                   <div class="row g-2 mb-2"><div class="col-6"><small class="text-muted d-block">入藏等級</small><strong id="qResAccession">--</strong></div><div class="col-6"><small class="text-muted d-block">蔣元素</small><strong id="qResJiang">--</strong></div></div>
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
-                <!-- 查詢結果中加入跳轉至狀況報告的按鈕 -->
+                
+                <!-- 優化：將功能按鈕拆分，避免每次都強制呼叫相機 -->
                 <div class="d-flex gap-2 mt-4">
-                    <button class="btn btn-outline-primary w-100 fw-bold py-3 fs-5 shadow-sm" onclick="jumpToConditionReport()">📝 狀況報告</button>
-                    <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm" id="btnNextQuery" onclick="startQueryScanner()">🔄 繼續查詢</button>
+                    <button class="btn btn-outline-primary w-100 fw-bold py-3 shadow-sm" onclick="jumpToConditionReport()">📝 填寫狀況報告</button>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-primary w-100 fw-bold py-3 shadow-sm" onclick="startQueryScanner()">📷 相機掃描</button>
+                    <button class="btn btn-secondary w-100 fw-bold py-3 shadow-sm" onclick="resetQueryUI()">✏️ 手動查詢</button>
                 </div>
               </div>
             </div>
@@ -1067,4 +1074,3 @@
 
 </body>
 </html>
-
