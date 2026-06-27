@@ -239,8 +239,12 @@ html, body {
     body * { visibility: hidden; }
     #mainApp, #homeMenu, #authScreen, .modal { display: none !important; }
     
-    /* 🔥 確保所有的 Overlay 列印區域可見 */
-    #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay *, #printCondOverlay, #printCondOverlay * { visibility: visible; }
+    /* 🔥 確保所有的 Overlay 列印區域可見，並強制彩色列印確保背景與框線不遺失 */
+    #printOverlay, #printOverlay *, #printReportOverlay, #printReportOverlay *, #printCondOverlay, #printCondOverlay * { 
+        visibility: visible; 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+    }
     #printOverlay, #printReportOverlay, #printCondOverlay { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: #fff; overflow: visible; display: block !important; }
     
     /* 隱藏上方導覽列 (只留紙張區域) */
@@ -250,6 +254,6 @@ html, body {
     .preview-paper, .cond-print-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
     .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     
-    /* 強制清除所有硬體邊距，由我們內部的 padding 處理留白 */
+    /* 強制清除所有硬體邊距，鎖定直式 A4，完美解決出血問題 */
     @page { size: A4 portrait; margin: 0; }
 }
