@@ -222,7 +222,9 @@ async function enterSystem(sys) {
     document.getElementById('mainApp').style.display = 'block';
     window.scrollTo(0, 0);
 
-    if (sys === 'query') { document.getElementById('queryManualInput').focus(); }
+    if (sys === 'query') {
+        if(typeof resetQueryUI === 'function') resetQueryUI();
+    }
     
     // 💡 修正：進入盤點系統時，主動渲染地點清單，並檢查是否有進度暫存
     if (sys === 'inv') {
@@ -442,7 +444,8 @@ window.addEventListener('online', () => { if(syncQueue.length > 0) triggerBackgr
 // ================= 💡 查詢模組輔助工具 =================
 function resetQueryUI() {
     document.getElementById('queryResultBox').style.display = 'none';
-    document.getElementById('btnStartQueryCam').style.display = 'block';
-    document.getElementById('queryManualInput').value = '';
-    document.getElementById('queryManualInput').focus();
+    let startContainer = document.getElementById('queryStartContainer');
+    if(startContainer) startContainer.style.display = 'flex';
+    document.getElementById('query-reader-container').style.display = 'none';
+    if (queryScanner) { stopScannerSafe(queryScanner).then(() => { queryScanner = null; }); }
 }
