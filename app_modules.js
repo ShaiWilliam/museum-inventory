@@ -1,7 +1,7 @@
 // ==========================================
 // 博物館系統模組功能 (app_modules.js)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
-// 最新優化：新增「藏品狀況報告表」模組 (含歷史編輯、直接列印、PDF 100% 完美排版)
+// 最新優化：狀況報告模組全面升級 (預覽、相簿、A4排版優化、雲端刪除同步)
 // ==========================================
 
 // ================= 💡 動態注入新增的 UI 介面 =================
@@ -163,6 +163,55 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="modal-footer bg-light p-2">
                     <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">取消</button>
                     <button class="btn btn-info fw-bold text-white px-4" onclick="applyTempCodes()">✅ 確認套用</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="condPreviewModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-dark"><i class="fas fa-file-alt"></i> 報告排版預覽</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0 bg-secondary" style="overflow-x: auto; min-height: 50vh;">
+                    <div id="condPreviewContainer" style="transform: scale(0.9); transform-origin: top center; margin-top: 20px;"></div>
+                </div>
+                <div class="modal-footer bg-white d-flex gap-2">
+                    <button class="btn btn-primary fw-bold flex-grow-1 py-3 shadow-sm" id="btnCondPreviewEdit">✏️ 編輯這份報告</button>
+                    <button class="btn btn-success fw-bold flex-grow-1 py-3 shadow-sm" id="btnCondPreviewPrint">🖨️ 列印文件</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="condPostPrintModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg text-center">
+                <div class="modal-body p-4">
+                    <h4 class="fw-bold text-success mb-3">✅ 列印/預覽結束</h4>
+                    <p class="text-muted mb-4">請問您接下來要進行什麼操作？</p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary fw-bold py-3" onclick="closePostPrintAndReturn()">🔙 返回狀況報告總覽</button>
+                        <button class="btn btn-outline-secondary fw-bold py-2" data-bs-dismiss="modal">📝 停留本頁繼續操作</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="condGalleryModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-images"></i> 報告圖檔檢視中心</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div id="condGalleryContainer" class="row g-3">
+                        <div class="text-center text-muted w-100 py-4">讀取中...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -336,14 +385,14 @@ let isLocSyncing = false;
 let allProjectsList = [];
 let currentPdItems = [];
 
-// 🔥 狀況報告表專屬變數
+// 狀況報告表專屬變數
 let condCurrentItem = null;
 let condPhotos = [];
 let mainPhotoBase64 = "";
 let mainPhotoMime = "";
 let pendingPhotoBase64 = "";
 let condMode = 1;
-let condReportsCache = []; // 用於儲存歷史報告清單
+let condReportsCache = [];
 
 function smartConcatLoc(main, med, small) {
     main = main || ""; med = med || ""; small = small || "";
@@ -711,9 +760,14 @@ function selectMainQueryTarget(id) {
 function openMainQuerySearchModal() {
     document.getElementById('mainQuerySearchKw').value = '';
     document.getElementById('mainQuerySearchResult').innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
-    currentVkInputId = 'mainQuerySearchKw';
-    closeVK();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('mainQuerySearchModal')).show();
+    // 延遲觸發虛擬鍵盤，確保 Bootstrap 動畫完成
+    setTimeout(() => {
+        currentVkInputId = 'mainQuerySearchKw';
+        useVK = true;
+        let input = document.getElementById('mainQuerySearchKw'), btn = document.getElementById('btnToggleMainQueryInputMode');
+        applyVkState(input, btn);
+    }, 300);
 }
 
 async function execQuery(rawStr) { 
@@ -1128,7 +1182,56 @@ function renderPdTable() {
     }).join(''); 
 }
 
-async function printProjectFromOverview(eventId, eventName) { showMiniLoading('產生清冊中...'); try { const res = await callAPI('getProjectDetails', { eventId: eventId }); if(res.length === 0) return alert("專案無資料！"); let html = `<div class="preview-paper"><h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3><div class="d-flex justify-content-between mb-3 border-bottom pb-2"><span><strong>專案名稱：</strong> ${escapeHTML(eventName)}</span><span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span></div><table class="table table-bordered table-sm" style="font-size: 10pt;"><thead class="table-light"><tr><th width="5%">項次</th><th width="20%">文物/雜物編號</th><th width="25%">名稱 (數量)</th><th width="20%">原典藏地點</th><th width="20%">移往暫存地點 (箱號)</th><th width="10%">核對簽章</th></tr></thead><tbody>`; res.forEach((item, idx) => { let dest = item.newLoc ? escapeHTML(item.newLoc) : "未搬運"; if(item.boxName) dest += `<br><small>(${escapeHTML(item.boxName)})</small>`; let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; let displayId = String(item.id).replace(/\n/g, ' '); html += `<tr><td class="text-center align-middle">${idx + 1}</td><td class="align-middle">${escapeHTML(displayId)} ${tcLabel}</td><td class="align-middle">${escapeHTML(item.name)} <span class="badge bg-secondary">x${escapeHTML(item.qty || '1')}</span></td><td class="align-middle">${escapeHTML(item.oldLoc)}</td><td class="align-middle">${dest}</td><td></td></tr>`; }); html += `</tbody></table><div class="mt-5 d-flex justify-content-between px-5"><div class="text-center"><div><strong>點交人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div><div class="text-center"><div><strong>搬運負責人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div><div class="text-center"><div><strong>管理員審核簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div></div></div>`; document.getElementById('printReportContent').innerHTML = html; document.getElementById('printReportOverlay').style.display = 'flex'; } catch(e) { alert("無法產生清冊：" + e.message); } finally { hideMiniLoading(); } }
+// 🔥 修正問題 6：搬運清冊列印排版與防圖層疊加
+async function printProjectFromOverview(eventId, eventName) { 
+    showMiniLoading('產生清冊中...'); 
+    try { 
+        const res = await callAPI('getProjectDetails', { eventId: eventId }); 
+        if(res.length === 0) return alert("專案無資料！"); 
+        let html = `
+        <div class="preview-paper cond-print-paper">
+            <h3 class="text-center fw-bold mb-4">典藏庫房 搬運清冊</h3>
+            <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+                <span><strong>專案名稱：</strong> ${escapeHTML(eventName)}</span>
+                <span><strong>列印時間：</strong> ${new Date().toLocaleString('zh-TW')}</span>
+            </div>
+            <table class="table table-bordered table-sm" style="font-size: 10pt;">
+                <thead class="table-light">
+                    <tr><th width="5%">項次</th><th width="20%">文物/雜物編號</th><th width="25%">名稱 (數量)</th><th width="20%">原典藏地點</th><th width="20%">移往暫存地點 (箱號)</th><th width="10%">核對簽章</th></tr>
+                </thead>
+                <tbody>`; 
+        
+        res.forEach((item, idx) => { 
+            let dest = item.newLoc ? escapeHTML(item.newLoc) : "未搬運"; 
+            if(item.boxName) dest += `<br><small>(${escapeHTML(item.boxName)})</small>`; 
+            let tcLabel = item.tempCode ? `<br><span class="badge border border-dark text-dark mt-1" style="font-size:9pt;"><i class="fas fa-tag"></i> ${escapeHTML(item.tempCode)}</span>` : ''; 
+            
+            // 💡 修正問題 6：利用正規表達式濾除 [xxx] 格式的臨時編碼，還原乾淨的藏品 ID
+            let displayId = String(item.id).replace(/\n/g, ' ').replace(/\[.*?\]\w*/g, '').trim(); 
+            
+            html += `<tr><td class="text-center align-middle">${idx + 1}</td><td class="align-middle">${escapeHTML(displayId)} ${tcLabel}</td><td class="align-middle">${escapeHTML(item.name)} <span class="badge bg-secondary">x${escapeHTML(item.qty || '1')}</span></td><td class="align-middle">${escapeHTML(item.oldLoc)}</td><td class="align-middle">${dest}</td><td></td></tr>`; 
+        }); 
+        
+        html += `
+                </tbody>
+            </table>
+            <div class="mt-5 d-flex justify-content-between px-5">
+                <div class="text-center"><div><strong>點交人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div>
+                <div class="text-center"><div><strong>搬運負責人簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div>
+                <div class="text-center"><div><strong>管理員審核簽章</strong></div><div style="border-bottom: 1px solid #000; width: 150px; margin-top: 40px;"></div></div>
+            </div>
+        </div>`; 
+        document.getElementById('printReportContent').innerHTML = html; 
+        
+        // 強制隱藏狀況報告的列印圖層，避免互相疊加
+        document.getElementById('printCondOverlay').style.display = 'none';
+        document.getElementById('printReportOverlay').style.display = 'flex'; 
+    } catch(e) { 
+        alert("無法產生清冊：" + e.message); 
+    } finally { 
+        hideMiniLoading(); 
+    } 
+}
 
 // ================= 💡 專案編輯與清單管理 =================
 function loadNewMvList() { 
@@ -1304,7 +1407,7 @@ function toggleTcAll(state) { document.querySelectorAll('.tc-item-cb').forEach(c
 function toggleTcUncoded() { document.querySelectorAll('.tc-item-cb').forEach(cb => { cb.checked = (cb.getAttribute('data-has-tc') === 'false'); }); }
 function applyTempCodes() { let prefix = document.getElementById('tcPrefix').value.trim(), startNum = parseInt(document.getElementById('tcStartNum').value.trim()); if(isNaN(startNum)) startNum = 1; let cbs = document.querySelectorAll('.tc-item-cb:checked'); if(cbs.length === 0) return alert("請勾選要配發臨時編碼的項目！"); let currentNum = startNum; cbs.forEach(cb => { let id = cb.value, item = newMvCart.get(id); if(item) { item.tempCode = prefix + currentNum; newMvCart.set(id, item); let inAllList = allMvItems.find(x => x.id === id); if(inAllList) inAllList.tempCode = item.tempCode; currentNum++; } }); saveMvDraft(); bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide(); filterNewMvList(); showSyncToast("✅ 臨時編碼已成功套用", true); }
 
-// 🔥 修正 Bug 4：儲存專案後自動清空表單，並跳轉回「專案總覽」
+// 🔥 修正問題 4：儲存專案後自動清空表單，並跳轉回「專案總覽」
 async function submitNewProject() { 
     const action = document.getElementById('newMvActionSelect').value, pName = document.getElementById('newMvName').value.trim(), pDesc = document.getElementById('newMvDesc').value.trim(); 
     if(!pName) return alert("請輸入專案名稱！"); if(newMvCart.size === 0) return alert("請至少挑選一件待搬運文物！"); showMiniLoading('正在儲存專案與清單資料...'); 
@@ -1338,7 +1441,7 @@ async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     let undoBtn = document.getElementById('floatingUndoBtn');
     
-    // 💡 修正 Bug 5：未選專案時，強制隱藏浮動撤銷按鈕
+    // 💡 修正問題 5：未選專案時，強制隱藏浮動撤銷按鈕
     if (!eid) { 
         if (undoBtn) undoBtn.style.display = 'none';
         document.getElementById('mvProgressBox').style.display = 'none'; 
@@ -1869,100 +1972,8 @@ function optimisticToggleStatus(rows, stat) {
 
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 
-// 🔥 完美重構：地點 QR 標籤，精準 3x3cm + 裁切線 + 中文名稱
-function printLocationLabels() { 
-    let activeLocs = []; 
-    mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); 
-    if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); 
-    
-    showMiniLoading("生成地點標籤中..."); 
-    setTimeout(() => { 
-        try { 
-            let printHtml = `
-            <style>
-                .basic-print-container { display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; padding: 5mm; background: white; margin: 0 auto; width: 210mm; }
-                .fl-card-3x3 { width: 30mm; height: 30mm; background: white; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; padding: 1mm; }
-                .fl-crop-tl, .fl-crop-tr, .fl-crop-bl, .fl-crop-br { position: absolute; width: 3mm; height: 3mm; border-color: #999; border-style: solid; pointer-events: none; }
-                .fl-crop-tl { top: 0; left: 0; border-width: 0.5px 0 0 0.5px; }
-                .fl-crop-tr { top: 0; right: 0; border-width: 0.5px 0.5px 0 0; }
-                .fl-crop-bl { bottom: 0; left: 0; border-width: 0 0 0.5px 0.5px; }
-                .fl-crop-br { bottom: 0; right: 0; border-width: 0 0.5px 0.5px 0; }
-            </style>
-            <div class="preview-paper basic-print-container">`; 
-            
-            activeLocs.sort().forEach(loc => { 
-                let qrData = "LOC:" + loc; 
-                const qr = new QRious({ value: qrData, size: 150, level: 'M' }); 
-                const base64Img = qr.toDataURL('image/png'); 
-                printHtml += `
-                <div class="fl-card-3x3 fl-card">
-                    <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
-                    <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
-                    <img src="${base64Img}" alt="QR" style="width: 22mm; height: 22mm; object-fit: contain; margin-bottom: 0.5mm;">
-                    <div style="font-size: 7.5pt; font-weight: bold; color: #000; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(loc)}</div>
-                </div>`; 
-            }); 
-            printHtml += `</div>`; 
-            document.getElementById('printOverlayContent').innerHTML = printHtml; 
-            document.getElementById('printOverlayTitle').innerText = "地點 QR 標籤預覽"; 
-            document.getElementById('printOverlay').style.display = 'flex'; 
-            
-            if (typeof togglePrintBorders === 'function') togglePrintBorders();
-            hideMiniLoading(); 
-        } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } 
-    }, 50); 
-}
+// ================= 💡 狀況報告表 核心模組 (預覽、排版、編輯、畫廊) =================
 
-function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = String(r.main).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = String(displayMedium).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = String(r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
-
-async function addNewLocation() { 
-    try {
-        const mInput = document.getElementById('locAddMain');
-        const medInput = document.getElementById('locAddMedium');
-        const sInput = document.getElementById('locAddSmall');
-        
-        const m = mInput.value.trim(), med = medInput.value.trim(), s = sInput.value.trim(); 
-        if(!m) return alert("「大區」為必填欄位！"); 
-        
-        let fullStr = smartConcatLoc(m, med, s), flatTree = []; 
-        mgrLocTree.forEach(mNode => mNode.subs.forEach(sNode => sNode.details.forEach(d => flatTree.push(d)))); 
-        
-        let existing = flatTree.find(d => d.val === fullStr);
-        let existingInQueue = locAddQueue.find(q => smartConcatLoc(q.main, q.medium, q.small) === fullStr); 
-        
-        if (existing || existingInQueue) { 
-            if (existing && !existing.isHidden) { return showSyncToast('⚠️ 此地點已在啟用清單中！', false); } 
-            else if (existing && existing.isHidden) { 
-                showSyncToast('⚠️ 偵測到歷史停用地點，將為您自動喚醒...', false); 
-                sInput.value = ''; 
-                return toggleLocStatus(existing.rowIndex, false); 
-            } 
-            else { return showSyncToast('⚠️ 此地點已在背景排隊建立中！', false); } 
-        } 
-        
-        locAddQueue.push({ main: m, medium: med, small: s }); 
-        optimisticAddLocToTree(m, med, s, fullStr); 
-        showSyncToast(`✅ [${fullStr}] 已加入建立排程`, true); 
-        
-        sInput.value = ''; 
-        sInput.focus(); 
-        processLocAddQueue(); 
-    } catch(e) {
-        alert("新增地點發生錯誤：" + e.message);
-    }
-}
-
-function optimisticAddLocToTree(m, med, s, fullStr) { let targetMain = mgrLocTree.find(x => x.main === m); if (!targetMain) { targetMain = { main: m, subs: [] }; mgrLocTree.push(targetMain); mgrLocTree.sort((a,b) => a.main.localeCompare(b.main)); } let targetSub = targetMain.subs.find(x => x.sub === (med || "(本區)")); if (!targetSub) { targetSub = { sub: (med || "(本區)"), details: [] }; targetMain.subs.push(targetSub); targetMain.subs.sort((a,b) => a.sub.localeCompare(b.sub)); } targetSub.details.push({ label: s || "(無)", val: fullStr, rowIndex: 'temp_' + Date.now() + Math.random(), isHidden: false, isPending: true }); targetSub.details.sort((a,b) => a.label.localeCompare(b.label)); renderLocationsList(mgrLocTree); }
-async function processLocAddQueue() { if (isLocAdding || locAddQueue.length === 0) return; isLocAdding = true; const itemsToProcess = [...locAddQueue]; locAddQueue = []; try { const newTree = await callAPI('batchAddLocations', { items: itemsToProcess }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); let addedNames = itemsToProcess.map(q => smartConcatLoc(q.main, q.medium, q.small)).join('、'); if (addedNames.length > 40) { addedNames = addedNames.substring(0, 40) + '... 等 ' + itemsToProcess.length + ' 筆'; } showSyncToast(`✅ 已成功新增後台資料：${addedNames}`, true); } catch (e) { console.error("背景建立失敗", e); showSyncToast("⚠️ 部分地點建立失敗，將於下次重試", false); locAddQueue = [...itemsToProcess, ...locAddQueue]; renderLocationsList(mgrLocTree); } finally { isLocAdding = false; if (locAddQueue.length > 0) { processLocAddQueue(); } } }
-function openEditLocModal(rowIndex, oldMain, oldMedium, oldSmall) { document.getElementById('editLocRowIndex').value = rowIndex; document.getElementById('editLocMain').value = oldMain; document.getElementById('editLocMedium').value = oldMedium; document.getElementById('editLocSmall').value = oldSmall; bootstrap.Modal.getOrCreateInstance(document.getElementById('editLocModal')).show(); }
-function submitEditLoc() { const rowIndex = parseInt(document.getElementById('editLocRowIndex').value), m = document.getElementById('editLocMain').value.trim(), med = document.getElementById('editLocMedium').value.trim(), s = document.getElementById('editLocSmall').value.trim(); if(!m) return alert("❌「大區」不可為空！"); bootstrap.Modal.getInstance(document.getElementById('editLocModal')).hide(); const card = document.getElementById(`locCard_${rowIndex}`); if(card) { let displaySmall = s === "" ? smartConcatLoc(m, med, s) : s; card.innerHTML = `<div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(m)}</span>${med ? `<span class="badge bg-light text-dark border">${escapeHTML(med)}</span>` : ''}<span class="badge bg-warning text-dark ms-2" id="syncBadge_${rowIndex}">☁️ 同步中...</span></div><div><button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" disabled><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${rowIndex})"><i class="fas fa-trash"></i></button></div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div>`; } locUpdateQueue.push({ rowIndex: rowIndex, main: m, medium: med, small: s }); processLocQueue(); }
-async function processLocQueue() { if (isLocSyncing || locUpdateQueue.length === 0) return; isLocSyncing = true; const updatesToProcess = [...locUpdateQueue]; locUpdateQueue = []; try { const newTree = await callAPI('batchUpdateLocations', { updates: updatesToProcess }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast(`✅ ${updatesToProcess.length} 筆地點已於背景更新完成`, true); } catch (e) { console.error("背景更新失敗", e); showSyncToast("⚠️ 部分地點背景更新失敗，將於下次重試", true); locUpdateQueue = [...updatesToProcess, ...locUpdateQueue]; renderLocationsList(mgrLocTree); } finally { isLocSyncing = false; if (locUpdateQueue.length > 0) { processLocQueue(); } } }
-async function toggleLocStatus(rowIndex, setHidden) { showSyncToast('狀態更新同步中...'); let found = false; mgrLocTree.forEach(m => m.subs.forEach(s => s.details.forEach(d => { if(d.rowIndex === rowIndex) { d.isHidden = setHidden; found = true; } }))); if(found) renderLocationsList(mgrLocTree); try { const newTree = await callAPI('toggleLocStatus', { rowIndex: rowIndex, setHidden: setHidden }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); showSyncToast("✅ 狀態已同步", true); } catch(e) { alert("狀態切換失敗：" + e.message); showSyncToast("❌ 同步失敗", true); } }
-async function deleteLoc(rowIndex) { if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return; showMiniLoading('刪除地點中...'); try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); } }
-
-// ================= 💡 藏品狀況報告表 核心邏輯 =================
-
-// 控制「其他：」文字輸入框的顯示隱藏
 function toggleOtherInput(chkId, txtId) {
     const chk = document.getElementById(chkId);
     const txt = document.getElementById(txtId);
@@ -1972,7 +1983,6 @@ function toggleOtherInput(chkId, txtId) {
     }
 }
 
-// 控制「維護(前/後)」選項的顯示隱藏
 function toggleMaintOpt() {
     const chk = document.getElementById('c_purp_1');
     const area = document.getElementById('c_purp_maint_opt_area');
@@ -1985,12 +1995,11 @@ function toggleMaintOpt() {
     }
 }
 
-// 取得多選框的文字陣列
 function getCheckedValues(selector) {
     return Array.from(document.querySelectorAll(selector + ':checked')).map(cb => cb.value);
 }
 
-// 從查詢畫面直接跳轉至填寫狀況報告
+// 💡 修正問題 1：跳轉報告時無縫對接
 function jumpToConditionReport() {
     const rawId = document.getElementById('qResId').innerText.trim();
     if(!rawId || rawId === '--') return alert("無法獲取藏品編號！");
@@ -2011,7 +2020,7 @@ async function loadConditionReports() {
     showMiniLoading('載入報告清單...');
     try {
         const reports = await callAPI('getConditionReports');
-        condReportsCache = reports; // 存入全域變數供後續編輯使用
+        condReportsCache = reports; 
         const container = document.getElementById('condReportListContainer');
         if(reports.length === 0) {
             container.innerHTML = '<div class="text-center text-muted py-4 small">目前尚無任何報告紀錄。</div>';
@@ -2026,20 +2035,16 @@ async function loadConditionReports() {
             
             let photoIndicator = r.photos && r.photos.length > 0 ? `<span class="badge bg-light text-secondary border ms-1"><i class="fas fa-image"></i> ${r.photos.length}</span>` : '';
 
-            // 🔥 新增：依據報告類型顯示不同的操作按鈕 (編輯 / 列印 / 預覽連結)
             let actionBtns = '';
             if (r.reportType === '3') {
                 actionBtns = `<button class="btn btn-sm btn-outline-danger fw-bold w-100 mt-2" onclick="window.open('${escapeHTML(r.formData.fileUrl)}', '_blank')">🔗 檢視外部檔案</button>`;
             } else {
-                actionBtns = `
-                <div class="d-flex gap-2 mt-2">
-                    <button class="btn btn-sm btn-outline-primary fw-bold flex-grow-1" onclick="editCondReport('${escapeHTML(r.reportId)}')">✏️ 編輯</button>
-                    <button class="btn btn-sm btn-dark fw-bold flex-grow-1" onclick="printHistoricalCondReport('${escapeHTML(r.reportId)}')">🖨️ 列印</button>
-                </div>`;
+                actionBtns = `<div class="text-center mt-2 small text-primary fw-bold"><i class="fas fa-search"></i> 點擊預覽報告</div>`;
             }
 
+            // 💡 修正問題 2：點擊卡片改為彈出預覽對話框
             return `
-            <div class="card border-0 shadow-sm mb-2">
+            <div class="card border-0 shadow-sm mb-2" ${r.reportType !== '3' ? `style="cursor:pointer;" onclick="openCondPreview('${escapeHTML(r.reportId)}')" ` : ''}>
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div class="fw-bold text-dark">${escapeHTML(r.itemId)}</div>
@@ -2062,6 +2067,37 @@ async function loadConditionReports() {
     } finally {
         hideMiniLoading();
     }
+}
+
+// 💡 修正問題 4：新增報告圖檔檢視 (Gallery) 功能
+function openCondGallery() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condGalleryModal')).show();
+    renderCondGallery();
+}
+
+function renderCondGallery() {
+    const container = document.getElementById('condGalleryContainer');
+    let html = '';
+    condReportsCache.forEach(r => {
+        if (r.reportType !== '3' && r.photos && r.photos.length > 0) {
+            html += `<div class="col-12"><h6 class="fw-bold text-dark border-bottom pb-2 mt-2">📄 ${escapeHTML(r.itemId)} - ${escapeHTML(r.itemName)} <br><small class="text-muted fw-normal">${escapeHTML(r.timestamp)}</small></h6></div>`;
+            r.photos.forEach(url => {
+                if (url) {
+                    html += `
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <img src="${url}" class="card-img-top" style="height: 150px; object-fit: cover; cursor:pointer;" onclick="window.open('${url}', '_blank')" alt="Photo">
+                            <div class="card-body p-2 text-center">
+                                <button class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="window.open('${url}', '_blank')"><i class="fas fa-external-link-alt"></i> 開啟原檔</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+            });
+        }
+    });
+    if(html === '') html = '<div class="text-center text-muted w-100 py-4">目前沒有任何圖檔紀錄。</div>';
+    container.innerHTML = html;
 }
 
 function openCondSearchModal() {
@@ -2120,12 +2156,12 @@ function selectCondTarget(id) {
     document.getElementById('condScenarioSelect').style.display = 'block';
 }
 
-function backToCondDashboard() {
+function backToCondDashboard(forceRefresh = false) {
     document.getElementById('condScenarioSelect').style.display = 'none';
     document.getElementById('condFormArea').style.display = 'none';
     document.getElementById('condVendorUploadArea').style.display = 'none';
     document.getElementById('condDashboard').style.display = 'block';
-    loadConditionReports();
+    if(forceRefresh) loadConditionReports();
 }
 
 function startCondReport(type) {
@@ -2138,9 +2174,9 @@ function startCondReport(type) {
         document.getElementById('condVendorUploadArea').style.display = 'block';
     } else {
         condPhotos = [];
+        deletedCondPhotos = []; // 清空雲端刪除追蹤陣列
         removeMainPhoto();
         renderCondPhotos();
-        document.getElementById('btnCondPrint').style.display = 'none';
         document.getElementById('cf_reportId').value = ''; // 確保是新報告
         document.getElementById('condFormTitle').innerText = '📝 填寫新報告';
         
@@ -2183,24 +2219,52 @@ function startCondReport(type) {
     }
 }
 
-// 🔥 新增：重新載入與編輯歷史報告
+// 💡 修正問題 2：新增預覽對話框機制
+function openCondPreview(reportId) {
+    const report = condReportsCache.find(r => r.reportId === reportId);
+    if (!report) return alert("找不到報告資料");
+    
+    let photosForPrint = [];
+    if(report.photos) {
+        report.photos.forEach(url => {
+            if(url) photosForPrint.push({ url: url, note: '歷史照片' });
+        });
+    }
+    
+    // 生成 A4 完美排版的 HTML
+    let html = getCondPrintHtml(report.formData, photosForPrint, parseInt(report.reportType), null);
+    document.getElementById('condPreviewContainer').innerHTML = html;
+    
+    // 更新按鈕 onclick
+    document.getElementById('btnCondPreviewEdit').onclick = () => {
+        bootstrap.Modal.getInstance(document.getElementById('condPreviewModal')).hide();
+        editCondReport(reportId);
+    };
+    document.getElementById('btnCondPreviewPrint').onclick = () => {
+        // 先將生成的 html 塞給正式列印用的容器，再呼叫 window.print
+        document.getElementById('printCondContent').innerHTML = html;
+        document.getElementById('printCondOverlay').style.display = 'flex';
+        setTimeout(() => { window.print(); }, 300);
+    };
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condPreviewModal')).show();
+}
+
 function editCondReport(reportId) {
     const report = condReportsCache.find(r => r.reportId === reportId);
     if (!report) return alert("找不到該筆報告資料！");
     
-    // 設定全域狀態
-    condCurrentItem = { id: report.itemId, name: report.itemName }; // 簡單回補
+    condCurrentItem = { id: report.itemId, name: report.itemName }; 
     condMode = parseInt(report.reportType);
+    deletedCondPhotos = []; // 初始化被刪除照片追蹤陣列
     
     document.getElementById('condDashboard').style.display = 'none';
     document.getElementById('condFormTitle').innerText = '✏️ 編輯歷史報告';
     document.getElementById('cf_reportId').value = report.reportId;
-    document.getElementById('btnCondPrint').style.display = 'block'; // 編輯模式可直接預覽列印
     
     const d = report.formData;
     if(!d) return alert("報告資料遺失");
 
-    // 還原文字欄位
     const txtMapping = {
         'cf_projectName': 'projectName', 'cf_newId': 'newId', 'cf_oldId': 'oldId', 'cf_name': 'name',
         'cf_propNum': 'propNum', 'cf_loc': 'loc', 'cf_material': 'material', 'cf_size': 'size',
@@ -2215,7 +2279,6 @@ function editCondReport(reportId) {
         if (el) el.value = d[txtMapping[id]] || '';
     }
 
-    // 還原 Checkboxes 的 helper 函數
     const restoreCheckboxes = (selector, valuesArray, otherTxtId, otherTxtValue) => {
         const arr = valuesArray || [];
         document.querySelectorAll(selector).forEach(cb => {
@@ -2243,7 +2306,6 @@ function editCondReport(reportId) {
     restoreCheckboxes('.chk-tf-purp', d.tfPurpVals, null, null);
     restoreCheckboxes('.chk-tf-attach', d.tfAttach, null, null);
 
-    // 檢視目的與維護前/後特殊邏輯
     restoreCheckboxes('.chk-purp', d.purpVals, 'c_purp_other_txt', d.purpOther);
     toggleMaintOpt();
     if (d.purpVals && d.purpVals.includes('維護')) {
@@ -2251,26 +2313,17 @@ function editCondReport(reportId) {
         if (d.maintState === '修護後') document.getElementById('c_purp_maint_af').checked = true;
     }
 
-    // 還原分級 Radio
     document.querySelectorAll('input[name="c_rating"]').forEach(rb => {
         rb.checked = (rb.value === d.rating);
     });
 
-    // 還原照片 (分類 Main Photo 與 Detail Photos)
     removeMainPhoto();
     condPhotos = [];
     if (report.photos && report.photos.length > 0) {
-        let pIndex = 0;
-        // 第一張可能是 Main Photo
-        if (report.photos[0] && report.photos[0].includes('photo')) { // 簡單判定
-            // 由於 Drive URL 無法直接用 img src (需公開權限或 proxy)，這裡暫時僅保存 url 以供列印使用
-            // 若為 Base64 (剛存檔)，則可直接顯示。為求穩定，我們以 URL 呈現
-            // 實作上，如果需要預覽舊照片，通常依賴 Google Drive 共用連結
-            // 這裡將歷史照片塞入陣列
+        if (report.photos[0] && report.photos[0].includes('photo')) { 
             report.photos.forEach(url => {
-                if (url) condPhotos.push({ base64: '', mimeType: '', url: url, note: '歷史照片 (列印時可見)' });
+                if (url) condPhotos.push({ base64: '', mimeType: '', url: url, note: '雲端歷史照片' });
             });
-            // (註：因跨域限制，Drive 圖片難以直接轉回 Canvas 預覽，故以提示文字代替，但在列印時會作為 img src 印出)
         }
     }
     renderCondPhotos();
@@ -2279,7 +2332,6 @@ function editCondReport(reportId) {
     document.getElementById('condFormArea').style.display = 'block';
 }
 
-// ================= 照片雙軌上傳壓縮邏輯 =================
 function handleMainPhotoSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -2307,6 +2359,8 @@ function handleMainPhotoSelect(event) {
         };
     };
 }
+
+// 🔥 修正：主圖移除時，如果是雲端歷史圖，必須推入刪除追蹤陣列
 function removeMainPhoto() {
     mainPhotoBase64 = "";
     mainPhotoMime = "";
@@ -2378,11 +2432,18 @@ function renderCondPhotos() {
     }).join('');
 }
 
+// 🔥 修正問題 5：移除舊照片時，紀錄 URL 以便雲端同步刪除
 function removeCondPhoto(idx) {
-    if(confirm('確定要移除這張圖示嗎？')) { condPhotos.splice(idx, 1); renderCondPhotos(); }
+    if(confirm('確定要移除這張圖示嗎？(若是雲端歷史照片，儲存後將同步刪除原檔)')) { 
+        let targetPhoto = condPhotos[idx];
+        if (targetPhoto.url) {
+            deletedCondPhotos.push(targetPhoto.url); // 推入刪除追蹤陣列
+        }
+        condPhotos.splice(idx, 1); 
+        renderCondPhotos(); 
+    }
 }
 
-// ================= 收集表單資料與生成完美 A4 列印排版 =================
 function getFormData() {
     return {
         projectName: document.getElementById('cf_projectName').value,
@@ -2433,6 +2494,7 @@ function getFormData() {
     };
 }
 
+// 💡 修正問題 3 & 4 & 5：狀況報告儲存後導流列印，並加上雲端刪除通知
 async function submitConditionReport() {
     const d = getFormData();
     if(!d.date || !d.viewer) return alert("請填寫檢視紀錄的「日期」與「人員」！");
@@ -2442,7 +2504,6 @@ async function submitConditionReport() {
         allPhotos.unshift({ base64: mainPhotoBase64.split(',')[1], mimeType: mainPhotoMime, note: 'MAIN_PHOTO', url: '' });
     }
     
-    // 檢查是否有歷史 reportId
     let rId = document.getElementById('cf_reportId').value;
 
     const payload = {
@@ -2452,63 +2513,54 @@ async function submitConditionReport() {
         itemName: condCurrentItem.name,
         reportType: condMode.toString(),
         formData: d,
-        photos: allPhotos
+        photos: allPhotos,
+        deletedPhotos: deletedCondPhotos // 傳送需刪除的雲端檔案 URL 清單
     };
 
-    showMiniLoading('正在儲存報告與上傳照片...');
+    showMiniLoading('正在儲存報告與雲端檔案管理中...');
     try {
         const res = await callAPI('saveConditionReport', payload);
-        alert(`✅ 報告已安全儲存！\n系統編號：${res.reportId}\n您可以點擊下方按鈕預覽並列印 PDF 格式。`);
         document.getElementById('cf_reportId').value = res.reportId;
-        document.getElementById('btnCondPrint').style.display = 'block';
+        
+        // 儲存成功後自動開啟列印預覽
+        printConditionReport();
     } catch(e) { alert("儲存失敗：" + e.message); } finally { hideMiniLoading(); }
 }
 
-// 產生列印用 Checkbox 字串
+// 💡 修正問題 5：將 ☑ 改為 ■ / □，提供更佳的實體列印辨識度
 function buildCheckStr(options, selectedVals, otherTxt) {
     if(!selectedVals) selectedVals = [];
     return options.map(opt => {
-        let isChecked = selectedVals.includes(opt) ? '☑' : '☐';
+        let isChecked = selectedVals.includes(opt) ? '■' : '□';
         if(opt === '其他') { return `${isChecked} 其他：<u>&nbsp;${escapeHTML(selectedVals.includes('其他') ? (otherTxt||'') : '')}&nbsp;</u>`; }
         return `${isChecked} ${escapeHTML(opt)}`;
     }).join('&nbsp;&nbsp;');
 }
 
-// 🔥 新增：從總覽直接列印歷史報告
-function printHistoricalCondReport(reportId) {
-    const report = condReportsCache.find(r => r.reportId === reportId);
-    if (!report) return alert("找不到報告資料");
-    
-    let photosForPrint = [];
-    if(report.photos) {
-        report.photos.forEach(url => {
-            if(url) photosForPrint.push({ url: url, note: '歷史照片' });
-        });
-    }
-    
-    executePrintLayout(report.formData, photosForPrint, parseInt(report.reportType));
-}
-
-// 印正在填寫的表單
 function printConditionReport() {
-    executePrintLayout(getFormData(), condPhotos, condMode, mainPhotoBase64);
+    let html = getCondPrintHtml(getFormData(), condPhotos, condMode, mainPhotoBase64);
+    document.getElementById('printCondContent').innerHTML = html;
+    
+    // 強制隱藏其他圖層，防止疊加
+    document.getElementById('printOverlay').style.display = 'none';
+    document.getElementById('printReportOverlay').style.display = 'none';
+    
+    document.getElementById('printCondOverlay').style.display = 'flex';
 }
 
-function executePrintLayout(d, photosArray, mode, currentMainBase64 = null) {
+// 🔥 修正問題 5：抽出核心排版函數，並將照片排版改為 2欄3列 CSS Grid 網格
+function getCondPrintHtml(d, photosArray, mode, currentMainBase64 = null) {
     let mainPhotoImgTag = '<span class="text-muted small">無圖片</span>';
     let detailPhotos = [...photosArray];
     
-    // 如果有當前上傳的 mainBase64 (代表剛填寫完還沒存入歷史)
     if (currentMainBase64) {
         mainPhotoImgTag = `<img src="${currentMainBase64}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
     } 
-    // 或者歷史陣列中的第一張是主圖 (假設有URL)
     else if (detailPhotos.length > 0 && detailPhotos[0].note === 'MAIN_PHOTO') {
-        let mainP = detailPhotos.shift(); // 抽出來
+        let mainP = detailPhotos.shift();
         mainPhotoImgTag = `<img src="${mainP.url}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
     }
 
-    // 狀況描述 Checkboxes
     let appOpts = ['灰塵','異物','氧化','黃化','漬痕','膠帶','標籤','前人修補','其他'];
     let strOpts = ['變形','脆化','鬆脫','缺失','刮痕','摺痕','裂痕','斷裂','其他'];
     let medOpts = ['變色','褪色','掉色','剝落','移染','霧化','硬化','其他'];
@@ -2521,26 +2573,27 @@ function executePrintLayout(d, photosArray, mode, currentMainBase64 = null) {
     let isMaint = purpVals.includes('維護');
     let bfMark = (isMaint && d.maintState === '修護前') ? '<span class="circle-mark">前</span>' : '前';
     let afMark = (isMaint && d.maintState === '修護後') ? '<span class="circle-mark">後</span>' : '後';
-    let maintOptHtml = `${isMaint?'☑':'☐'} 維護(${bfMark}/${afMark})`;
-    let purpOptHtml = ['提借','返還'].map(o => `${purpVals.includes(o)?'☑':'☐'} ${o}`).join('&nbsp;&nbsp;');
-    let purpOtherHtml = `${purpVals.includes('其他')?'☑':'☐'} 其他：<u>&nbsp;${escapeHTML(purpVals.includes('其他')?d.purpOther:'')}&nbsp;</u>`;
+    let maintOptHtml = `${isMaint?'■':'□'} 維護(${bfMark}/${afMark})`;
+    let purpOptHtml = ['提借','返還'].map(o => `${purpVals.includes(o)?'■':'□'} ${o}`).join('&nbsp;&nbsp;');
+    let purpOtherHtml = `${purpVals.includes('其他')?'■':'□'} 其他：<u>&nbsp;${escapeHTML(purpVals.includes('其他')?d.purpOther:'')}&nbsp;</u>`;
     let finalPurpStr = `${maintOptHtml}&nbsp;&nbsp;${purpOptHtml}&nbsp;&nbsp;${purpOtherHtml}`;
 
     let rateOpts = ['1良好(無修護需求)','2尚可(需維護處理)','3不佳(需修護處理)','4緊急(需優先處理)'];
-    let rateStr = rateOpts.map(o => `${d.rating === o ? '☑' : '☐'} ${escapeHTML(o)}`).join('&nbsp;&nbsp;');
+    let rateStr = rateOpts.map(o => `${d.rating === o ? '■' : '□'} ${escapeHTML(o)}`).join('&nbsp;&nbsp;');
 
-    let condPhotosHtml = detailPhotos.length === 0 ? '<div style="height:30px;"></div>' : detailPhotos.map(p => {
+    // 🔥 修正問題 5：重構照片排版為完美對齊的 2 欄多列網格 (Grid)
+    let condPhotosHtml = detailPhotos.length === 0 ? '<div style="height:30px;"></div>' : '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">' + detailPhotos.map(p => {
         let imgSrc = p.base64 ? `data:${p.mimeType};base64,${p.base64}` : p.url;
         return `
-        <div style="display: flex; border: 1px solid #999; margin-bottom: 5px; page-break-inside: avoid; border-radius:4px; overflow:hidden;">
-            <div style="width: 50%; border-right: 1px solid #999; padding: 5px; background:#fefefe; text-align: center;">
-                <img src="${imgSrc}" style="max-width: 100%; max-height: 200px; object-fit: contain;">
+        <div style="border: 1px solid #999; page-break-inside: avoid; border-radius:4px; overflow:hidden; display:flex; flex-direction:column;">
+            <div style="border-bottom: 1px solid #999; padding: 5px; background:#fefefe; text-align: center; height: 150px;">
+                <img src="${imgSrc}" style="max-width: 100%; max-height: 140px; object-fit: contain;">
             </div>
-            <div style="width: 50%; padding: 8px; vertical-align: top; font-size: 10pt; white-space: pre-wrap;">
+            <div style="padding: 5px; font-size: 9pt; white-space: pre-wrap; background: #fff;">
                 ${escapeHTML(p.note || '')}
             </div>
         </div>`;
-    }).join('');
+    }).join('') + '</div>';
 
     let dateSafe = d.date ? d.date.replace(/-/g, '/') : '';
     let tfDateSafe = d.tfDate ? d.tfDate.replace(/-/g, '/') : '';
@@ -2603,15 +2656,15 @@ function executePrintLayout(d, photosArray, mode, currentMainBase64 = null) {
             <tr>
                 <th width="15%">檢視目的</th>
                 <td width="35%">
-                    ${tfPurpVals.includes('提借')?'☑':'☐'} 提借 &nbsp; 
-                    ${tfPurpVals.includes('返還')?'☑':'☐'} 返還
+                    ${tfPurpVals.includes('提借')?'■':'□'} 提借 &nbsp; 
+                    ${tfPurpVals.includes('返還')?'■':'□'} 返還
                 </td>
                 <th width="15%">日期:</th>
                 <td width="35%">${escapeHTML(tfDateSafe)}</td>
             </tr>
             <tr>
                 <th>附件</th>
-                <td colspan="3">${tfAttach.includes('提借清單或相關公文')?'☑':'☐'} 提借清單或相關公文</td>
+                <td colspan="3">${tfAttach.includes('提借清單或相關公文')?'■':'□'} 提借清單或相關公文</td>
             </tr>
             <tr><th>特別聲明</th><td colspan="3" style="height: 80px; vertical-align:top; white-space:pre-wrap;">${escapeHTML(d.tfSpecial||'')}</td></tr>
             <tr><th>備註</th><td colspan="3" style="height: 80px; vertical-align:top; white-space:pre-wrap;">${escapeHTML(d.tfNote||'')}</td></tr>
@@ -2628,11 +2681,19 @@ function executePrintLayout(d, photosArray, mode, currentMainBase64 = null) {
     }
 
     html += `</div>`;
-    document.getElementById('printCondContent').innerHTML = html;
-    document.getElementById('printCondOverlay').style.display = 'flex';
+    return html;
 }
 
-function closePrintCondOverlay() { document.getElementById('printCondOverlay').style.display = 'none'; }
+// 💡 修正問題 3：列印後導流機制
+function closePrintCondOverlay() { 
+    document.getElementById('printCondOverlay').style.display = 'none'; 
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condPostPrintModal')).show();
+}
+
+function closePostPrintAndReturn() {
+    bootstrap.Modal.getInstance(document.getElementById('condPostPrintModal')).hide();
+    backToCondDashboard(true); // true 代表強制刷新
+}
 
 // ================= 廠商報告上傳邏輯 =================
 let vendorFileData = null;
@@ -2669,7 +2730,7 @@ async function submitVendorReport() {
     try {
         const res = await callAPI('uploadVendorReport', payload);
         alert(`✅ 檔案上傳成功！\n紀錄已建立完成，可於歷史清單中檢視。`);
-        backToCondDashboard();
+        backToCondDashboard(true);
     } catch(e) {
         alert("上傳失敗：" + e.message);
     } finally {
