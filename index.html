@@ -186,6 +186,7 @@
       </ul>
 
       <div class="tab-content mt-3">
+        <!-- ================= 查詢模組 ================= -->
         <div class="tab-pane fade" id="query">
           <div class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -209,12 +210,10 @@
                   <small class="text-muted d-block mt-3 bg-light p-2 rounded" id="qResDesc">--</small>
                 </div>
                 
+                <!-- 💡 修正問題 1 & 5：移除強制開啟相機的多餘按鈕，統一以返回首頁按鈕代替 -->
                 <div class="d-flex flex-column gap-2 mt-4">
                     <button class="btn btn-outline-primary w-100 fw-bold py-3 shadow-sm" onclick="jumpToConditionReport()">📝 填寫狀況報告</button>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-secondary w-100 fw-bold py-3 shadow-sm" onclick="resetQueryUI()">✏️ 繼續手動查詢</button>
-                        <button class="btn btn-primary w-100 fw-bold py-3 shadow-sm" onclick="startQueryScanner()">📷 繼續相機掃描</button>
-                    </div>
+                    <button class="btn btn-secondary w-100 fw-bold py-3 shadow-sm" onclick="resetQueryUI()">🔙 返回查詢首頁</button>
                 </div>
               </div>
             </div>
@@ -225,6 +224,7 @@
           </div>
         </div>
 
+        <!-- ================= 建檔與列印模組 ================= -->
         <div class="tab-pane fade" id="register">
           <ul class="nav nav-pills nav-fill mb-3" id="regPills">
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#regFormSec">📝 新增登錄</button></li>
@@ -271,6 +271,7 @@
           </div>
         </div>
 
+        <!-- ================= 盤點模組 ================= -->
         <div class="tab-pane fade" id="inv">
           <div id="step1" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -337,6 +338,7 @@
           </div>
         </div>
 
+        <!-- ================= 異動搬運模組 ================= -->
         <div class="tab-pane fade" id="move">
           <ul class="nav nav-pills nav-fill mb-3" id="mvPills">
             <li class="nav-item"><button class="nav-link active py-2 fw-bold" data-bs-toggle="pill" data-bs-target="#moveOverviewTab" onclick="loadAllProjects()">📊 專案總覽</button></li>
@@ -481,13 +483,22 @@
           </div>
         </div>
 
+        <!-- ================= 狀況報告管理模組 ================= -->
         <div class="tab-pane fade" id="cond">
           <div id="condDashboard" class="step-card active">
              <div class="d-flex justify-content-between align-items-center mb-3">
                  <h5 class="mb-0 fw-bold text-secondary">📋 狀況報告總覽</h5>
                  <button class="btn btn-sm btn-outline-secondary" onclick="loadConditionReports()">🔄 刷新</button>
              </div>
-             <button class="btn btn-primary w-100 fw-bold py-3 fs-5 shadow-sm mb-3" onclick="openCondSearchModal()">➕ 新增狀況報告</button>
+             <!-- 💡 修正問題 4：加入「報告圖檔檢視」入口 -->
+             <div class="row g-2 mb-3">
+                 <div class="col-8">
+                     <button class="btn btn-primary w-100 fw-bold py-3 shadow-sm" onclick="openCondSearchModal()">➕ 新增狀況報告</button>
+                 </div>
+                 <div class="col-4">
+                     <button class="btn btn-outline-primary w-100 fw-bold py-3 shadow-sm" onclick="openCondGallery()"><i class="fas fa-images"></i> 圖檔</button>
+                 </div>
+             </div>
              <div id="condReportListContainer" class="d-flex flex-column gap-2">
                  <div class="text-center text-muted py-4 small">載入中...</div>
              </div>
@@ -776,6 +787,7 @@
           </div>
         </div>
 
+        <!-- ================= 管理員後台 ================= -->
         <div class="tab-pane fade" id="mgr">
           <div id="mgrDashboard" class="step-card active">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -892,7 +904,7 @@
                  </div>
 
                  <div id="overridePreviewSection" class="bg-white rounded shadow-sm p-3 border fade-in-section" style="display:none;">
-                     <h6 class="fw-bold text-dark mb-2">比比對預覽：</h6>
+                     <h6 class="fw-bold text-dark mb-2">比對預覽：</h6>
                      <div class="table-responsive border rounded mb-3" style="max-height: 350px; overflow-y: auto;">
                          <table class="table table-bordered table-sm text-center align-middle mb-0" style="font-size: 0.9rem;">
                              <thead class="table-light sticky-top">
@@ -985,6 +997,7 @@
     </div>
   </div>
 
+  <!-- 狀況報告：搜尋目標藏品的 Modal (綁定特製鍵盤) -->
   <div class="modal fade" id="condSearchModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0 shadow-lg">
@@ -1005,6 +1018,7 @@
       </div>
   </div>
 
+  <!-- 狀況報告：照片註記專用 Modal -->
   <div class="modal fade" id="photoAnnotationModal" tabindex="-1" data-bs-backdrop="static">
       <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0 shadow-lg">
@@ -1024,6 +1038,7 @@
       </div>
   </div>
 
+  <!-- 💡 修正問題 5：新增主查詢專屬的模糊搜尋彈出視窗 Modal -->
   <div class="modal fade" id="mainQuerySearchModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0 shadow-lg">
@@ -1036,7 +1051,8 @@
                       <button class="btn btn-secondary text-white fw-bold px-2" type="button" onclick="toggleMainQueryInputMode()" id="btnToggleMainQueryInputMode">⌨️ 切換</button>
                       <input type="search" id="mainQuerySearchKw" class="form-control border-warning fs-5 fw-bold" placeholder="點擊搜尋編號..." onclick="handleMainQuerySearchClick()" oninput="searchMainQueryItems()" inputmode="none" readonly>
                   </div>
-                  <div id="mainQuerySearchResult" class="list-group shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                  <!-- 💡 修正問題 5：加入底部 padding，確保搜尋清單不會被虛擬鍵盤遮擋 -->
+                  <div id="mainQuerySearchResult" class="list-group shadow-sm" style="max-height: 250px; overflow-y: auto; padding-bottom: 250px;">
                       <div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>
                   </div>
               </div>
@@ -1044,6 +1060,7 @@
       </div>
   </div>
 
+  <!-- 🔥 虛擬鍵盤共用 -->
   <div class="vk-container" id="vkContainer">
       <div class="d-flex justify-content-between mb-2 px-1">
           <span class="text-muted fw-bold small">專屬數字鍵盤</span>
@@ -1058,6 +1075,16 @@
           <button class="vk-btn vk-btn-primary no-select" onclick="closeVK(); dispatchVkSearch();">🔍 搜尋</button>
       </div>
   </div>
+
+  <!-- 列印完成監聽器：支援列印後導流 (問題 3) -->
+  <script>
+    window.onafterprint = function() {
+        // 如果目前是狀況報告的列印圖層被開啟
+        if (document.getElementById('printCondOverlay').style.display === 'flex') {
+            closePrintCondOverlay();
+        }
+    };
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="app_core.js"></script>
