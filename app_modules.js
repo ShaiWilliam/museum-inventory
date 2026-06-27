@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-qrcode fs-2 me-3"></i>
                                 <div>
-                                    <div class="fs-5">純 QR Code 標籤</div>
-                                    <small class="fw-normal text-muted">單純輸出條碼圖檔陣列，適合自訂標籤機</small>
+                                    <div class="fs-5">純 QR Code 標籤 (3x3cm)</div>
+                                    <small class="fw-normal text-muted">包含精準裁切線，純粹輸出條碼</small>
                                 </div>
                             </div>
                         </button>
@@ -420,7 +420,7 @@ function openLocModal(title, tree) {
 
 function toggleBoxInput() { document.getElementById('boxInputContainer').style.display = document.getElementById('mvIsBox').checked ? 'block' : 'none'; }
 
-// ================= 💡 共用虛擬鍵盤 (重構：支援搬運與狀況報告雙模組) =================
+// ================= 💡 共用虛擬鍵盤 (重構：支援搬運、狀況報告與大廳主搜尋) =================
 let currentVkInputId = 'mvSearchKw'; 
 
 function toggleInputMode() {
@@ -432,6 +432,12 @@ function toggleInputMode() {
 function toggleCondInputMode() {
     useVK = !useVK; currentVkInputId = 'condSearchKw';
     let input = document.getElementById('condSearchKw'), btn = document.getElementById('btnToggleCondInputMode');
+    applyVkState(input, btn);
+}
+
+function toggleMainQueryInputMode() {
+    useVK = !useVK; currentVkInputId = 'mainQuerySearchKw';
+    let input = document.getElementById('mainQuerySearchKw'), btn = document.getElementById('btnToggleMainQueryInputMode');
     applyVkState(input, btn);
 }
 
@@ -451,6 +457,7 @@ function applyVkState(input, btn) {
 
 function handleSearchClick() { currentVkInputId = 'mvSearchKw'; if (useVK) openVK(); }
 function handleCondSearchClick() { currentVkInputId = 'condSearchKw'; if (useVK) openVK(); }
+function handleMainQuerySearchClick() { currentVkInputId = 'mainQuerySearchKw'; if (useVK) openVK(); }
 
 function openVK() { 
     let input = document.getElementById(currentVkInputId);
@@ -491,6 +498,7 @@ function vkClear() {
 function dispatchVkSearch() {
     if (currentVkInputId === 'mvSearchKw') searchWorkerItems();
     else if (currentVkInputId === 'condSearchKw') searchCondItems();
+    else if (currentVkInputId === 'mainQuerySearchKw') searchMainQueryItems();
 }
 
 function renderVkPrefixes() {
@@ -513,10 +521,11 @@ function renderVkPrefixes() {
 }
 
 document.addEventListener('click', function(event) { 
-    let vk = document.getElementById('vkContainer'), searchBox = document.getElementById('mvSearchKw'), condSearchBox = document.getElementById('condSearchKw');
-    let toggleBtn = document.getElementById('btnToggleInputMode'), condToggleBtn = document.getElementById('btnToggleCondInputMode'); 
+    let vk = document.getElementById('vkContainer');
+    let searchBox = document.getElementById('mvSearchKw'), condSearchBox = document.getElementById('condSearchKw'), mqSearchBox = document.getElementById('mainQuerySearchKw');
+    let toggleBtn = document.getElementById('btnToggleInputMode'), condToggleBtn = document.getElementById('btnToggleCondInputMode'), mqToggleBtn = document.getElementById('btnToggleMainQueryInputMode'); 
     if (vk && vk.classList.contains('active')) { 
-        if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn && event.target !== condSearchBox && event.target !== condToggleBtn) {
+        if (!vk.contains(event.target) && event.target !== searchBox && event.target !== toggleBtn && event.target !== condSearchBox && event.target !== condToggleBtn && event.target !== mqSearchBox && event.target !== mqToggleBtn) {
             closeVK(); 
         }
     } 
@@ -658,7 +667,55 @@ function checkLocModification(rIdx) {
 }
 
 // ================= 💡 查詢、建檔、列印、盤點 =================
-function triggerManualQuery() { const val = document.getElementById('queryManualInput').value; if(!val) return alert("請輸入編號"); execQuery(val); }
+
+// 🔥 藏品狀態查詢主頁的模糊搜尋邏輯
+function searchMainQueryItems() {
+    const kwStr = document.getElementById('mainQuerySearchKw').value.toLowerCase().trim();
+    const keywords = kwStr ? kwStr.split(/\s+/) : [];
+    const container = document.getElementById('mainQuerySearchResult');
+    
+    if(keywords.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+        return;
+    }
+    
+    let results = Object.values(globalCatalog).filter(item => {
+        let targetStr = `${item.id} ${item.name}`.toLowerCase();
+        return keywords.every(k => targetStr.includes(k));
+    }).slice(0, 50);
+    
+    if(results.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">查無藏品</div>';
+        return;
+    }
+    
+    container.innerHTML = results.map(item => `
+        <button class="list-group-item list-group-item-action p-3" onclick="selectMainQueryTarget('${escapeHTML(item.id)}')">
+            <div class="fw-bold text-primary">${escapeHTML(item.id)}</div>
+            <div class="small text-dark">${escapeHTML(item.name)}</div>
+            <div class="small text-muted mt-1">📍 ${escapeHTML(item.location)}</div>
+        </button>
+    `).join('');
+}
+
+function selectMainQueryTarget(id) {
+    let modalEl = document.getElementById('mainQuerySearchModal');
+    if (modalEl) {
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+    }
+    closeVK();
+    execQuery(id);
+}
+
+function openMainQuerySearchModal() {
+    document.getElementById('mainQuerySearchKw').value = '';
+    document.getElementById('mainQuerySearchResult').innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+    currentVkInputId = 'mainQuerySearchKw';
+    closeVK();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('mainQuerySearchModal')).show();
+}
+
 async function execQuery(rawStr) { 
     let cleanId = rawStr.includes('?id=') ? new URL(rawStr).searchParams.get('id') : rawStr.trim().split('\n')[0]; 
     if(queryScanner) { await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; } 
@@ -667,7 +724,7 @@ async function execQuery(rawStr) {
     else { 
         showMiniLoading('🔍 查詢雲端最新狀態中...'); 
         try { const freshRes = await callAPI('queryItem', { qrStr: cleanId }); globalCatalog[cleanId] = freshRes; renderQueryUI(freshRes); 
-        } catch(e) { alert(e.message); document.getElementById('btnStartQueryCam').style.display = 'block'; } finally { hideMiniLoading(); } 
+        } catch(e) { alert(e.message); document.getElementById('queryStartContainer').style.display = 'flex'; } finally { hideMiniLoading(); } 
     } 
 }
 async function fetchFreshQueryData(cleanId) { 
@@ -689,10 +746,10 @@ function renderQueryUI(res) {
     document.getElementById('qResDesc').innerText = res.desc || "無備註說明"; 
     const badge = document.getElementById('qResBadge'); 
     if(res.isScanned) { badge.className = "badge bg-success position-absolute shadow-sm"; badge.innerHTML = `✅ 已盤點 (${res.lastScanStr})`; } else { badge.className = "badge bg-danger position-absolute shadow-sm"; badge.innerHTML = `⚠️ ${res.lastScanStr}`; } 
-    document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('queryResultBox').style.display = 'block'; playSound('success'); 
+    document.getElementById('queryStartContainer').style.display = 'none'; document.getElementById('queryResultBox').style.display = 'block'; playSound('success'); 
 }
-function startQueryScanner() { document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block'; if (!queryScanner) queryScanner = new Html5Qrcode("query-reader"); if (queryScanner.getState() !== 2) { queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg)); } }
-async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...'); await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('btnStartQueryCam').style.display = 'block'; hideMiniLoading(); }
+function startQueryScanner() { document.getElementById('queryResultBox').style.display = 'none'; document.getElementById('queryStartContainer').style.display = 'none'; document.getElementById('query-reader-container').style.display = 'block'; if (!queryScanner) queryScanner = new Html5Qrcode("query-reader"); if (queryScanner.getState() !== 2) { queryScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, msg => execQuery(msg)); } }
+async function stopQueryScannerAndReturn() { showMiniLoading('關閉相機...'); await stopScannerSafe(queryScanner); queryScanner = null; document.getElementById('query-reader-container').style.display = 'none'; document.getElementById('queryStartContainer').style.display = 'flex'; hideMiniLoading(); }
 
 async function submitRegistration() { const p = { id: document.getElementById('regId').value, name: document.getElementById('regName').value, loc: document.getElementById('regLoc').value, propNum: document.getElementById('regPropNum').value, accession: document.getElementById('regAccession').value, jiang: document.getElementById('regJiang').value, desc: document.getElementById('regDesc').value }; if(!p.id || !p.name || !p.loc) return alert("請完整填寫必填欄位 (*)！"); showMiniLoading('寫入資料庫建檔中...'); try { await callAPI('registerItem', p); alert(`✅ 藏品 [${p.id}] 已建檔成功！\nQR Code 已於雲端自動生成。`); globalCatalog[p.id] = { id: p.id, name: p.name, location: p.loc, desc: p.desc, lastScanStr: "從未盤點", isScanned: false, accession: p.accession, jiang: p.jiang, propNum: p.propNum, formatMaterial: "", size: "", author: "", note: p.desc }; if(allPrintItems.length > 0) { allPrintItems.unshift({ id: p.id, name: p.name, loc: p.loc }); filterPrintList(); } ['regId', 'regName', 'regLoc', 'regLocDisplay', 'regPropNum', 'regAccession', 'regDesc'].forEach(id => document.getElementById(id).value = ''); document.getElementById('regJiang').value = '不相關'; } catch(e) { alert("建檔失敗：" + e.message); } finally { hideMiniLoading(); } }
 
@@ -720,13 +777,11 @@ function showPrintPreview() { if(printCartMap.size === 0) return alert("請先�
 function removeFromCart(id) { printCartMap.delete(id); showPrintPreview(); filterPrintList(); if(printCartMap.size === 0) hidePrintPreview(); }
 function hidePrintPreview() { document.getElementById('printSelectSec').style.display = 'block'; document.getElementById('printPreviewSec').style.display = 'none'; }
 
-// 🔥 攔截舊的列印按鈕，改為呼叫選擇格式 Modal
 function generatePrintPage() { 
     if(printCartMap.size === 0) return alert("請至少選擇一筆項目！"); 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('printFormatModal')).show(); 
 }
 
-// 執行指定格式列印
 function executeGeneratePrintPage(format) {
     bootstrap.Modal.getInstance(document.getElementById('printFormatModal')).hide();
     showMiniLoading("生成本機高品質標籤中...");
@@ -736,7 +791,6 @@ function executeGeneratePrintPage(format) {
             else { generateFullPrintHtml(); }
             document.getElementById('printOverlay').style.display = 'flex'; 
             
-            // 確保產生後，立即依據開關狀態套用邊框樣式
             if (typeof togglePrintBorders === 'function') togglePrintBorders();
             
             hideMiniLoading(); 
@@ -744,11 +798,10 @@ function executeGeneratePrintPage(format) {
     }, 50);
 }
 
-// 🔥 裁切線開關控制邏輯
 function togglePrintBorders() {
     const checkEl = document.getElementById('toggleBorderCheck');
     const isChecked = checkEl ? checkEl.checked : true;
-    const labels = document.querySelectorAll('.label-box, .fl-card');
+    const labels = document.querySelectorAll('.label-box, .fl-card, .fl-card-3x3');
     labels.forEach(label => {
         if (isChecked) {
             label.classList.remove('no-border');
@@ -758,28 +811,37 @@ function togglePrintBorders() {
     });
 }
 
-// 🔥 修正：產生純粹乾淨的 QR Code 格式，拔除多餘文字與標題
+// 🔥 完美重構：產生純粹乾淨的 QR Code 格式，精準 3x3cm + 裁切線
 function generateBasicPrintHtml() {
-    const groups = {}; 
+    let printHtml = `
+    <style>
+        .basic-print-container { display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; padding: 5mm; background: white; margin: 0 auto; width: 210mm; }
+        .fl-card-3x3 { width: 30mm; height: 30mm; background: white; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; padding: 1mm; }
+        .fl-crop-tl, .fl-crop-tr, .fl-crop-bl, .fl-crop-br { position: absolute; width: 3mm; height: 3mm; border-color: #999; border-style: solid; pointer-events: none; }
+        .fl-crop-tl { top: 0; left: 0; border-width: 0.5px 0 0 0.5px; }
+        .fl-crop-tr { top: 0; right: 0; border-width: 0.5px 0.5px 0 0; }
+        .fl-crop-bl { bottom: 0; left: 0; border-width: 0 0 0.5px 0.5px; }
+        .fl-crop-br { bottom: 0; right: 0; border-width: 0 0.5px 0.5px 0; }
+    </style>
+    <div class="preview-paper basic-print-container">`; 
+    
     printCartMap.forEach((data, id) => { 
-        const loc = data.loc || '未分類地點'; 
-        if (!groups[loc]) groups[loc] = []; 
-        groups[loc].push({ id: id, name: data.name }); 
+        const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(id)}`; 
+        const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); 
+        const base64Img = qr.toDataURL('image/png'); 
+        printHtml += `
+        <div class="fl-card-3x3 fl-card">
+            <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
+            <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
+            <img src="${base64Img}" alt="QR" style="width: 26mm; height: 26mm; object-fit: contain;">
+        </div>`; 
     }); 
-    let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; 
-    for(let loc of Object.keys(groups).sort()) { 
-        for(let item of groups[loc]) { 
-            const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(item.id)}`; 
-            const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); 
-            const base64Img = qr.toDataURL('image/png'); 
-            printHtml += `<div class="label-box" style="background: white; display: flex; justify-content: center; align-items: center; padding: 0;"><img src="${base64Img}" alt="QR" style="width: 25mm; height: 25mm; object-fit: contain;"></div>`; 
-        } 
-    } 
-    printHtml += `</div></div>`; 
+    
+    printHtml += `</div>`; 
     document.getElementById('printOverlayContent').innerHTML = printHtml;
 }
 
-// 🔥 產生完整藏品吊牌 (6x3cm) - 保留十字線、取消打洞
+// 產生完整藏品吊牌 (6x3cm)
 function generateFullPrintHtml() {
     let itemsToPrint = [];
     printCartMap.forEach((data, id) => {
@@ -787,7 +849,6 @@ function generateFullPrintHtml() {
         itemsToPrint.push({ id: id, name: data.name, loc: data.loc || '未指定地點', propNum: catObj.propNum || '無財編' });
     });
     
-    // 依據地點與編號排序方便裁切後整理
     itemsToPrint.sort((a,b) => a.loc.localeCompare(b.loc) || a.id.localeCompare(b.id));
 
     let printHtml = `
@@ -814,7 +875,6 @@ function generateFullPrintHtml() {
         const base64Img = qr.toDataURL('image/png');
         let displayId = String(item.id).replace(/\n/g, ' ');
 
-        // HTML 結構：QR 先、資訊後
         printHtml += `
         <div class="fl-card">
             <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
@@ -836,7 +896,6 @@ function generateFullPrintHtml() {
 function closePrintOverlay() { document.getElementById('printOverlay').style.display = 'none'; document.getElementById('printOverlayContent').innerHTML = ''; }
 function closePrintReport() { document.getElementById('printReportOverlay').style.display = 'none'; document.getElementById('printReportContent').innerHTML = ''; }
 
-// 🔥 新增：檢查是否有未完成的盤點進度
 function checkSavedSession() {
     try {
         const saved = localStorage.getItem('invSession');
@@ -857,7 +916,6 @@ async function startInventorySession() { sysState.mode = document.getElementById
 async function resumeInventorySession() { try { const saved = JSON.parse(localStorage.getItem('invSession')); if(!saved) return; sysState.mode = saved.mode; sysState.locations = saved.locations; } catch(e) {} await executeInventoryStart(); }
 function clearInventorySession() { try { localStorage.removeItem('invSession'); } catch(e) {} document.getElementById('continueInvBox').style.display = 'none'; document.getElementById('invSettingsArea').style.display = 'block'; }
 
-// 🔥 離線進度修復：比對 syncQueue，強制覆蓋伺服器未更新的狀態
 async function executeInventoryStart() { 
     showMiniLoading('準備盤點...'); 
     try { 
@@ -888,7 +946,6 @@ async function executeInventoryStart() {
 
 function updateProgressUI() { document.getElementById('valTotal').innerText = sysState.total; document.getElementById('valScanned').innerText = sysState.scanned; document.getElementById('valUnscanned').innerText = Math.max(0, sysState.total - sysState.scanned); document.getElementById('progressBar').style.width = (sysState.total === 0 ? 0 : Math.round((sysState.scanned / sysState.total) * 100)) + '%'; }
 
-// 🔥 新增：Dual-QR Code 地點條碼攔截 (WMS 邏輯)
 async function processScanLocal(msg) { 
     if (isProc || Date.now() - lastScan < 800) return; 
     isProc = true; lastScan = Date.now(); 
@@ -918,7 +975,6 @@ async function processScanLocal(msg) {
     setTimeout(() => { overlay.style.display = 'none'; isProc = false; }, 1200); 
 }
 
-// 🔥 解決相機資源未釋放導致的崩潰
 async function pauseAndSave() { 
     document.getElementById('step2').style.display = 'none'; 
     document.getElementById('step1').style.display = 'block'; 
@@ -940,7 +996,6 @@ async function finishInventory() {
 }
 function clearAndBackToHome() { clearInventorySession(); document.getElementById('step3').style.display = 'none'; document.getElementById('step1').style.display = 'block'; backToHome(); }
 
-// 🔥 補齊結算寄送報表功能
 async function exportReport() {
     const email = document.getElementById('exportEmail').value.trim();
     const type = document.getElementById('exportType').value;
@@ -1249,12 +1304,32 @@ function toggleTcAll(state) { document.querySelectorAll('.tc-item-cb').forEach(c
 function toggleTcUncoded() { document.querySelectorAll('.tc-item-cb').forEach(cb => { cb.checked = (cb.getAttribute('data-has-tc') === 'false'); }); }
 function applyTempCodes() { let prefix = document.getElementById('tcPrefix').value.trim(), startNum = parseInt(document.getElementById('tcStartNum').value.trim()); if(isNaN(startNum)) startNum = 1; let cbs = document.querySelectorAll('.tc-item-cb:checked'); if(cbs.length === 0) return alert("請勾選要配發臨時編碼的項目！"); let currentNum = startNum; cbs.forEach(cb => { let id = cb.value, item = newMvCart.get(id); if(item) { item.tempCode = prefix + currentNum; newMvCart.set(id, item); let inAllList = allMvItems.find(x => x.id === id); if(inAllList) inAllList.tempCode = item.tempCode; currentNum++; } }); saveMvDraft(); bootstrap.Modal.getInstance(document.getElementById('tempCodeModal')).hide(); filterNewMvList(); showSyncToast("✅ 臨時編碼已成功套用", true); }
 
+// 🔥 修正 Bug 4：儲存專案後自動清空表單，並跳轉回「專案總覽」
 async function submitNewProject() { 
     const action = document.getElementById('newMvActionSelect').value, pName = document.getElementById('newMvName').value.trim(), pDesc = document.getElementById('newMvDesc').value.trim(); 
     if(!pName) return alert("請輸入專案名稱！"); if(newMvCart.size === 0) return alert("請至少挑選一件待搬運文物！"); showMiniLoading('正在儲存專案與清單資料...'); 
     let miscDetails = {}, tempCodes = {}, expectedLocs = {}, quantities = {}; 
     newMvCart.forEach((val, key) => { miscDetails[key] = val; if (val.tempCode) tempCodes[key] = val.tempCode; if (val.expectedLoc) expectedLocs[key] = val.expectedLoc; if (val.qty) quantities[key] = val.qty; }); 
-    try { await callAPI('saveMovementProject', { eventId: action, name: pName, desc: pDesc, itemIds: Array.from(newMvCart.keys()), miscDetails: miscDetails, tempCodes: tempCodes, expectedLocs: expectedLocs, quantities: quantities, manager: currentManager }); clearMvDraft(); alert('✅ 專案資料儲存成功！'); refreshSystem('move'); } catch (e) { alert("專案儲存失敗：" + e.message); } finally { hideMiniLoading(); } 
+    try { 
+        await callAPI('saveMovementProject', { eventId: action, name: pName, desc: pDesc, itemIds: Array.from(newMvCart.keys()), miscDetails: miscDetails, tempCodes: tempCodes, expectedLocs: expectedLocs, quantities: quantities, manager: currentManager }); 
+        
+        // 成功儲存後：清除快取、清空表單、並跳轉回總覽，避免重複送出
+        clearMvDraft(); 
+        clearNewMvSelection(false); 
+        document.getElementById('newMvName').value = '';
+        document.getElementById('newMvDesc').value = '';
+        document.getElementById('newMvActionSelect').value = 'NEW';
+        
+        alert('✅ 專案資料儲存成功！'); 
+        
+        // 強制切換回總覽 Tab 並重新載入
+        document.querySelector('button[data-bs-target="#moveOverviewTab"]').click();
+        loadAllProjects();
+    } catch (e) { 
+        alert("專案儲存失敗：" + e.message); 
+    } finally { 
+        hideMiniLoading(); 
+    } 
 }
 
 
@@ -1263,6 +1338,7 @@ async function loadWorkerLocations() {
     const eid = document.getElementById('mvEvent').value; currentMvEventId = eid; 
     let undoBtn = document.getElementById('floatingUndoBtn');
     
+    // 💡 修正 Bug 5：未選專案時，強制隱藏浮動撤銷按鈕
     if (!eid) { 
         if (undoBtn) undoBtn.style.display = 'none';
         document.getElementById('mvProgressBox').style.display = 'none'; 
@@ -1793,7 +1869,50 @@ function optimisticToggleStatus(rows, stat) {
 
 async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
 
-function printLocationLabels() { let activeLocs = []; mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); showMiniLoading("生成地點標籤中..."); setTimeout(() => { try { let printHtml = `<div class="preview-paper"><div class="grid-container" style="gap:2px; justify-content:flex-start;">`; activeLocs.sort().forEach(loc => { let qrData = "LOC:" + loc; const qr = new QRious({ value: qrData, size: 150, level: 'M' }); const base64Img = qr.toDataURL('image/png'); printHtml += `<div class="label-box" style="border: 2px solid #0d6efd; background: white;"><div style="font-size:7pt; font-weight:bold; color:#0d6efd; margin-bottom:2px;">📍 典藏地點</div><img src="${base64Img}" class="qr-img" alt="QR" style="width: 2.5cm; height: 2.5cm;"><div class="id-text" style="font-size:9pt; margin-top:5px; white-space:normal; line-height:1.2;">${escapeHTML(loc)}</div></div>`; }); printHtml += `</div></div>`; document.getElementById('printOverlayContent').innerHTML = printHtml; document.getElementById('printOverlayTitle').innerText = "地點 QR 標籤預覽"; document.getElementById('printOverlay').style.display = 'flex'; hideMiniLoading(); } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } }, 50); }
+// 🔥 完美重構：地點 QR 標籤，精準 3x3cm + 裁切線 + 中文名稱
+function printLocationLabels() { 
+    let activeLocs = []; 
+    mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); 
+    if (activeLocs.length === 0) return alert("目前沒有啟用的地點可供列印！"); 
+    
+    showMiniLoading("生成地點標籤中..."); 
+    setTimeout(() => { 
+        try { 
+            let printHtml = `
+            <style>
+                .basic-print-container { display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; padding: 5mm; background: white; margin: 0 auto; width: 210mm; }
+                .fl-card-3x3 { width: 30mm; height: 30mm; background: white; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; page-break-inside: avoid; margin: 0 1mm 1mm 0; border: 0.5px dashed #ccc; padding: 1mm; }
+                .fl-crop-tl, .fl-crop-tr, .fl-crop-bl, .fl-crop-br { position: absolute; width: 3mm; height: 3mm; border-color: #999; border-style: solid; pointer-events: none; }
+                .fl-crop-tl { top: 0; left: 0; border-width: 0.5px 0 0 0.5px; }
+                .fl-crop-tr { top: 0; right: 0; border-width: 0.5px 0.5px 0 0; }
+                .fl-crop-bl { bottom: 0; left: 0; border-width: 0 0 0.5px 0.5px; }
+                .fl-crop-br { bottom: 0; right: 0; border-width: 0 0.5px 0.5px 0; }
+            </style>
+            <div class="preview-paper basic-print-container">`; 
+            
+            activeLocs.sort().forEach(loc => { 
+                let qrData = "LOC:" + loc; 
+                const qr = new QRious({ value: qrData, size: 150, level: 'M' }); 
+                const base64Img = qr.toDataURL('image/png'); 
+                printHtml += `
+                <div class="fl-card-3x3 fl-card">
+                    <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
+                    <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
+                    <img src="${base64Img}" alt="QR" style="width: 22mm; height: 22mm; object-fit: contain; margin-bottom: 0.5mm;">
+                    <div style="font-size: 7.5pt; font-weight: bold; color: #000; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(loc)}</div>
+                </div>`; 
+            }); 
+            printHtml += `</div>`; 
+            document.getElementById('printOverlayContent').innerHTML = printHtml; 
+            document.getElementById('printOverlayTitle').innerText = "地點 QR 標籤預覽"; 
+            document.getElementById('printOverlay').style.display = 'flex'; 
+            
+            if (typeof togglePrintBorders === 'function') togglePrintBorders();
+            hideMiniLoading(); 
+        } catch (e) { hideMiniLoading(); alert("產生列印畫面時發生錯誤：" + e.message); } 
+    }, 50); 
+}
+
 function renderLocationsList(tree) { let allLocs = []; tree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { allLocs.push({ main: m.main, med: s.sub, small: d.label, full: d.val, rowIndex: d.rowIndex, isHidden: d.isHidden, isPending: d.isPending }); }); }); }); let activeLocs = allLocs.filter(r => !r.isHidden), inactiveLocs = allLocs.filter(r => r.isHidden); const groupByMain = (arr) => { return arr.reduce((acc, curr) => { if(!acc[curr.main]) acc[curr.main] = []; acc[curr.main].push(curr); return acc; }, {}); }; const activeGrouped = groupByMain(activeLocs), inactiveGrouped = groupByMain(inactiveLocs); const buildCard = (r) => { let displaySmall = r.small === "(無)" ? r.full : r.small; let displayMedium = r.med === "(本區)" ? "" : r.med; let safeMain = String(r.main).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeMed = String(displayMedium).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeSmall = String(r.small==="(無)"?"":r.small).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let pendingBadge = r.isPending ? `<span class="badge bg-warning text-dark ms-2">☁️ 寫入中...</span>` : ''; let actionBtns = r.isPending ? `<span class="text-muted small">背景處理中...</span>` : `<span class="badge ${!r.isHidden ? 'bg-success' : 'bg-secondary'} me-1" style="cursor:pointer;" onclick="toggleLocStatus(${r.rowIndex}, ${!r.isHidden})">${!r.isHidden ? '已啟用' : '已停用'}</span><button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="openEditLocModal(${r.rowIndex}, '${safeMain}', '${safeMed}', '${safeSmall}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLoc(${r.rowIndex})"><i class="fas fa-trash"></i></button>`; return `<div class="loc-card-new" id="locCard_${r.rowIndex}"><div class="loc-card-header"><div><span class="badge bg-light text-dark border me-1">${escapeHTML(r.main)}</span>${displayMedium ? `<span class="badge bg-light text-dark border">${escapeHTML(displayMedium)}</span>` : ''}${pendingBadge}</div><div>${actionBtns}</div></div><div class="loc-card-title">${escapeHTML(displaySmall)}</div></div>`; }; const buildAccordion = (groupedData, prefixId) => { let keys = Object.keys(groupedData).sort(); if(keys.length === 0) return `<div class="text-muted text-center py-3 small">無資料</div>`; return keys.map((mainKey, idx) => { let items = groupedData[mainKey], colId = `${prefixId}Col${idx}`; return `<div class="accordion-item mb-2 border-0 shadow-sm rounded overflow-hidden"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark py-3" type="button" data-bs-toggle="collapse" data-bs-target="#${colId}" style="background-color: #f8f9fa;">📂 ${escapeHTML(mainKey)} <span class="badge bg-secondary ms-2">共 ${items.length} 處</span></button></h2><div id="${colId}" class="accordion-collapse collapse" data-bs-parent="#${prefixId}"><div class="accordion-body bg-light p-2">${items.map(buildCard).join('')}</div></div></div>`; }).join(''); }; document.getElementById('activeAccordion').innerHTML = buildAccordion(activeGrouped, 'activeAcc'); document.getElementById('inactiveAccordion').innerHTML = buildAccordion(inactiveGrouped, 'inactiveAcc'); document.getElementById('activeLocCount').innerText = activeLocs.length; document.getElementById('inactiveLocCount').innerText = inactiveLocs.length; }
 
 async function addNewLocation() { 
