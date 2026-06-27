@@ -29,6 +29,9 @@ let locScanTarget = "";
 let currentMvEventId = "";
 let mgrPendingData = [], mgrConfirmedData = [];
 
+// 🔥 新增：狀況報告深度編輯時，負責追蹤被移除的雲端照片
+let deletedCondPhotos = [];
+
 // ================= 💡 系統初始化與七天免登入機制 =================
 document.addEventListener("DOMContentLoaded", () => {
     loadSyncQueue();
@@ -208,6 +211,13 @@ async function enterSystem(sys) {
     });
     document.querySelectorAll('#systemTabs .nav-link').forEach(btn => btn.classList.remove('active'));
 
+    // 🔥 修正問題 6：強制清理可能殘留的列印預覽圖層，避免畫面疊加
+    let printOverlays = ['printOverlay', 'printReportOverlay', 'printCondOverlay'];
+    printOverlays.forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+
     document.querySelector(`button[data-bs-target="#${sys}"]`).click();
     
     if(sys === 'move') {
@@ -274,6 +284,14 @@ async function enterSystem(sys) {
 
 function backToHome() {
     stopAllScanners();
+    
+    // 🔥 清理殘留的列印預覽
+    let printOverlays = ['printOverlay', 'printReportOverlay', 'printCondOverlay'];
+    printOverlays.forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+
     document.getElementById('mainApp').style.display = 'none';
     document.getElementById('homeMenu').style.display = 'block';
     window.scrollTo(0, 0);
