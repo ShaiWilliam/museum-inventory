@@ -2,6 +2,7 @@
 // 博物館系統模組功能 (app_modules.js) (前台操作核心)
 // 穩定同步版：包含完整 5 欄位匯入、虛擬鍵盤、草稿記憶與修復的下拉選單
 // 優化：拆分架構，專注處理查詢、建檔、盤點與異動搬運模組
+// 修復：3x3 標籤加入編號與名稱、拔除後台與報告模組以防變數衝突死機
 // ==========================================
 
 // ================= 💡 動態注入前台 UI 介面 =================
@@ -21,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <i class="fas fa-qrcode fs-2 me-3"></i>
                                 <div>
                                     <div class="fs-5">純 QR Code 標籤 (3x3cm)</div>
-                                    <small class="fw-normal text-muted">包含精準裁切線，純粹輸出條碼</small>
+                                    <small class="fw-normal text-muted">包含精準裁切線與編號名稱資訊</small>
                                 </div>
                             </div>
                         </button>
@@ -40,7 +41,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
     </div>
 
-    <!-- 批次匯入 Modal -->
     <div class="modal fade" id="importModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-lg">
@@ -84,7 +84,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
     </div>
 
-    <!-- 檢視/精修購物車 Modal -->
     <div class="modal fade" id="cartModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-lg">
@@ -131,7 +130,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
     </div>
 
-    <!-- 批次編碼 Modal -->
     <div class="modal fade" id="tempCodeModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-lg">
@@ -166,27 +164,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="modal-footer bg-light p-2">
                     <button class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">取消</button>
                     <button class="btn btn-info fw-bold text-white px-4" onclick="applyTempCodes()">✅ 確認套用</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 主查詢模糊搜尋 Modal -->
-    <div class="modal fade" id="mainQuerySearchModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title fw-bold text-warning" style="color: #d39e00 !important;">🔍 搜尋目標藏品</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="input-group mb-3">
-                        <button class="btn btn-secondary text-white fw-bold px-2" type="button" onclick="toggleMainQueryInputMode()" id="btnToggleMainQueryInputMode">⌨️ 切換</button>
-                        <input type="search" id="mainQuerySearchKw" class="form-control border-warning fs-5 fw-bold" placeholder="點擊搜尋編號..." onclick="handleMainQuerySearchClick()" oninput="searchMainQueryItems()" inputmode="none" readonly>
-                    </div>
-                    <div id="mainQuerySearchResult" class="list-group shadow-sm" style="max-height: 250px; overflow-y: auto; padding-bottom: 250px;">
-                        <div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -257,23 +234,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="floatingCartCount" style="font-size: 0.85rem;">0</span>
         </button>
     </div>
-
-    <!-- 🔥 共用虛擬鍵盤 -->
-    <div class="vk-container" id="vkContainer">
-        <div class="d-flex justify-content-between mb-2 px-1">
-            <span class="text-muted fw-bold small">專屬數字鍵盤</span>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold" onclick="closeVK()">▼ 收起</button>
-        </div>
-        <div class="vk-prefix-grid" id="vkPrefixCol"></div>
-        <div class="vk-num-col" id="vkNumCol" style="display:none;">
-            <button class="vk-btn no-select" onclick="vkPress('1')">1</button><button class="vk-btn no-select" onclick="vkPress('2')">2</button><button class="vk-btn no-select" onclick="vkPress('3')">3</button>
-            <button class="vk-btn no-select" onclick="vkPress('4')">4</button><button class="vk-btn no-select" onclick="vkPress('5')">5</button><button class="vk-btn no-select" onclick="vkPress('6')">6</button>
-            <button class="vk-btn no-select" onclick="vkPress('7')">7</button><button class="vk-btn no-select" onclick="vkPress('8')">8</button><button class="vk-btn no-select" onclick="vkPress('9')">9</button>
-            <button class="vk-btn vk-btn-action no-select" onclick="vkBackspace()">⌫</button><button class="vk-btn no-select" onclick="vkPress('0')">0</button><button class="vk-btn vk-btn-action no-select" onclick="vkClear()">C</button>
-            <button class="vk-btn vk-btn-primary no-select" onclick="closeVK(); dispatchVkSearch();">🔍 搜尋</button>
-        </div>
-    </div>
     `;
+    // 將前台共用與搬運 Modal 注入
     document.body.insertAdjacentHTML('beforeend', dynamicModals);
 
     const phase1 = document.getElementById('mvPhase1');
@@ -374,13 +336,15 @@ function selectModalLoc(val) {
         let item = parsedImportItems.find(x => x.finalId === id); 
         if (item) item.loc = val; 
         renderImportPreview(); 
-        bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
+        let modalEl = document.getElementById('locModal');
+        if(modalEl) bootstrap.Modal.getInstance(modalEl).hide(); 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show(); 
     } else { 
         document.getElementById(currentModalTarget).value = val; 
         let displayInput = document.getElementById(currentModalTarget + 'Display'); 
         if(displayInput) displayInput.value = val; 
-        bootstrap.Modal.getInstance(document.getElementById('locModal')).hide(); 
+        let modalEl = document.getElementById('locModal');
+        if(modalEl) bootstrap.Modal.getInstance(modalEl).hide(); 
         if (currentModalTarget === 'mvLoc') { loadWorkerItems(); } 
         else if (currentModalTarget === 'miscLoc') { bootstrap.Modal.getOrCreateInstance(document.getElementById('miscModal')).show(); } 
     } 
@@ -414,6 +378,7 @@ function toggleMainQueryInputMode() {
 }
 
 function applyVkState(input, btn) {
+    if(!input || !btn) return;
     if (useVK) { 
         input.setAttribute('inputmode', 'none'); input.setAttribute('readonly', 'true'); 
         input.placeholder = "點擊搜尋(虛擬鍵盤)..."; 
@@ -467,9 +432,9 @@ function vkClear() {
     dispatchVkSearch(); 
 }
 function dispatchVkSearch() {
-    if (currentVkInputId === 'mvSearchKw') searchWorkerItems();
+    if (currentVkInputId === 'mvSearchKw' && typeof searchWorkerItems === 'function') searchWorkerItems();
     else if (currentVkInputId === 'condSearchKw' && typeof searchCondItems === 'function') searchCondItems();
-    else if (currentVkInputId === 'mainQuerySearchKw') searchMainQueryItems();
+    else if (currentVkInputId === 'mainQuerySearchKw' && typeof searchMainQueryItems === 'function') searchMainQueryItems();
 }
 
 function renderVkPrefixes() {
@@ -620,7 +585,7 @@ function enableManualLocInput() {
     } else {
         let parsedIdx = parseInt(currentBsTargetRow); 
         let input = document.getElementById(`prevLoc_${parsedIdx}`); 
-        input.removeAttribute('readonly'); input.focus(); 
+        if(input) { input.removeAttribute('readonly'); input.focus(); }
     }
 }
 
@@ -683,7 +648,6 @@ function openMainQuerySearchModal() {
     document.getElementById('mainQuerySearchKw').value = '';
     document.getElementById('mainQuerySearchResult').innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('mainQuerySearchModal')).show();
-    // 延遲觸發虛擬鍵盤，確保 Bootstrap 動畫完成
     setTimeout(() => {
         currentVkInputId = 'mainQuerySearchKw';
         useVK = true;
@@ -787,7 +751,7 @@ function togglePrintBorders() {
     });
 }
 
-// 🔥 完美重構：產生純粹乾淨的 QR Code 格式，精準 3x3cm + 裁切線
+// 🔥 修正問題 2：QR Code 標籤 (3x3cm) 增加下方資訊文字排版
 function generateBasicPrintHtml() {
     let printHtml = `
     <style>
@@ -802,14 +766,20 @@ function generateBasicPrintHtml() {
     <div class="preview-paper basic-print-container">`; 
     
     printCartMap.forEach((data, id) => { 
+        let catObj = globalCatalog[id] || {};
         const urlStr = `https://shaiwilliam.github.io/museum-inventory/?id=${encodeURIComponent(id)}`; 
         const qr = new QRious({ value: urlStr, size: 150, level: 'M' }); 
         const base64Img = qr.toDataURL('image/png'); 
+        let displayId = String(id).replace(/\n/g, ' ');
+        let displayName = catObj.name || data.name || '未知名稱';
+
         printHtml += `
         <div class="fl-card-3x3 fl-card">
             <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
             <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
-            <img src="${base64Img}" alt="QR" style="width: 26mm; height: 26mm; object-fit: contain;">
+            <img src="${base64Img}" alt="QR" style="width: 18mm; height: 18mm; object-fit: contain; margin-bottom: 0.5mm;">
+            <div style="font-size: 6.5pt; font-weight: bold; color: #000; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1;">${escapeHTML(displayId)}</div>
+            <div style="font-size: 5.5pt; color: #333; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1;">${escapeHTML(displayName)}</div>
         </div>`; 
     }); 
     
