@@ -254,6 +254,6 @@ html, body {
     .preview-paper, .cond-print-paper { box-shadow: none; margin: 0; padding: 0; border-radius: 0; max-width: none; min-height: auto; }
     .title-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     
-    /* 強制清除所有硬體邊距，鎖定直式 A4，完美解決出血問題 */
+    /* 🔥 強制清除所有硬體邊距，鎖定直式 A4，完美解決出血問題與疊加 Bug */
     @page { size: A4 portrait; margin: 0; }
 }
