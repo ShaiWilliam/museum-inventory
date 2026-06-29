@@ -236,9 +236,13 @@ async function enterSystem(sys) {
         if(typeof resetQueryUI === 'function') resetQueryUI();
     }
 
-    // 💡 修正問題 4：進入狀況報告時，自動觸發資料刷新
+    // 💡 修正問題 4：進入狀況報告時，強制回到總覽畫面並觸發資料刷新
     if (sys === 'cond') {
-        if(typeof loadConditionReports === 'function') loadConditionReports();
+        if(typeof backToCondDashboard === 'function') {
+            backToCondDashboard(true);
+        } else if(typeof loadConditionReports === 'function') {
+            loadConditionReports();
+        }
     }
     
     // 💡 修正：進入盤點系統時，主動渲染地點清單，並檢查是否有進度暫存
