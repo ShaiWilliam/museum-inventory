@@ -1,7 +1,7 @@
 // ==========================================
-// 博物館系統：後台管理與狀況報告模組 (app_reports_mgr.js)
+// 博物館系統：後台管理與狀況報告模組 (app_reports_mgr.js) (純前端邏輯)
 // 包含：管理員異動審核、空間架構管理、狀況報告 A4 排版、相簿畫廊與雲端同步刪除
-// 修復：補齊遺失的後台審核購物車宣告，確實解決載入資料失敗的 Bug
+// 徹底修復：移除所有後端 GAS 語法，解決 SyntaxError 導致的畫面凍結問題
 // ==========================================
 
 // ================= 💡 管理員後台獨立變數宣告 =================
@@ -11,7 +11,7 @@ let locUpdateQueue = [];
 let isLocAdding = false;
 let isLocSyncing = false;
 
-// 🔥 修正問題 3：補齊管理員後台審核所需的獨立購物車變數，防止變數未定義報錯
+// 🔥 補齊管理員後台審核所需的獨立購物車變數
 let mgrPendingCart = new Set();
 let mgrConfirmedCart = new Set();
 
@@ -25,7 +25,7 @@ let condMode = 1;
 let condReportsCache = [];
 let vendorFileData = null;
 
-// ================= 💡 管理員後台 (加入購物車與樂觀更新) =================
+// ================= 💡 管理員後台 (強制覆寫與異動審核) =================
 function parseOverrideData() { 
     const raw = document.getElementById('importOverrideTextarea').value.trim(); 
     if(!raw) return alert("請先貼上資料！"); 
@@ -135,6 +135,7 @@ function renderTable(tid, data, type, edit) {
     let cls = type === 'pending' ? 'chk-pend' : 'chk-conf';
 
     document.querySelector(`#${tid} tbody`).innerHTML = data.map(x => { 
+        let safeLoc = String(x.newLoc).replace(/'/g, "\\'").replace(/"/g, "&quot;"); let safeBox = String(x.boxName).replace(/'/g, "\\'").replace(/"/g, "&quot;"); 
         let tcBadge = x.tempCode ? `<span class="badge bg-info text-dark ms-1"><i class="fas fa-tag"></i> ${escapeHTML(x.tempCode)}</span>` : ''; 
         let displayId = String(x.qrCode).replace(/\n/g, ' '); 
         let expectedWarning = x.isExpectedChanged ? `<br><small class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> 地點已變更</small>` : ''; 
@@ -344,9 +345,17 @@ function optimisticToggleStatus(rows, stat) {
     applyMgrFilters();
 }
 
-async function syncToMaster() { if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; showMiniLoading('寫入總表中...'); try { let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } }
+async function syncToMaster() { 
+    if(!confirm("確定要結案同步嗎？(系統將自動略過雜物)")) return; 
+    showMiniLoading('寫入總表中...'); 
+    try { 
+        let res = await callAPI('syncToMaster', { eventId: document.getElementById('mgrEvent').value }); 
+        if (res && typeof res.count !== 'undefined') { alert(`✅ 結案成功！共更新了 ${res.count} 筆文物地點。`); } else { alert('✅ 結案指令已送出。'); } 
+        loadManagerData(); callAPI('getInventoryInitData').then(invData => { globalCatalog = invData.catalog || {}; }); refreshSystem('mgr'); 
+    } catch(e) { alert("失敗：" + e.message); hideMiniLoading(); } 
+}
 
-// 🔥 完美重構：地點 QR 標籤，精準 3x3cm + 裁切線 + 中文名稱
+// ================= 💡 空間架構與地點生成 =================
 function printLocationLabels() { 
     let activeLocs = []; 
     mgrLocTree.forEach(m => { m.subs.forEach(s => { s.details.forEach(d => { if (!d.isHidden) activeLocs.push(d.val); }); }); }); 
@@ -376,7 +385,7 @@ function printLocationLabels() {
                     <div class="fl-crop-tl"></div><div class="fl-crop-tr"></div>
                     <div class="fl-crop-bl"></div><div class="fl-crop-br"></div>
                     <img src="${base64Img}" alt="QR" style="width: 22mm; height: 22mm; object-fit: contain; margin-bottom: 0.5mm;">
-                    <div style="font-size: 7.5pt; font-weight: bold; color: #000; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(loc)}</div>
+                    <div style="font-size: 7.5pt; font-weight: bold; color: #000; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1;">${escapeHTML(loc)}</div>
                 </div>`; 
             }); 
             printHtml += `</div>`; 
@@ -438,6 +447,244 @@ async function toggleLocStatus(rowIndex, setHidden) { showSyncToast('狀態更�
 async function deleteLoc(rowIndex) { if(!confirm("⚠️ 警告：確定要刪除這個地點嗎？")) return; showMiniLoading('刪除地點中...'); try { const newTree = await callAPI('deleteLocation', { rowIndex: rowIndex }); globalLocTree = newTree.locTree; mgrLocTree = newTree.mgrLocTree; renderLocationsList(mgrLocTree); } catch(e) { alert("刪除失敗：" + e.message); } finally { hideMiniLoading(); } }
 
 // ================= 💡 藏品狀況報告表 核心邏輯 =================
+
+function toggleOtherInput(chkId, txtId) {
+    const chk = document.getElementById(chkId);
+    const txt = document.getElementById(txtId);
+    if (chk && txt) {
+        txt.style.display = chk.checked ? 'inline-block' : 'none';
+        if (!chk.checked) txt.value = '';
+    }
+}
+
+function toggleMaintOpt() {
+    const chk = document.getElementById('c_purp_1');
+    const area = document.getElementById('c_purp_maint_opt_area');
+    if (chk && area) {
+        area.style.display = chk.checked ? 'inline-block' : 'none';
+        if (!chk.checked) {
+            document.getElementById('c_purp_maint_bf').checked = false;
+            document.getElementById('c_purp_maint_af').checked = false;
+        }
+    }
+}
+
+function getCheckedValues(selector) {
+    return Array.from(document.querySelectorAll(selector + ':checked')).map(cb => cb.value);
+}
+
+function jumpToConditionReport() {
+    const rawId = document.getElementById('qResId').innerText.trim();
+    if(!rawId || rawId === '--') return alert("無法獲取藏品編號！");
+    enterSystem('cond').then(() => { 
+        setTimeout(() => {
+            if(globalCatalog[rawId]) {
+                selectCondTarget(rawId); 
+            } else {
+                alert("請先手動搜尋藏品。");
+                openCondSearchModal();
+            }
+        }, 300); 
+    });
+}
+
+async function loadConditionReports() {
+    showMiniLoading('載入報告清單...');
+    try {
+        const reports = await callAPI('getConditionReports');
+        condReportsCache = reports; 
+        const container = document.getElementById('condReportListContainer');
+        if(reports.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4 small">目前尚無任何報告紀錄。</div>';
+            return;
+        }
+        
+        container.innerHTML = reports.map(r => {
+            let badge = '';
+            if(r.reportType === '1') badge = '<span class="badge bg-primary">例行檢視</span>';
+            else if(r.reportType === '2') badge = '<span class="badge bg-warning text-dark">提借修復</span>';
+            else badge = '<span class="badge bg-danger">廠商報告</span>';
+            
+            let photoIndicator = r.photos && r.photos.length > 0 ? `<span class="badge bg-light text-secondary border ms-1"><i class="fas fa-image"></i> ${r.photos.length}</span>` : '';
+
+            let actionBtns = '';
+            if (r.reportType === '3') {
+                actionBtns = `<button class="btn btn-sm btn-outline-danger fw-bold w-100 mt-2" onclick="window.open('${escapeHTML(r.formData.fileUrl)}', '_blank')">🔗 檢視外部檔案</button>`;
+            } else {
+                actionBtns = `<div class="text-center mt-2 small text-primary fw-bold"><i class="fas fa-search"></i> 點擊預覽報告</div>`;
+            }
+
+            return `
+            <div class="card border-0 shadow-sm mb-2" ${r.reportType !== '3' ? `style="cursor:pointer;" onclick="openCondPreview('${escapeHTML(r.reportId)}')" ` : ''}>
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="fw-bold text-dark">${escapeHTML(r.itemId)}</div>
+                        ${badge}
+                    </div>
+                    <div class="small text-primary fw-bold mb-1">${escapeHTML(r.itemName)}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 border-bottom pb-2">
+                        <small class="text-muted"><i class="far fa-clock"></i> ${escapeHTML(r.timestamp)}</small>
+                        <div>
+                            <small class="text-muted me-2"><i class="far fa-user"></i> ${escapeHTML(r.managerName)}</small>
+                            ${photoIndicator}
+                        </div>
+                    </div>
+                    ${actionBtns}
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        alert("載入報告失敗：" + e.message);
+    } finally {
+        hideMiniLoading();
+    }
+}
+
+function openCondGallery() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condGalleryModal')).show();
+    renderCondGallery();
+}
+
+function renderCondGallery() {
+    const container = document.getElementById('condGalleryContainer');
+    let html = '';
+    condReportsCache.forEach(r => {
+        if (r.reportType !== '3' && r.photos && r.photos.length > 0) {
+            html += `<div class="col-12"><h6 class="fw-bold text-dark border-bottom pb-2 mt-2">📄 ${escapeHTML(r.itemId)} - ${escapeHTML(r.itemName)} <br><small class="text-muted fw-normal">${escapeHTML(r.timestamp)}</small></h6></div>`;
+            r.photos.forEach(url => {
+                if (url) {
+                    html += `
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <img src="${url}" class="card-img-top" style="height: 150px; object-fit: cover; cursor:pointer;" onclick="window.open('${url}', '_blank')" alt="Photo">
+                            <div class="card-body p-2 text-center">
+                                <button class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="window.open('${url}', '_blank')"><i class="fas fa-external-link-alt"></i> 開啟原檔</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+            });
+        }
+    });
+    if(html === '') html = '<div class="text-center text-muted w-100 py-4">目前沒有任何圖檔紀錄。</div>';
+    container.innerHTML = html;
+}
+
+function openCondSearchModal() {
+    document.getElementById('condSearchKw').value = '';
+    document.getElementById('condSearchResult').innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+    currentVkInputId = 'condSearchKw';
+    closeVK();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('condSearchModal')).show();
+}
+
+function searchCondItems() {
+    const kwStr = document.getElementById('condSearchKw').value.toLowerCase().trim();
+    const keywords = kwStr ? kwStr.split(/\s+/) : [];
+    const container = document.getElementById('condSearchResult');
+    
+    if(keywords.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">請輸入藏品編號或名稱</div>';
+        return;
+    }
+    
+    let results = Object.values(globalCatalog).filter(item => {
+        let targetStr = `${item.id} ${item.name}`.toLowerCase();
+        return keywords.every(k => targetStr.includes(k));
+    }).slice(0, 50);
+    
+    if(results.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">查無藏品</div>';
+        return;
+    }
+    
+    container.innerHTML = results.map(item => `
+        <button class="list-group-item list-group-item-action p-3" onclick="selectCondTarget('${escapeHTML(item.id)}')">
+            <div class="fw-bold text-primary">${escapeHTML(item.id)}</div>
+            <div class="small text-dark">${escapeHTML(item.name)}</div>
+            <div class="small text-muted mt-1">📍 ${escapeHTML(item.location)}</div>
+        </button>
+    `).join('');
+}
+
+function selectCondTarget(id) {
+    const cat = globalCatalog[id];
+    if(!cat) return;
+    
+    condCurrentItem = cat;
+    let modalEl = document.getElementById('condSearchModal');
+    if (modalEl) {
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+    }
+    
+    document.getElementById('condDashboard').style.display = 'none';
+    document.getElementById('condFormArea').style.display = 'none';
+    document.getElementById('condVendorUploadArea').style.display = 'none';
+    
+    document.getElementById('condTargetItemLabel').innerText = `${cat.id} - ${cat.name}`;
+    document.getElementById('condScenarioSelect').style.display = 'block';
+}
+
+function backToCondDashboard(forceRefresh = false) {
+    document.getElementById('condScenarioSelect').style.display = 'none';
+    document.getElementById('condFormArea').style.display = 'none';
+    document.getElementById('condVendorUploadArea').style.display = 'none';
+    document.getElementById('condDashboard').style.display = 'block';
+    if(forceRefresh) loadConditionReports();
+}
+
+function startCondReport(type) {
+    condMode = type;
+    document.getElementById('condScenarioSelect').style.display = 'none';
+    
+    if (type === 3) {
+        document.getElementById('vendorReportInput').value = '';
+        document.getElementById('vendorFileInfo').innerText = '';
+        document.getElementById('condVendorUploadArea').style.display = 'block';
+    } else {
+        condPhotos = [];
+        deletedCondPhotos = []; 
+        removeMainPhoto();
+        renderCondPhotos();
+        document.getElementById('cf_reportId').value = ''; 
+        document.getElementById('condFormTitle').innerText = '📝 填寫新報告';
+        
+        let txtIds = [
+            'cf_projectName', 'cf_oldId', 'cf_tf_purpose', 'cf_tf_outDate', 'cf_tf_outGiver', 
+            'cf_tf_outTaker', 'cf_tf_inDate', 'cf_tf_inGiver', 'cf_tf_inTaker', 'cf_tf_note', 
+            'cf_conditionDesc', 'cf_otherCond', 'cf_unit', 'cf_viewer', 'cf_tf_special',
+            'c_app_other_txt', 'c_str_other_txt', 'c_med_other_txt', 'c_bio_other_txt',
+            'c_pre_other_txt', 'c_tre_other_txt', 'c_loan_other_txt', 'c_purp_other_txt'
+        ];
+        txtIds.forEach(id => { let el = document.getElementById(id); if(el) { el.value = ''; el.style.display = el.id.includes('other_txt') ? 'none' : el.style.display; } });
+        
+        document.querySelectorAll('.chk-appearance, .chk-structure, .chk-medium, .chk-bio, .chk-preserv, .chk-treat, .chk-loan, .chk-purp, .chk-tf-purp, .chk-tf-attach').forEach(cb => cb.checked = false);
+        document.getElementById('c_purp_maint_opt_area').style.display = 'none';
+        document.getElementById('c_purp_maint_bf').checked = false;
+        document.getElementById('c_purp_maint_af').checked = false;
+        let rate1 = document.getElementById('c_rate_1'); if(rate1) rate1.checked = false;
+        let rate2 = document.getElementById('c_rate_2'); if(rate2) rate2.checked = false;
+        let rate3 = document.getElementById('c_rate_3'); if(rate3) rate3.checked = false;
+        let rate4 = document.getElementById('c_rate_4'); if(rate4) rate4.checked = false;
+        
+        document.getElementById('cf_newId').value = condCurrentItem.id;
+        document.getElementById('cf_name').value = condCurrentItem.name;
+        document.getElementById('cf_propNum').value = condCurrentItem.propNum || '';
+        document.getElementById('cf_loc').value = condCurrentItem.location || '';
+        document.getElementById('cf_material').value = condCurrentItem.formatMaterial || '';
+        document.getElementById('cf_size').value = condCurrentItem.size || '';
+        document.getElementById('cf_author').value = condCurrentItem.author || '';
+        document.getElementById('cf_note').value = condCurrentItem.note || '';
+        document.getElementById('cf_qty').value = '1';
+        
+        document.getElementById('cf_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('cf_viewer').value = currentManager;
+        
+        document.getElementById('condTransferSection').style.display = (type === 2) ? 'block' : 'none';
+        document.getElementById('condFormArea').style.display = 'block';
+    }
+}
 
 function openCondPreview(reportId) {
     const report = condReportsCache.find(r => r.reportId === reportId);
@@ -651,7 +898,7 @@ function removeCondPhoto(idx) {
     if(confirm('確定要移除這張圖示嗎？(若是雲端歷史照片，儲存後將同步刪除原檔)')) { 
         let targetPhoto = condPhotos[idx];
         if (targetPhoto.url) {
-            deletedCondPhotos.push(targetPhoto.url);
+            deletedCondPhotos.push(targetPhoto.url); 
         }
         condPhotos.splice(idx, 1); 
         renderCondPhotos(); 
@@ -727,7 +974,7 @@ async function submitConditionReport() {
         reportType: condMode.toString(),
         formData: d,
         photos: allPhotos,
-        deletedPhotos: deletedCondPhotos
+        deletedPhotos: deletedCondPhotos 
     };
 
     showMiniLoading('正在儲存報告與雲端檔案管理中...');
@@ -783,7 +1030,7 @@ function getCondPrintHtml(d, photosArray, mode, currentMainBase64 = null) {
     let afMark = (isMaint && d.maintState === '修護後') ? '<span class="circle-mark">後</span>' : '後';
     let maintOptHtml = `${isMaint?'■':'□'} 維護(${bfMark}/${afMark})`;
     let purpOptHtml = ['提借','返還'].map(o => `${purpVals.includes(o)?'■':'□'} ${o}`).join('&nbsp;&nbsp;');
-    let purpOtherHtml = `${purpVals.includes('其他')?'■':'□'} 其他：<u>&nbsp;${escapeHTML(purpVals.includes('開立')?d.purpOther:'')}&nbsp;</u>`;
+    let purpOtherHtml = `${purpVals.includes('其他')?'■':'□'} 其他：<u>&nbsp;${escapeHTML(purpVals.includes('其他')?d.purpOther:'')}&nbsp;</u>`;
     let finalPurpStr = `${maintOptHtml}&nbsp;&nbsp;${purpOptHtml}&nbsp;&nbsp;${purpOtherHtml}`;
 
     let rateOpts = ['1良好(無修護需求)','2尚可(需維護處理)','3不佳(需修護處理)','4緊急(需優先處理)'];
