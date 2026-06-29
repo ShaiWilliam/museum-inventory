@@ -243,7 +243,7 @@ html, body {
         display: none !important;
     }
     
-    #mainApp, #homeMenu, #authScreen, .modal, .modal-backdrop, .offcanvas, .vk-container { 
+    #mainApp, #homeMenu, #authScreen, .modal, .modal-backdrop, .offcanvas, .vk-container, #syncToast, #miniLoading, #splashScreen, #loc-reader-container { 
         display: none !important; 
     }
     
@@ -257,6 +257,7 @@ html, body {
         background: #fff !important;
         left: 0 !important;
         top: 0 !important;
+        z-index: 1 !important;
     }
     
     /* 3. 隱藏列印圖層的上方操作列 */
